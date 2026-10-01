@@ -1,0 +1,5 @@
+node_modules
+dist
+*.log
+# Blender auto-backups
+*.blend1

@@ -1,0 +1,63 @@
+/* Season indicator, injected into the clock bar (see ui.ts). Uses the HUD's colour variables. */
+
+.season-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-right: 14px;
+  margin-right: -2px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  font-family: var(--serif);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.season-chip.floating {
+  position: fixed;
+  top: 60px;
+  right: 14px;
+  padding: 6px 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+}
+.sc-icon {
+  font-size: 17px;
+  line-height: 1;
+}
+.sc-day {
+  font: 12px var(--sans);
+  color: var(--muted);
+}
+.sc-bar {
+  position: absolute;
+  left: 0;
+  right: 14px;
+  bottom: -5px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.sc-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+}
+.sc-note {
+  font: 600 11px var(--sans);
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: var(--warn);
+  background: rgba(255, 210, 122, 0.16);
+}
+.sc-note.warn {
+  animation: sc-pulse 2.4s ease-in-out infinite;
+}
+@keyframes sc-pulse {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
