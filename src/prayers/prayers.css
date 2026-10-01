@@ -1,0 +1,221 @@
+/* Prayers & advisors: soft parchment bubbles over villages, two little advisor cards. */
+
+.prayer-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------- bubbles */
+
+.pr-bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 214px;
+  padding: 7px 12px 8px 8px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fbf1d3, #efdcab);
+  border: 1px solid #c4a35e;
+  color: #4b3820;
+  font: 600 12.5px/1.3 var(--sans);
+  box-shadow: 0 4px 14px rgba(40, 28, 10, 0.4), inset 0 0 14px rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+  transform-origin: 50% 100%;
+  opacity: 0;
+  transition: opacity 0.5s ease, filter 0.3s ease;
+  will-change: transform;
+}
+.pr-bubble.show {
+  opacity: 0.97;
+}
+.pr-bubble:hover {
+  filter: brightness(1.06);
+  opacity: 1;
+}
+.pr-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: #efdcab;
+  border-right: 1px solid #c4a35e;
+  border-bottom: 1px solid #c4a35e;
+  transform: rotate(45deg);
+}
+.pr-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(160, 120, 50, 0.35);
+}
+.pr-text {
+  min-width: 0;
+}
+.pr-bar {
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(120, 90, 40, 0.2);
+  overflow: hidden;
+}
+.pr-bar > div {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #c4a35e, #7bbf6a);
+  transition: width 0.4s ease;
+}
+.pr-bubble.done {
+  background: linear-gradient(180deg, #e9f6d4, #cfe9b0);
+  border-color: #7bb06a;
+}
+.pr-bubble.done::after {
+  background: #cfe9b0;
+  border-color: #7bb06a;
+}
+.pr-bubble.done .pr-icon {
+  background: #7bbf6a;
+  color: #fff;
+  font-weight: 800;
+}
+.pr-bubble.fading {
+  opacity: 0 !important;
+}
+/* Off-screen prayers shrink to a small pill pinned to the screen edge. */
+.pr-bubble.edge {
+  padding: 4px;
+  border-radius: 50%;
+  opacity: 0.8;
+}
+.pr-bubble.edge .pr-text,
+.pr-bubble.edge::after {
+  display: none;
+}
+
+/* The small "help" flag over a lost villager. */
+.pr-help {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 2px 9px 3px;
+  border-radius: 10px;
+  background: #fbf1d3;
+  border: 1px solid #c4a35e;
+  color: #7a3b22;
+  font: 700 11px var(--sans);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(40, 28, 10, 0.4);
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.pr-help.show {
+  opacity: 0.95;
+}
+.pr-help b {
+  display: inline-block;
+  animation: pr-bob 1s ease-in-out infinite;
+}
+@keyframes pr-bob {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* ------------------------------------------------------------ advisors */
+
+.adv-card {
+  position: absolute;
+  left: 14px;
+  bottom: 18px;
+  width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 9px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--adv, var(--panel-edge));
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4), 0 0 18px color-mix(in srgb, var(--adv, #fff) 22%, transparent);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+.adv-card.show {
+  opacity: 1;
+  transform: none;
+}
+.adv-card.spirit {
+  --adv: #bfe6ff;
+}
+.adv-card.imp {
+  --adv: #ff9d6b;
+}
+.adv-face {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--adv) 40%, #1b1824), #14111c 75%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--adv) 60%, transparent);
+}
+.adv-face svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.adv-card.show .adv-mouth {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: adv-talk 0.22s ease-in-out 6;
+}
+@keyframes adv-talk {
+  50% {
+    transform: scaleY(0.45);
+  }
+}
+.adv-name {
+  font-family: var(--serif);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--adv);
+  margin-bottom: 2px;
+}
+.adv-text {
+  font-size: 13px;
+  line-height: 1.38;
+  color: var(--text);
+}
+.adv-spirit-glow {
+  animation: adv-glow 3s ease-in-out infinite;
+}
+@keyframes adv-glow {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (max-width: 720px) {
+  .adv-card {
+    width: calc(100vw - 28px);
+  }
+}
