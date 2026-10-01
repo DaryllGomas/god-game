@@ -73,7 +73,9 @@ Put supporting modules in your own folder, e.g. `src/prayers/`.
 
 ## Working alongside other agents
 
-Several agents work in this repo at the same time. It is **not** under git, so a clobbered file is lost.
+Several agents work in this repo at the same time.
+- It's under git (`DaryllGomas/god-game`), but **agents don't commit, push or deploy**; the orchestrator does that.
+- Uncommitted work can still be clobbered, so the rules below still apply.
 - **Edit only the files your brief says you own**, plus new files you create.
 - If you truly must touch a shared file (`Game.ts`, `HUD.ts`, `Controls.ts`, `config.ts`, `Village.ts`, `Villager.ts`, `Buildings.ts`, `Nature.ts`, `Audio.ts`, ...):
   - Make the **smallest possible edit** with the Edit tool. Never rewrite the whole file, never reformat, never revert anything you didn't write.
