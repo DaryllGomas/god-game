@@ -17,6 +17,21 @@ npm run dev        # http://localhost:5173
 npm run build      # typecheck + production build into dist/
 ```
 
+## Play it online
+
+**https://daryllgomas.github.io/god-game/** (GitHub Pages, from the `gh-pages` branch of `DaryllGomas/god-game`).
+
+To publish a new version, push the source and then deploy. Do this as the DaryllGomas account, which owns the repo:
+
+```bash
+gh auth switch --user DaryllGomas
+git push                 # the source, to main
+npm run deploy           # builds, then force-pushes dist/ to the gh-pages branch
+gh auth switch --user Namkuzu-da-OS
+```
+
+The site updates within a minute or two. Saves live in each browser's own storage for that site, so the online island and your `localhost` island are separate.
+
 ## Controls
 
 | Action | Input |

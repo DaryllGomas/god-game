@@ -4,7 +4,8 @@ Notable changes to God Game, newest first. Dates are when each change landed.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- **The game is online** at https://daryllgomas.github.io/god-game/. The source is in the public repo `DaryllGomas/god-game`, and `npm run deploy` publishes a new version.
 
 ## [0.3.0] - 2026-10-01: The living island
 
