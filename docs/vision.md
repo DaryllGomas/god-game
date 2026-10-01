@@ -4,6 +4,19 @@
 
 It should be **fun, sticky, and a happy place to be.** You want to spend time here for the ambience and beauty alone, and there are real challenges and stakes, but never constant stress. Black & White's balance is the model.
 
+## The universe (2026-10-01)
+
+This game is an **offshoot of THE PATH**, the linear story at the heart of the BigPic Studios universe.
+- At the Nexus you become **Atlas Veyr**, and when you ascend you get your own universe.
+- This island is **one world in it**: you are Atlas Veyr, making your own world.
+- It isn't connected to the story yet, and **"God Game" is a working title**; the real name is still to be chosen.
+
+The source of truth for the lore is the main game repo (`Documents/projects/Game`):
+- `docs/THE_PLAN/CANON.md`: the story.
+- `docs/THE_PLAN/BEYOND_THE_NEXUS_your_own_universe.md`: this game's place in the universe, how it could tie in, and the name ideas.
+- `docs/RESEARCH/03_signs_in_the_sky/`: where the ascension idea came from.
+- `ATLAS_VEYR.md`: who Atlas is.
+
 ## Pillars
 
 1. **A place you want to be.** Beauty and calm come first: day and night, seasons, weather, a soundscape where everything harmonises (see the calm-ambience notes in the audio code).
