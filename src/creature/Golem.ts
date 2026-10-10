@@ -80,6 +80,15 @@ export class Golem extends Entity {
   private shownAlignment = 0;
   private yaw = rng.range(0, Math.PI * 2);
   private moving = 0;
+  // Walking state: stuck detection and which way round a building we're going.
+  private walkOwner: Action | null = null;
+  private walkStuck = 0;
+  private walkClock = 0;
+  private walkX = 0;
+  private walkZ = 0;
+  private detourSide = 0;
+  /** Targets it gave up reaching, until game.time passes the value. */
+  private skip = new Map<Entity, number>();
   private happy = 0;
   private readonly pose: GolemPose = { ...REST_POSE };
   private readonly target: GolemPose = { ...REST_POSE };
@@ -590,12 +599,12 @@ export class Golem extends Entity {
   private findFood(game: Game, key: LearnKey): Food | null {
     const x = this.pos.x;
     const z = this.pos.z;
-    const free = (e: Entity) => !e.held && !e.airborne;
+    const free = (e: Entity) => !e.held && !e.airborne && !((this.skip.get(e) ?? 0) > game.time);
     switch (key) {
       case 'eat:food':
         return game.nearest<Pile>('food', x, z, 150, free);
       case 'eat:crops':
-        return game.nearest<Field>('field', x, z, 150, (e) => (e as Field).ripe && !e.burning);
+        return game.nearest<Field>('field', x, z, 150, (e) => free(e) && (e as Field).ripe && !e.burning);
       case 'eat:villager':
         return game.nearest<Villager>('villager', x, z, 90, (e) => free(e) && !(e as Villager).dead && e.object.visible);
       case 'eat:rock':
@@ -628,13 +637,75 @@ export class Golem extends Entity {
     this.yaw = angleLerp(this.yaw, Math.atan2(p.x - this.pos.x, p.z - this.pos.z), damp(4, dt));
   }
 
-  /** Lumber toward a point; true on arrival within `stop`. */
+  /** Lumber toward a point, steering around buildings; true on arrival within `stop`. */
   private walkTo(game: Game, target: THREE.Vector3, dt: number, stop: number): boolean {
-    const dx = target.x - this.pos.x;
-    const dz = target.z - this.pos.z;
+    if (this.walkOwner !== this.action) {
+      this.walkOwner = this.action;
+      this.walkStuck = 0;
+      this.walkClock = 0;
+      this.walkX = this.pos.x;
+      this.walkZ = this.pos.z;
+      this.detourSide = 0;
+    }
+    const blockers = this.blockers(game);
+    // A target inside a footprint (food on a store, a villager by a door) means its nearest edge.
+    let tx = target.x;
+    let tz = target.z;
+    for (const b of blockers) {
+      const ox = tx - b.x;
+      const oz = tz - b.z;
+      const od = Math.hypot(ox, oz);
+      if (od < b.r + 0.3) {
+        const k = (b.r + 0.3) / Math.max(od, 0.001);
+        tx = od < 0.001 ? b.x + b.r + 0.3 : b.x + ox * k;
+        tz = od < 0.001 ? b.z : b.z + oz * k;
+      }
+    }
+    const dx = tx - this.pos.x;
+    const dz = tz - this.pos.z;
     const d = Math.hypot(dx, dz);
-    if (d < stop) return true;
-    const want = Math.atan2(dx, dz);
+    if (Math.hypot(target.x - this.pos.x, target.z - this.pos.z) < stop || d < 2.5) return true;
+    let want = Math.atan2(dx, dz);
+
+    // Stuck check every 2 s: barely moved means we're jammed on a wall. First try the other way
+    // round, then give up on this action.
+    this.walkClock += dt;
+    if (this.walkClock >= 2) {
+      const moved = Math.hypot(this.pos.x - this.walkX, this.pos.z - this.walkZ);
+      this.walkClock = 0;
+      this.walkX = this.pos.x;
+      this.walkZ = this.pos.z;
+      if (moved < 2) {
+        if (++this.walkStuck >= 2) return this.giveUp(game);
+        this.detourSide = this.detourSide === 0 ? 1 : -this.detourSide;
+      } else this.walkStuck = 0;
+    }
+
+    // Steer along the tangent of the nearest building in the way, on the side nearer the target.
+    let nearest: { x: number; z: number; r: number } | null = null;
+    let nd = Infinity;
+    for (const b of blockers) {
+      const R = b.r + 1.5;
+      // Don't steer around the building we're heading for.
+      if (Math.hypot(tx - b.x, tz - b.z) < R + 1) continue;
+      const bd = Math.hypot(b.x - this.pos.x, b.z - this.pos.z);
+      if (bd > R + 8 || bd >= nd || d < bd - R) continue;
+      const toB = Math.atan2(b.x - this.pos.x, b.z - this.pos.z);
+      if (Math.abs(normalizeAngle(toB - want)) < Math.asin(Math.min(1, R / Math.max(bd, 0.001)))) {
+        nearest = b;
+        nd = bd;
+      }
+    }
+    if (nearest) {
+      const R = nearest.r + 1.5;
+      const toB = Math.atan2(nearest.x - this.pos.x, nearest.z - this.pos.z);
+      const off = Math.asin(Math.min(1, R / Math.max(nd, 0.001))) + 0.15;
+      if (this.detourSide === 0) {
+        this.detourSide = Math.abs(normalizeAngle(toB + off - want)) <= Math.abs(normalizeAngle(toB - off - want)) ? 1 : -1;
+      }
+      want = toB + this.detourSide * off;
+    } else this.detourSide = 0;
+
     this.yaw = angleLerp(this.yaw, want, damp(2.2, dt));
     const facing = Math.cos(want - this.yaw);
     const step = WALK_SPEED * this.size * Math.max(0, facing) * Math.max(0.15, this.moving) * dt;
@@ -644,11 +715,34 @@ export class Golem extends Entity {
     return false;
   }
 
+  /** Stuck for good: drop the action and don't pick that target again for a while. */
+  private giveUp(game: Game): boolean {
+    const a = this.action;
+    if (a.kind === 'eat') this.skip.set(a.target, game.time + 30);
+    else if (a.kind === 'throw') this.skip.set(a.rock, game.time + 30);
+    this.idle(1);
+    return false;
+  }
+
+  /** Buildings the golem has to walk around, with their keep-out radius. */
+  private blockers(game: Game): { x: number; z: number; r: number }[] {
+    const out: { x: number; z: number; r: number }[] = [];
+    game.forEachNear(this.pos.x, this.pos.z, this.radius + 40, (e) => {
+      if (e.kind !== 'house' && e.kind !== 'store' && e.kind !== 'worship') return;
+      out.push({ x: e.pos.x, z: e.pos.z, r: this.blockRadius(e) });
+    });
+    return out;
+  }
+
+  private blockRadius(e: Entity): number {
+    // The worship site is walkable; only keep clear of the totem pole in its middle.
+    return e.kind === 'worship' ? 1.5 + this.radius * 0.5 : e.radius + this.radius * 0.75;
+  }
+
   private avoidBuildings(game: Game) {
     game.forEachNear(this.pos.x, this.pos.z, this.radius + 8, (e) => {
       if (e.kind !== 'house' && e.kind !== 'store' && e.kind !== 'worship') return;
-      // The worship site is walkable; only keep clear of the totem pole in its middle.
-      const r = e.kind === 'worship' ? 1.5 + this.radius * 0.5 : e.radius + this.radius * 0.75;
+      const r = this.blockRadius(e);
       const ox = this.pos.x - e.pos.x;
       const oz = this.pos.z - e.pos.z;
       const d = Math.hypot(ox, oz);

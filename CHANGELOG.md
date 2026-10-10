@@ -4,6 +4,9 @@ Notable changes to God Game, newest first. Dates are when each change landed.
 
 ## [Unreleased]
 
+### Fixed
+- **The golem no longer gets stuck walking into houses.** It steers around buildings on the side nearer its target, walks to the nearest edge when the target sits inside a footprint, and gives up on a target (and picks something else) if it still can't get there.
+
 ### Added
 - **The game is online** at https://daryllgomas.github.io/god-game/. The source is in the public repo `DaryllGomas/god-game`, and `npm run deploy` publishes a new version.
 
