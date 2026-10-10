@@ -1,8 +1,11 @@
 # Changelog
 
-Notable changes to God Game, newest first. Dates are when each change landed.
+Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates are when each change landed.
 
-## [Unreleased]
+## [0.4.0] - 2026-10-10: THE FIRST WORLD
+
+### Changed
+- **The game is THE FIRST WORLD**, "An Atlas Veyr Worldmaker Game" (the name and its TEND mark were chosen on 2026-10-01). It lives at https://studio.bigpicsolutions.com/the-first-world/, and the old github.io address redirects there.
 
 ### Fixed
 - **The golem no longer gets stuck walking into houses.** It steers around buildings on the side nearer its target, walks to the nearest edge when the target sits inside a footprint, and gives up on a target (and picks something else) if it still can't get there.
@@ -11,7 +14,6 @@ Notable changes to God Game, newest first. Dates are when each change landed.
 - **Island codes (cloud saves).** On the title screen you can leave a god name and get a code like `AMBER-OTTER-4821`. Your island is saved to BigPic's own server about once a minute, and the code brings it back on any device or after clearing your browser ("Have an island code?"). The name alone opens nothing; only the code does. Your code is shown again on the title and `?` screen. "Play without a name" keeps today's behaviour: saved on this device only. If the server can't be reached, the game plays on as normal.
 - **Prayers list.** A new prayer still rises over its village as a bubble, then flies into a Prayers panel on the right (under the time bar, above the golem). Each card has the village colour, the request, a progress bar, time left and a help hint; click one to fly there. The panel collapses, scrolls past five, and only a small praying marker with a count stays over each village. Off-screen villages show an edge pill until their bubble flies in.
 - **Easier grabbing and a clear drop marker.** The Hand's pick is forgiving: it reaches a few pixels past a target (scaled by size and camera distance), prefers villagers > food > rocks > trees, and sticks to the current hover. The hovered thing gets a soft gold ring. While carrying, a glowing gold TEND sigil (cradle, orb, sprout, slowly turning orbit arcs) lies on the ground where it will land, with the star axis as a beam of light from the held object; it goes dim red with no beam when the spot is blocked or outside your influence. See `src/hand/DropMarker.ts`.
-- **The game is online** at https://daryllgomas.github.io/god-game/. The source is in the public repo `DaryllGomas/god-game`, and `npm run deploy` publishes a new version.
 
 ## [0.3.0] - 2026-10-01: The living island
 

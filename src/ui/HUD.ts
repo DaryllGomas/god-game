@@ -160,7 +160,7 @@ export class HUD {
     this.help = el('div', 'overlay help');
     this.help.innerHTML = `
       <div class="overlay-card">
-        <h1>God Game</h1>
+        <h1>THE FIRST WORLD</h1>
         <p class="tagline">An island of villagers awaits a god. What kind of god will you be?</p>
         <div class="help-grid">
           <div><b>Grab</b><span>Left-click a villager, tree, rock or food</span></div>

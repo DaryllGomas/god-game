@@ -58,7 +58,12 @@ export function mountCloudPanel(game: Game, help: HTMLElement) {
     };
     const have = el('button', 'cloud-link', 'Have an island code?');
     have.onclick = () => showRestore(restoreBox, have);
-    links.append(skip, have);
+    // A lost code is found by hand: the player writes in through the studio's contact form.
+    const lost = el('a', 'cloud-link', 'Lost your code?');
+    lost.href = 'https://studio.bigpicsolutions.com/#work';
+    lost.target = '_blank';
+    lost.rel = 'noopener';
+    links.append(skip, have, lost);
     const restoreBox = el('div', 'cloud-restore hidden');
     box.append(input, hint, links, restoreBox);
 
@@ -156,7 +161,7 @@ function revealCode(root: HTMLElement, name: string, code: string) {
     el('h1', '', 'Your island code'),
     el('p', 'tagline', `Welcome, ${name}. Keep this code: it is the way back to your island.`),
     codeRow(code),
-    el('p', 'cloud-hint', 'Anyone who has this code can open your island, so share it only with yourself. You can see it again any time in the ? screen.'),
+    el('p', 'cloud-hint', 'Anyone who has this code can open your island, so share it only with yourself. You can see it again any time in the ? screen. Lost it? Write to us at studio.bigpicsolutions.com and we\'ll find it.'),
   );
   const ok = el('button', 'begin', 'Got it');
   ok.onclick = () => o.remove();
