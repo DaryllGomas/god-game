@@ -5,6 +5,7 @@ Notable changes to God Game, newest first. Dates are when each change landed.
 ## [Unreleased]
 
 ### Added
+- **Easier grabbing and a clear drop marker.** The Hand's pick is forgiving: it reaches a few pixels past a target (scaled by size and camera distance), prefers villagers > food > rocks > trees, and sticks to the current hover. The hovered thing gets a soft gold ring. While carrying, a glowing gold TEND sigil (cradle, orb, sprout, slowly turning orbit arcs) lies on the ground where it will land, with the star axis as a beam of light from the held object; it goes dim red with no beam when the spot is blocked or outside your influence. See `src/hand/DropMarker.ts`.
 - **The game is online** at https://daryllgomas.github.io/god-game/. The source is in the public repo `DaryllGomas/god-game`, and `npm run deploy` publishes a new version.
 
 ## [0.3.0] - 2026-10-01: The living island

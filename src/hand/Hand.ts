@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Game } from '../Game';
 import type { Entity } from '../entities/Entity';
 import { HandModel } from './HandModel';
+import { DropMarker } from './DropMarker';
 import { clamp, damp } from '../util/math';
 
 interface Sample {
@@ -16,6 +17,7 @@ const tmp = new THREE.Vector3();
 /** The player's avatar: follows the cursor over the land, grabs, carries and throws. */
 export class Hand {
   readonly model = new HandModel();
+  readonly marker: DropMarker;
   readonly pos = new THREE.Vector3();
   /** Terrain point under the cursor. */
   readonly ground = new THREE.Vector3();
@@ -34,6 +36,7 @@ export class Hand {
 
   constructor(scene: THREE.Scene) {
     scene.add(this.model.root);
+    this.marker = new DropMarker(scene);
   }
 
   /** How far below the palm a held entity's origin sits, so it looks clutched mid-body. */
@@ -87,7 +90,7 @@ export class Hand {
     if (!this.aoRegistered) {
       const ao = (game as unknown as { aoIgnore?: THREE.Object3D[] }).aoIgnore;
       if (ao) {
-        ao.push(...this.model.aoIgnore); // glow sprites stay out of the AO pre-pass
+        ao.push(...this.model.aoIgnore, ...this.marker.aoIgnore); // glow sprites and the drop sigil stay out of the AO pre-pass
         this.aoRegistered = true;
       }
     }
@@ -107,7 +110,20 @@ export class Hand {
     this.history.push({ t: realTime, x: this.pos.x, y: this.pos.y, z: this.pos.z });
     while (this.history.length > 2 && realTime - this.history[0].t > 0.25) this.history.shift();
 
-    game.terrain.setHandSpot(this.ground.x, this.ground.z, this.valid ? this.scale * 1.6 : 0, this.blocked);
+    // The TEND drop sigil replaces the soft ground spot while carrying; the spot returns when the hand is empty.
+    const carrying = !!this.held && this.valid;
+    const h = this.hover;
+    this.marker.update(
+      game.terrain,
+      dt,
+      realTime,
+      cam.distance,
+      this.valid ? this.ground : null,
+      this.held ? this.held.pos : null,
+      this.blocked,
+      h && !this.held ? { x: h.pos.x, z: h.pos.z, radius: Math.max(h.radius, 0.9) } : null,
+    );
+    game.terrain.setHandSpot(this.ground.x, this.ground.z, this.valid && !carrying ? this.scale * 1.6 : 0, this.blocked);
   }
 
   /** World-space velocity of the hand over the last ~0.1s. */
