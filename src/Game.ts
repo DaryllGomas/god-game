@@ -675,6 +675,7 @@ export class Game {
     hand.valid = this.input.inside && this.terrain.raycast(this.raycaster.ray, hand.ground);
     hand.blocked = hand.valid && !this.inInfluence(hand.ground.x, hand.ground.z);
 
+    const prevHover = hand.hover;
     hand.hover = null;
     this.hoverBuilding = null;
     if (!hand.valid || this.controls.mode !== 'none' || this.hud.helpOpen) return;
@@ -708,8 +709,11 @@ export class Game {
           bestBuild = e;
         }
       } else {
-        // Small things get a generous minimum target; nearer the camera wins ties.
-        const score = d / Math.max(rPx * 1.2, 16) + dist * 0.0005;
+        // Forgiving: reach grows with on-screen size (so with entity size and camera distance) plus a
+        // fixed margin; villagers > food > rocks > trees when close, and the current hover sticks a little.
+        const reach = Math.max(rPx * 1.3, 18 * (h / 1080)) + 22 * (h / 1080);
+        const pref = e.kind === 'villager' ? 0.8 : e.kind === 'food' ? 0.9 : e.kind === 'tree' ? 1.15 : 1;
+        const score = (d / reach) * pref * (e === prevHover ? 0.8 : 1) + dist * 0.0003;
         if (score < bestGrabScore) {
           bestGrabScore = score;
           bestGrab = e;
