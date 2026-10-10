@@ -72,3 +72,5 @@ All six were built on 2026-10-01 (version 0.3.0; see `CHANGELOG.md`):
 6. ✅ Save and load.
 
 **Next:** a visual polish pass on houses, villagers, fields and other village props, before going further. After that, tune the mechanics through real play.
+
+> Studio vision hub (canon, marks, style, per-game design): `~/NAS/Cold Data/Studio/Atlas Veyr/` (the source of truth for the vision; copies only live here).
