@@ -5,6 +5,7 @@ import { Golem } from '../creature/Golem';
 import { MIRACLE_INFO, Orb } from '../miracles/Miracles';
 import { Village, bumpVillagerSeed, type VillageSave } from '../village/Village';
 import { SEA_LEVEL, VILLAGE_SITES, WORLD_SEED } from '../config';
+import { forget as forgetCloud, push as pushCloud } from '../cloud/Cloud';
 import './save.css';
 
 /**
@@ -348,6 +349,7 @@ export class SaveSystem {
     try {
       const json = JSON.stringify(serialize(this.game));
       localStorage.setItem(SAVE_KEY, json);
+      pushCloud(json, mode); // no-op without an island code; never throws or waits
       if (mode !== 'quiet') this.showToast(mode === 'manual');
       return json.length;
     } catch (err) {
@@ -356,9 +358,15 @@ export class SaveSystem {
     }
   }
 
+  /** Stop all saving: the page is about to reload with a different island (restored from a code). */
+  freeze() {
+    this.suppress = true;
+  }
+
   /** Wipe the save and start over on a fresh island. */
   newIsland() {
     this.suppress = true; // the page unload below must not write the old island back
+    forgetCloud(); // the old island keeps its code in the cloud; this browser starts fresh
     try {
       localStorage.removeItem(SAVE_KEY);
       // A new island means meeting Lumi and Fizz again from the start.
