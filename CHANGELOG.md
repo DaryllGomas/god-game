@@ -5,6 +5,7 @@ Notable changes to God Game, newest first. Dates are when each change landed.
 ## [Unreleased]
 
 ### Added
+- **Island codes (cloud saves).** On the title screen you can leave a god name and get a code like `AMBER-OTTER-4821`. Your island is saved to BigPic's own server about once a minute, and the code brings it back on any device or after clearing your browser ("Have an island code?"). The name alone opens nothing; only the code does. Your code is shown again on the title and `?` screen. "Play without a name" keeps today's behaviour: saved on this device only. If the server can't be reached, the game plays on as normal.
 - **The game is online** at https://daryllgomas.github.io/god-game/. The source is in the public repo `DaryllGomas/god-game`, and `npm run deploy` publishes a new version.
 
 ## [0.3.0] - 2026-10-01: The living island

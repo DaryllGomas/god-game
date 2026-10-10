@@ -1,0 +1,111 @@
+/* Island codes on the title screen: parchment-and-gold, same family as .begin and .save-summary. */
+.cloud {
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.cloud .hidden {
+  display: none;
+}
+.cloud-label {
+  font-family: var(--serif);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+}
+.cloud-name {
+  width: min(300px, 100%);
+  font-family: var(--serif);
+  font-size: 16px;
+  letter-spacing: 0.05em;
+  text-align: center;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+  padding: 10px 14px;
+  user-select: text;
+}
+.cloud-name::placeholder {
+  color: var(--muted);
+}
+.cloud-name:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+.cloud-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 420px;
+}
+.cloud-links {
+  display: flex;
+  gap: 18px;
+}
+.cloud-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--gold-dim);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.cloud-link:hover {
+  color: var(--gold);
+}
+.cloud-restore {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.cloud-go,
+.cloud-copy {
+  font-family: var(--serif);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  background: rgba(244, 207, 115, 0.1);
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.cloud-go:hover,
+.cloud-copy:hover {
+  background: rgba(244, 207, 115, 0.2);
+}
+.cloud-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cloud-status {
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--warn);
+}
+.cloud-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 6px 0;
+}
+.cloud-code {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(244, 207, 115, 0.35);
+}
+.cloud-reveal {
+  z-index: 50;
+}

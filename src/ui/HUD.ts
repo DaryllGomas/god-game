@@ -8,6 +8,8 @@ import { Tree, Pile } from '../entities/Nature';
 import { Field, House, Store, WorshipSite } from '../entities/Buildings';
 import { VILLAGE } from '../config';
 import { Golem } from '../creature/Golem';
+import { mountCloudPanel } from '../cloud/CloudPanel';
+import { getLink } from '../cloud/Cloud';
 import './hud.css';
 
 type Tone = 'good' | 'bad' | 'info' | 'warn' | 'divine';
@@ -185,6 +187,7 @@ export class HUD {
     this.help.querySelector<HTMLButtonElement>('.begin')!.onclick = () => this.toggleHelp(false);
     this.root.appendChild(this.help);
     this.setupSaveControls();
+    mountCloudPanel(game, this.help);
 
     this.win = el('div', 'overlay win hidden');
     this.root.appendChild(this.win);
@@ -255,7 +258,7 @@ export class HUD {
       box.appendChild(b);
       return;
     }
-    box.appendChild(el('span', 'warn', 'This wipes your saved island for good.'));
+    box.appendChild(el('span', 'warn', getLink() ? 'This clears the island on this device. Your island code still opens the old one.' : 'This wipes your saved island for good.'));
     const yes = el('button', 'danger', 'Yes, start anew');
     yes.onclick = () => saves.newIsland();
     const no = el('button', '', 'Keep my island');
