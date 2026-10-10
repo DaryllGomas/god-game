@@ -5,6 +5,7 @@ Notable changes to God Game, newest first. Dates are when each change landed.
 ## [Unreleased]
 
 ### Added
+- **Prayers list.** A new prayer still rises over its village as a bubble, then flies into a Prayers panel on the right (under the time bar, above the golem). Each card has the village colour, the request, a progress bar, time left and a help hint; click one to fly there. The panel collapses, scrolls past five, and only a small praying marker with a count stays over each village. Off-screen villages show an edge pill until their bubble flies in.
 - **The game is online** at https://daryllgomas.github.io/god-game/. The source is in the public repo `DaryllGomas/god-game`, and `npm run deploy` publishes a new version.
 
 ## [0.3.0] - 2026-10-01: The living island
