@@ -4,6 +4,9 @@ Notable changes to God Game, newest first. Dates are when each change landed.
 
 ## [Unreleased]
 
+### Fixed
+- **The golem no longer gets stuck walking into houses.** It steers around buildings on the side nearer its target, walks to the nearest edge when the target sits inside a footprint, and gives up on a target (and picks something else) if it still can't get there.
+
 ### Added
 - **Island codes (cloud saves).** On the title screen you can leave a god name and get a code like `AMBER-OTTER-4821`. Your island is saved to BigPic's own server about once a minute, and the code brings it back on any device or after clearing your browser ("Have an island code?"). The name alone opens nothing; only the code does. Your code is shown again on the title and `?` screen. "Play without a name" keeps today's behaviour: saved on this device only. If the server can't be reached, the game plays on as normal.
 - **The game is online** at https://daryllgomas.github.io/god-game/. The source is in the public repo `DaryllGomas/god-game`, and `npm run deploy` publishes a new version.
