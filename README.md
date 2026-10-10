@@ -19,14 +19,14 @@ npm run build      # typecheck + production build into dist/
 
 ## Play it online
 
-**https://studio.bigpicsolutions.com/the-first-world/**, the address the studio page links to (a copy of the build in the `bigpic-studio` repo, folder `god-game/`). The same build is also at https://daryllgomas.github.io/god-game/ (the `gh-pages` branch of this repo).
+**https://studio.bigpicsolutions.com/the-first-world/**, the address the studio page links to (a copy of the build in the `bigpic-studio` repo, folder `god-game/`). The old address, daryllgomas.github.io/god-game/, redirects there (the `gh-pages` branch holds only `scripts/redirect/`).
 
 To publish a new version, push the source and then deploy. Do this as the DaryllGomas account, which owns the repo:
 
 ```bash
 gh auth switch --user DaryllGomas
 git push                 # the source, to main
-npm run deploy           # builds, force-pushes dist/ to gh-pages, then copies it into the studio repo and pushes that
+npm run deploy           # builds, copies it into the studio repo and pushes that; refreshes the gh-pages redirect
 gh auth switch --user Namkuzu-da-OS
 ```
 

@@ -1,6 +1,7 @@
-// Publishes the game: builds it, force-pushes dist/ to the `gh-pages` branch (daryllgomas.github.io/god-game/),
-// then copies dist/ into the studio site so it is also live at https://studio.bigpicsolutions.com/the-first-world/
-// (the address the studio page links to).
+// Publishes the game: builds it and copies dist/ into the studio site, live at
+// https://studio.bigpicsolutions.com/the-first-world/ (the only public address).
+// The old address, daryllgomas.github.io/god-game/, is kept as a redirect: the `gh-pages` branch holds only
+// scripts/redirect/ (index.html + 404.html), so every old link lands on the studio.
 // Run with `npm run deploy` while gh is logged in as DaryllGomas (`gh auth switch --user DaryllGomas`).
 // The studio repo is found at ../../sites/bigpic-studio, or wherever STUDIO_DIR points.
 import { execSync } from 'node:child_process';
@@ -12,13 +13,15 @@ const STUDIO = resolve(process.env.STUDIO_DIR || '../../sites/bigpic-studio');
 const run = (cmd, cwd) => execSync(cmd, { stdio: 'inherit', cwd });
 
 run('npm run build');
-writeFileSync('dist/.nojekyll', ''); // serve files as-is, no Jekyll processing
 const rev = execSync('git rev-parse --short HEAD').toString().trim();
-run('git init -q -b gh-pages', 'dist');
-run('git add -A', 'dist');
-run(`git commit -q -m "Deploy ${rev}"`, 'dist');
-run(`git push -q -f ${REMOTE} gh-pages`, 'dist');
-console.log(`Deployed ${rev} to https://daryllgomas.github.io/god-game/`);
+rmSync('.redirect-pages', { recursive: true, force: true });
+cpSync('scripts/redirect', '.redirect-pages', { recursive: true });
+writeFileSync('.redirect-pages/.nojekyll', '');
+run('git init -q -b gh-pages', '.redirect-pages');
+run('git add -A', '.redirect-pages');
+run('git commit -q -m "Redirect to studio.bigpicsolutions.com/the-first-world/"', '.redirect-pages');
+run(`git push -q -f ${REMOTE} gh-pages`, '.redirect-pages');
+rmSync('.redirect-pages', { recursive: true, force: true });
 
 if (!existsSync(`${STUDIO}/CNAME`)) {
   console.log(`Studio repo not found at ${STUDIO}; skipped studio.bigpicsolutions.com/the-first-world/ (set STUDIO_DIR).`);
