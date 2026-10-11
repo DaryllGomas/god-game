@@ -9,7 +9,7 @@ import { INTRO_SEEN_KEY } from '../intro/Intro';
 import { ISLE_POS } from '../rival/RivalVisuals';
 import { Cine } from './Cine';
 import { Collapse, Arrival, arrivalLine, type Stage } from './Collapse';
-import { Ascension, READY } from './Ascension';
+import { Ascension, WHOLE_AT } from './Ascension';
 import { CityLights } from './CityLights';
 import { EndCard } from './EndCard';
 import { RuinModel, ruinSite } from './Ruin';
@@ -53,9 +53,10 @@ type Seq = { frame(dt: number): boolean };
  * - **Collapse** (the self-destructive loop): balance held very low, or every one of your people gone.
  *   Grey, quiet, his spire over the island, the reveal (your hand turns violet), one line from Ora, black.
  *   The world begins again, remembering: a new island with a ruin where the worst act was. No legacy.
- * - **Whole → Ready to See** (the tending loop): every temple stands and the world is in tune. Your hand
- *   and his meet and become one light; the villages become a city of light; the end card. The Legacy
- *   record for the RPG is written as Ready to See begins.
+ * - **Ready to See → Whole** (the tending loop; the RPG storyboard's order): every temple stands and the world
+ *   is in tune. The villages become a city of light at dusk and the people look up; then your hand and his
+ *   meet above the lit city and become one light; the end card. The Legacy record for the RPG is written
+ *   as the sequence begins.
  */
 export class Endings {
   phase: Phase = 'play';
@@ -68,7 +69,7 @@ export class Endings {
   goneFor = 0;
   /** The kindest single thing you did (for the legacy's marks.bestAct). */
   best: { text: string; score: number } | null = null;
-  /** The Legacy record (written at Ready to See; carried in the save as `save.legacy`). */
+  /** The Legacy record (written as the good ending begins; carried in the save as `save.legacy`). */
   legacy: Legacy | null;
   readonly cine: Cine;
   private readonly card: EndCard;
@@ -205,25 +206,26 @@ export class Endings {
     }
   }
 
-  startAscension(fromReady: boolean) {
+  /** The good ending: Ready to See, then Whole, then the end card. `fromWhole` starts at Whole, over the lit city. */
+  startAscension(fromWhole: boolean) {
     if (this.phase !== 'play' && this.phase !== 'after') return;
-    this.phase = fromReady ? 'ready' : 'whole';
+    this.phase = fromWhole ? 'whole' : 'ready';
     this.take();
     const a = new Ascension(
       this.stage,
       () => this.cityLights(),
       () => this.writeLegacy(),
       () => this.showCard(),
-      fromReady,
+      fromWhole,
     );
     a.begin();
     this.ascension = a;
     this.seq = a;
   }
 
-  /** Ready to See: write the Legacy record and save at once (it goes up to Pulse with the cloud save). */
+  /** The sequence begins: write the Legacy record and save at once (it goes up to Pulse with the cloud save). Once. */
   private writeLegacy() {
-    this.phase = 'ready';
+    if (this.phase === 'whole' && this.legacy) return; // a reload mid-Whole: the record was already written when it began
     this.legacy = buildLegacy(this.game, this.lowest, this.best?.text ?? null);
     this.game.saves.save('quiet');
   }
@@ -258,14 +260,14 @@ export class Endings {
       }
       if (this.phase !== 'card') this.seq = null;
     }
-    if (this.ascension && this.phase === 'whole' && this.ascension.phase === 'ready') this.phase = 'ready';
+    if (this.ascension && this.phase === 'ready' && this.ascension.phase === 'whole') this.phase = 'whole';
     // Leaving the card: the night island comes up from black as the card fades.
     if (this.phase === 'card' && this.card.closing) this.cine.setVeil(this.card.level);
     if (this.resume) {
       const r = this.resume;
       this.resume = null;
       if (r === 'collapse') this.startCollapse();
-      else if (r === 'whole' || r === 'ready' || r === 'card') this.startAscension(r !== 'whole');
+      else if (r === 'whole' || r === 'ready' || r === 'card') this.startAscension(r === 'whole' || r === 'card');
     }
     // The city keeps its lights after the ending: lit through the night, resting by day.
     if (this.city) {
@@ -345,7 +347,7 @@ export class Endings {
 
   /**
    * Debug: play an ending now. 'collapse' runs the whole fall and reloads into the new island;
-   * 'whole' plays Whole into Ready to See and the end card; 'ready' starts at Ready to See.
+   * 'ready' plays Ready to See into Whole and the end card; 'whole' starts at Whole, over the lit city.
    */
   debug(kind: 'collapse' | 'whole' | 'ready') {
     if (this.seq) return `busy: ${this.phase}`;
@@ -364,7 +366,7 @@ export class Endings {
       this.startCollapse();
     } else {
       if (this.phase !== 'after') this.phase = 'play';
-      this.startAscension(kind === 'ready');
+      this.startAscension(kind === 'whole');
     }
     return this.phase;
   }
@@ -382,7 +384,7 @@ export class Endings {
       best: this.best?.text ?? null,
       legacy: !!this.legacy,
       sequenceTime: this.seq ? Math.round(((this.seq as unknown as { t?: number }).t ?? 0) * 10) / 10 : null,
-      readyAt: READY,
+      wholeAt: WHOLE_AT,
     };
   }
 }

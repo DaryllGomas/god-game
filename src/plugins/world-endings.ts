@@ -3,7 +3,7 @@ import { Endings } from '../endings/Endings';
 
 /**
  * The two endings (see src/endings): Collapse, the self-destructive loop (the world begins again,
- * remembering), and Whole into Ready to See, the good ending that writes the Legacy record for the RPG.
+ * remembering), and Ready to See into Whole, the good ending that writes the Legacy record for the RPG.
  *
  * Named to load last (after world-balance): its frame runs after the hand, the rival's isle and the
  * balance look, so a sequence can pose the hand, hold the spire and light the city on top of them.

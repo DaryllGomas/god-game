@@ -10,29 +10,35 @@ import { clamp, lerp, smoothstep } from '../util/math';
 
 // ------------------------------------------------------------------ tuning knobs
 
-/** The beats, in real seconds from the start of Whole. Ready to See begins at READY. */
-const W = {
-  toBlack: 0.9,
-  fromBlack: [1.2, 3.4] as const,
-  handsIn: [2.6, 6.8] as const,
-  approach: [6.8, 9.8] as const,
-  touch: 9.8,
-  sound: 6.4,
-  dissolveHands: [10.2, 12.4] as const,
-  dissolveSpire: [11.2, 15] as const,
-  ora: 12.6,
-  oraHold: 3,
-  descend: [13.6, 17] as const,
-};
-export const READY = 17;
+/**
+ * The beats, in real seconds from the start of the sequence. Ready to See comes first (R, from 0), and Whole
+ * begins at WHOLE_AT with no cut: the camera glides up from the people to the sky over the lit city. W is in
+ * seconds from WHOLE_AT.
+ */
+export const WHOLE_AT = 14.5;
 const R = {
-  cityIn: [0, 3.2] as const,
-  lookUp: 1.4,
-  black: [18.6, 21.6] as const,
-  card: 21.6,
+  toBlack: 0.9,
+  fromBlack: [1.2, 3.2] as const,
+  cityIn: [1.5, 4.7] as const,
+  lookUp: 3.2,
+  /** His spire starts coming in (unseen, far out on the sea) a few seconds before Whole. */
+  spire: WHOLE_AT - 4,
 };
-/** Time of day (0..1, 0.75 = sunset): golden hour for Whole, dusk into a starry night for Ready to See. */
-const DAY = { whole: [0.735, 0.749] as const, ready: [0.749, 0.777] as const };
+const W = {
+  handsIn: [1.4, 5.6] as const,
+  approach: [5.6, 8.6] as const,
+  touch: 8.6,
+  sound: 5.2,
+  dissolveHands: [9, 11.2] as const,
+  dissolveSpire: [10, 13.8] as const,
+  ora: 11.4,
+  oraHold: 3,
+  lightFades: [13, 16] as const,
+  black: [14, 17] as const,
+  card: 17,
+};
+/** Time of day (0..1, 0.75 = sunset): Ready to See at dusk, deepening to a starry night through Whole above the lit city. */
+const DAY = { ready: [0.735, 0.755] as const, whole: [0.755, 0.78] as const };
 /** Distance in front of the camera where the two hands meet, and how near his spire comes (calm, not a threat). */
 const DEPTH = 75;
 /** Size of each hand, as a share of the half-height of the view at DEPTH. */
@@ -98,11 +104,12 @@ interface Hand {
 }
 
 /**
- * The good ending, as one continuous sequence. Whole: his spire comes close one last time, calm; your gold
- * hand and his violet hand rise over the island and meet, and become one warm light; the spire dissolves
- * into light (no fight: a reconciliation). Ready to See: the light comes down into the home temple and the
- * villages become a city of light; the people look up and understand. The camera rises, fade to black, and
- * `onCard` shows the end card. `onReady` fires as Ready to See begins (the legacy is written there).
+ * The good ending, as one continuous sequence, in the order of the RPG's approved storyboard. Ready to See:
+ * the villages become a city of light at dusk and the people stop and look up (no worship). Then, without a
+ * cut, Whole: the camera glides up from the people to the sky above the lit city, his spire comes close one
+ * last time, calm; your gold hand and his violet hand meet and become one warm light; the spire dissolves
+ * into light (no fight: a reconciliation) and Ora says "There you are." Fade to black, and `onCard` shows the
+ * end card. `onStart` fires as the sequence begins (the legacy is written there, once).
  */
 export class Ascension {
   t: number;
@@ -113,15 +120,13 @@ export class Ascension {
   private readonly rays: THREE.Sprite;
   private readonly rings: THREE.Mesh[] = [];
   private readonly meet = new THREE.Vector3();
-  private readonly landing: THREE.Vector3;
   private readonly isleMats: { m: THREE.Material; opacity: number }[] = [];
   private readonly looking = new Set<Villager>();
-  private cut = false;
   private sounded = false;
   private spoke = false;
-  private readied = false;
+  private started = false;
   private carded = false;
-  private readonly fromReady: boolean;
+  private readonly fromWhole: boolean;
   private moteAcc = 0;
   private burst = false;
   private readonly look2: HandLook = { ...GOLD_LOOK };
@@ -129,18 +134,17 @@ export class Ascension {
   constructor(
     private readonly s: Stage,
     private readonly city: () => CityLights,
-    private readonly onReady: () => void,
+    private readonly onStart: () => void,
     private readonly onCard: () => void,
-    /** Start at Ready to See (debug, or a reload in the middle of it). */
-    fromReady = false,
+    /** Start at Whole, over the already lit city (debug, or a reload in the middle of it). */
+    fromWhole = false,
   ) {
     const g = s.game;
-    this.fromReady = fromReady;
-    this.t = fromReady ? READY : 0;
+    this.fromWhole = fromWhole;
+    this.t = fromWhole ? WHOLE_AT : 0;
     const gy = (x: number, z: number) => g.terrain.surfaceAt(x, z);
     const home = g.villages.find((v) => v.isHome) ?? g.villages[0];
     const temple = home.worship.pos;
-    this.landing = v3(temple.x, gy(temple.x, temple.z) + Math.max(10, home.worship.topHeight + 4), temple.z);
     const c = v3(10, 0, 60);
     const away = (p: THREE.Vector3, d: number, lift: number, side = 0) => {
       const x = p.x - DIR.x * d - DIR.y * side;
@@ -153,24 +157,23 @@ export class Ascension {
       return v3(x, gy(p.x, p.z) + lift, z);
     };
     s.cine.takeCamera();
-    // Whole: across the island toward his spire, low over the sea; then down over home.
+    // Ready to See: down among the people at the temple, looking up its light; then up over the lit island and
+    // on, in one glide, to Whole: across the island toward his spire, low over the sea, the sky above the city.
     const wholePos = away(c, 400, 118, -40);
     const wholeLook = toward(c, 90, 42, 60);
-    // Ready: down among the people at the temple, looking up its light; then up and back over the whole island.
-    const t0 = READY;
     const low = this.clearView(temple, 36, 6.5);
     const low2 = this.clearView(temple, 44, 10, low.a + 0.3);
+    const t0 = WHOLE_AT;
     this.keys = [
       s.cine.current(0),
-      { t: W.toBlack, pos: s.cine.current().pos, look: s.cine.current().look },
-      { t: W.toBlack + 0.001, pos: wholePos, look: wholeLook },
-      { t: W.descend[0], pos: wholePos.clone().add(v3(-DIR.x * 10, 4, -DIR.y * 10)), look: wholeLook.clone().add(v3(0, 6, 0)) },
-      { t: t0, pos: away(this.landing, 105, 64, -30), look: this.landing.clone().setY(this.landing.y - 6) },
-      { t: t0 + 5.8, pos: low.pos, look: v3(temple.x, gy(temple.x, temple.z) + 7, temple.z) },
-      { t: t0 + 8.6, pos: low2.pos, look: v3(temple.x, gy(temple.x, temple.z) + 13, temple.z) },
-      { t: t0 + 12, pos: away(home.center, 125, 72, -46), look: toward(home.center, 70, 18) },
-      { t: t0 + 17.5, pos: away(c, 400, 190, -40), look: toward(c, 60, -8) },
-      { t: t0 + 23, pos: away(c, 432, 208, -52), look: toward(c, 60, -8) },
+      { t: R.toBlack, pos: s.cine.current().pos, look: s.cine.current().look },
+      { t: R.toBlack + 0.001, pos: low.pos, look: v3(temple.x, gy(temple.x, temple.z) + 7, temple.z) },
+      { t: 7.2, pos: low2.pos, look: v3(temple.x, gy(temple.x, temple.z) + 13, temple.z) },
+      { t: 10.8, pos: away(home.center, 125, 72, -46), look: toward(home.center, 70, 18).add(v3(0, 22, 0)) },
+      { t: t0, pos: wholePos, look: wholeLook },
+      { t: t0 + 8, pos: wholePos.clone().add(v3(-DIR.x * 10, 4, -DIR.y * 10)), look: wholeLook.clone().add(v3(0, 6, 0)) },
+      { t: t0 + 14, pos: away(c, 432, 160, -46), look: toward(c, 60, 8) },
+      { t: t0 + 20, pos: away(c, 460, 190, -50), look: toward(c, 60, 8) },
     ];
 
     // The meeting light: a core, a star of rays, and three thin rings of light.
@@ -240,19 +243,29 @@ export class Ascension {
   begin() {
     const s = this.s;
     s.cine.begin();
-    if (this.t >= READY) {
-      // Straight to Ready to See: he is already whole.
-      this.cut = true;
-      this.sounded = this.spoke = true;
+    if (!this.started) {
+      this.started = true;
+      if (!this.fromWhole) this.s.game.audio.endingReady();
+      this.onStart();
+    }
+    if (this.fromWhole) {
+      // Straight to Whole (debug, or a reload in the middle of it): the city already lit, up from black.
       s.cine.setVeil(1);
-      this.endVexahl();
+      const isle = s.rival?.isle;
+      if (isle) {
+        isle.hold = 0.55;
+        isle.setBalance(s.balance?.value ?? 0.8, true);
+      }
+      const c = this.city();
+      c.t = 30;
+      c.level = 1;
       along(this.keys, this.t, s.cine.pos, s.cine.look);
-      s.game.dayTime = DAY.ready[0];
+      s.game.dayTime = DAY.whole[0];
     }
   }
 
-  get phase(): 'whole' | 'ready' {
-    return this.t < READY ? 'whole' : 'ready';
+  get phase(): 'ready' | 'whole' {
+    return this.t < WHOLE_AT ? 'ready' : 'whole';
   }
 
   /** Per rendered frame. Returns true once the screen is black and the end card is up. */
@@ -265,19 +278,13 @@ export class Ascension {
     g.terrain.setRivalInfluence([]);
     along(this.keys, t, s.cine.pos, s.cine.look);
 
-    // Time of day: golden hour for Whole, sunset through dusk to a starry night for Ready to See.
-    if (t >= W.toBlack) g.dayTime = t < READY ? lerp(DAY.whole[0], DAY.whole[1], (t - W.toBlack) / (READY - W.toBlack)) : lerp(DAY.ready[0], DAY.ready[1], clamp((t - READY) / 18, 0, 1));
+    // Time of day: dusk for Ready to See, deepening to a starry night through Whole.
+    if (t >= R.toBlack) g.dayTime = t < WHOLE_AT ? lerp(DAY.ready[0], DAY.ready[1], (t - R.toBlack) / (WHOLE_AT - R.toBlack)) : lerp(DAY.whole[0], DAY.whole[1], clamp((t - WHOLE_AT) / 18, 0, 1));
 
-    if (t < READY) this.whole(dt, t);
-    else {
-      if (!this.readied) {
-        this.readied = true;
-        this.endVexahl();
-        this.onReady();
-        g.audio.endingReady();
-      }
-      this.ready(dt, t - READY);
-    }
+    // The city is lit from Ready to See on and stays lit through Whole; the people keep looking up.
+    this.lightCity(t);
+    if (t < WHOLE_AT) this.ready(t);
+    else this.whole(dt, t - WHOLE_AT);
     return this.carded;
   }
 
@@ -287,18 +294,12 @@ export class Ascension {
     const s = this.s;
     const g = s.game;
     const isle = s.rival?.isle ?? null;
-    // Through black into golden hour, with his spire already standing near.
-    if (t < W.toBlack) s.cine.setVeil(ease(t / W.toBlack));
-    else {
-      if (!this.cut) {
-        this.cut = true;
-        if (isle) {
-          isle.hold = 0.55;
-          isle.setBalance(s.balance?.value ?? 0.8, true);
-        }
-      }
-      s.cine.setVeil(1 - span(t, W.fromBlack[0], W.fromBlack[1]));
-      if (isle && t > W.fromBlack[0] + 0.5) isle.hold = SPIRE_NEAR;
+    // His spire stands where it stood; it comes close, calm, as the sky opens above the lit city.
+    if (isle) isle.hold = t > 0.5 ? SPIRE_NEAR : 0.55;
+    s.cine.setVeil(Math.max(this.fromWhole ? 1 - span(t, 0.3, 2.6) : 0, span(t, W.black[0], W.black[1])));
+    if (!this.carded && t >= W.card) {
+      this.carded = true;
+      this.onCard();
     }
     if (!this.sounded && t >= W.sound) {
       this.sounded = true;
@@ -313,7 +314,7 @@ export class Ascension {
     fwd.setFromMatrixColumn(cam.matrixWorld, 2).negate();
     const halfH = DEPTH * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     const halfW = halfH * cam.aspect;
-    if (t < W.descend[0]) this.meet.copy(cam.position).addScaledVector(fwd, DEPTH).addScaledVector(up, halfH * 0.2);
+    this.meet.copy(cam.position).addScaledVector(fwd, DEPTH).addScaledVector(up, halfH * 0.2);
 
     // The hands rise from below the frame, reach toward each other, touch, and melt into the light.
     const rise = easeOut(clamp((t - W.handsIn[0]) / (W.handsIn[1] - W.handsIn[0]), 0, 1));
@@ -393,7 +394,7 @@ export class Ascension {
       m.quaternion.copy(cam.quaternion);
       m.rotateX(i === 0 ? 0 : i === 1 ? 1.25 : -1.1);
       m.rotateZ(t * (0.08 + i * 0.04));
-      (m.material as THREE.MeshBasicMaterial).opacity = ringK * (0.5 - i * 0.1) * (1 - 0.4 * span(t, W.descend[0], W.descend[1]));
+      (m.material as THREE.MeshBasicMaterial).opacity = ringK * (0.5 - i * 0.1) * (1 - span(t, W.lightFades[0], W.lightFades[1]));
     });
     if (!this.burst && t >= W.touch) {
       this.burst = true;
@@ -428,15 +429,10 @@ export class Ascension {
     }
     if (t >= W.dissolveSpire[1]) this.endVexahl();
 
-    // The one light comes down to the home temple.
-    if (t >= W.descend[0]) {
-      const k = ease((t - W.descend[0]) / (W.descend[1] - W.descend[0]));
-      this.light.position.lerpVectors(this.meet, this.landing, k);
-      const shrink = 1 - 0.72 * k;
-      this.core.scale.multiplyScalar(shrink);
-      this.rays.scale.multiplyScalar(shrink);
-      for (const m of this.rings) m.scale.multiplyScalar(shrink);
-    }
+    // The one light stays over the city, then gives itself to it as the screen goes dark.
+    const fade = 1 - ease(span(t, W.lightFades[0], W.lightFades[1]));
+    this.core.material.opacity *= fade;
+    this.rays.material.opacity *= fade;
   }
 
   /** Vexahl's isle: its stone turns to light and fades, gold motes rising off it. */
@@ -497,28 +493,23 @@ export class Ascension {
 
   // --------------------------------------------------------------- Ready to See
 
-  private ready(_dt: number, t: number) {
-    const s = this.s;
-    // The light settles into the temple and the city begins to glow from there.
-    const land = span(t, 0, 1.6);
-    this.light.position.copy(this.landing);
-    this.core.material.opacity = (1 - land) * 0.9;
-    this.rays.material.opacity = (1 - land) * 0.7;
-    for (const m of this.rings) (m.material as THREE.MeshBasicMaterial).opacity *= 1 - land;
-    this.light.visible = land < 1;
-    for (const h of this.hands) h.holder.visible = h.aura.visible = false;
-
+  /** The city of light: it begins to glow from the temples during Ready to See and stays lit through Whole. */
+  private lightCity(t: number) {
     const city = this.city();
-    if (t < 0.05) city.t = 0;
-    city.level = span(t, R.cityIn[0], R.cityIn[1]);
-    if (t >= R.lookUp) this.lookUp(span(t, R.lookUp, R.lookUp + 2.5));
-
-    // Straight here (debug, or a reload mid-sequence): up from black first. Then, at the end, down to black.
-    s.cine.setVeil(Math.max(this.fromReady ? 1 - span(t, 0.3, 2.6) : 0, span(t, R.black[0], R.black[1])));
-    if (!this.carded && t >= R.card) {
-      this.carded = true;
-      this.onCard();
+    if (!this.fromWhole) {
+      if (t < R.cityIn[0]) city.t = 0;
+      city.level = span(t, R.cityIn[0], R.cityIn[1]);
     }
+    if (t >= R.lookUp || this.fromWhole) this.lookUp(this.fromWhole ? 1 : span(t, R.lookUp, R.lookUp + 2.5));
+  }
+
+  private ready(t: number) {
+    const s = this.s;
+    const isle = s.rival?.isle ?? null;
+    // Down to black from the island, up from black at the people among the lights (the cut hides the jump).
+    s.cine.setVeil(t < R.toBlack ? ease(t / R.toBlack) : 1 - span(t, R.fromBlack[0], R.fromBlack[1]));
+    // His spire is already drifting nearer, out on the dusk sea, before Whole.
+    if (isle && t >= R.spire) isle.hold = 0.55;
   }
 
   /** The people stop where they are and look up at the light: no kneeling, no fear. */
