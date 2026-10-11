@@ -19,7 +19,6 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 - **His portrait** loses its orange horns and ember eyes: midnight and violet, not a fantasy villain.
 - **His storm-eye** is soft, painterly cloud lit violet from inside, instead of lumpy grey shapes.
 
-### Changed
 - **No more words to read while you play.** The game teaches through play:
   - The hover tooltips are gone ("Boulder: Heavy. Throw it for a spectacle…"). The gold ring under whatever you point at is the cue; it now also shows under buildings and the golem, and turns reddish when the thing is outside your influence.
   - Prayers are pictures: logs for timber, a loaf for food, a rain cloud, a lost child with a question mark, a flame, a sparkle for a sign, and stone-and-log for a project, each in a medallion with a ring (filling as you deliver wood or food, otherwise the time left) and the village's colour. The Prayers list is a grid of these tiles, and a lost child is marked with a bobbing "!".
