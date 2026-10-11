@@ -19,14 +19,13 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 - **Lives have a length.** Villagers age. After a long life (34 to 50 game days) the island's eldest pass away peacefully in the morning, one at a time and never a village's last few people. It doesn't touch the world's balance.
 
 ### Changed
+- **Your influence reaches further:** good deeds now count up to 150 m from a village (was 120), so a gift set down at the edge of your ring reaches the next village.
 - **The Wonder is retired.** The island's goal is now every village's temple standing, with every village worshipping you (`game.allTemplesStand()`); the endings build on it. A Wonder already finished in an old save still stands.
 - **The Temple project is now the pyramid and the Harvest Festival is now the temple**, both raised at the prayer place. Saves from v0.4 and early v0.5 load with their finished projects shown as the ages they reached; a temple or festival still being built moves to the prayer place with everything delivered so far.
 - Houses, fields and the well keep a little further from the prayer place, which now grows to about 12 m across, and villagers and the golem walk round its solid middle.
 - **Belief you can see.** Around the totem of every village that doesn't worship you yet, a thin gold ring lies on the ground and fills clockwise as its people come to believe in you, and a soft light rises on the totem as it grows (you can read it from your own village). When a gift, a miracle or a feat lands, the ring pulses, the new arc glows and a ripple runs outward. When it closes, the village is yours: the ring flares and fades. It replaces the floating "+N belief" text. See `src/village/BeliefRing.ts`.
 - **Rain grows forests.** The Water miracle on open land sprouts a small grove of saplings where it lands, and young trees nearby shoot up. Rain on fields still waters the crops.
 - **Forests heal.** Where a tree is chopped down or carried off, a sapling takes root again within a minute or two if other trees stand nearby, so a grove you take from keeps coming back. A clear-cut or burnt land only creeps back from its edges. While the world is in tune, villagers who fell a tree often plant a sapling in the stump. See `src/forest/ForestCare.ts`.
-
-### Changed
 - **Belief lasts.** A neighbouring village's belief no longer slips away between your gifts: it holds for a minute after anything you do for it, then fades four times slower than before. A god who keeps carrying trees to a neighbour's store now wins it over in about ten minutes; before, it never got past a tenth of the way.
 - **His Grasping Hand is your hand**, darkened to midnight violet: the same hand, moving the way yours does, with a violet warning ring under it.
 - After the Wonder he plays by the old rules (foil four schemes and keep him villageless for a season to drive him off), whether he arrived then or was already here.
