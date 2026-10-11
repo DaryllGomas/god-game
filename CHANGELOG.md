@@ -5,6 +5,7 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 ## [Unreleased]
 
 ### Added
+- **The intro now plays with sound.** A first visit opens on black with one small, slowly breathing point of light; a click or any key touches it, the light fades and the film begins with its soundtrack. The game's own sound waits until the film ends, and a muted game keeps the film muted.
 - **The balance of the world.** The island now keeps a balance between tending and ruin, separate from good and evil: standing forests, fed villages, faith, people kept alive, prayers answered and fires put out lift it; stumps and burnt land, starvation, deaths, cruelty (hurling villagers, burning homes) and suffering left unanswered pull it down. Nothing on screen names it. The island shows it instead:
   - **In tune:** full colour, more birdsong, a soundscape whose chord always comes home, and two thin rings of gold light hanging in the sky.
   - **Falling out of tune:** the land drains to grey-olive, the sky greys, the rings fade away, the open sea darkens on Vexahl's side, and the music slowly sags out of tune and stops resolving.

@@ -15,7 +15,10 @@ if (isFirstVisit()) {
   covered = true;
   void playIntro({
     ready,
+    waitForTouch: true,
     unlockAudio: () => (window as unknown as { game?: Game }).game?.audio.unlock(),
+    holdAudio: (on) => (window as unknown as { game?: Game }).game?.audio.holdForFilm(on),
+    gameMuted: () => !!(window as unknown as { game?: Game }).game?.audio.muted,
     started: () => introStarted(),
     uncover: () => {
       covered = false;

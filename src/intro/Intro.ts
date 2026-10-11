@@ -17,6 +17,8 @@ const SKIP_SHOW = 3500;
 const TO_BLACK = 700;
 /** A held beat of black before the world fades up (ms). */
 const HOLD_BLACK = 500;
+/** The point of light fades out over this long when touched (ms; matches .intro-light in intro.css). */
+const LIGHT_OUT = 600;
 /** The fade up from black into the title screen (ms; matches .intro's transition in intro.css). */
 const REVEAL = 2400;
 
@@ -45,6 +47,12 @@ export interface IntroOptions {
   ready?: Promise<unknown>;
   /** Called on the first click or key (the overlay keeps keys from the game, and its own unlock with them). */
   unlockAudio?: () => void;
+  /** Wait on a point of light for a click or key (the gesture browsers need before they allow sound), then play with sound. */
+  waitForTouch?: boolean;
+  /** True silences the game's own sound while the film plays (called with each unlock, and false at the reveal). */
+  holdAudio?: (on: boolean) => void;
+  /** Whether the player has muted the game: then the film plays muted too. */
+  gameMuted?: () => boolean;
   /** The film is under way (or has given up): heavy work can start without stalling its first frames. */
   started?: () => void;
   /** Just before the world fades up from black. */
@@ -76,7 +84,7 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
   root.className = 'intro';
   const video = document.createElement('video');
   video.className = 'intro-video';
-  video.muted = true;
+  video.muted = true; // until the gesture; see start()
   video.playsInline = true;
   video.preload = 'auto';
   video.setAttribute('playsinline', '');
@@ -85,7 +93,14 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
   const skip = document.createElement('button');
   skip.className = 'intro-skip';
   skip.textContent = 'skip';
+  const waiting = !!opts.waitForTouch;
   root.append(video, skip);
+  if (waiting) {
+    const light = document.createElement('div');
+    light.className = 'intro-light';
+    root.classList.add('waiting');
+    root.append(light);
+  }
   document.body.appendChild(root);
 
   return new Promise<void>((resolve) => {
@@ -100,18 +115,32 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
     };
     video.addEventListener('playing', begin);
 
+    const hushAndUnlock = () => {
+      opts.holdAudio?.(true);
+      opts.unlockAudio?.();
+    };
     const onKey = (e: KeyboardEvent) => {
       // The game must not see keys while the intro plays (H, Space and the number keys all do things).
       e.stopImmediatePropagation();
       e.preventDefault();
-      opts.unlockAudio?.();
       if (e.repeat) return;
+      if (root.classList.contains('waiting')) {
+        // Modifiers and Escape aren't gestures to the browser; the light keeps waiting. Any other key touches it.
+        if (!/^(Shift|Control|Alt|Meta|AltGraph|CapsLock|Escape|Tab)$/.test(e.key)) start();
+        return;
+      }
+      hushAndUnlock();
       if (e.key === 'Escape' || root.classList.contains('skippable')) void finish(true);
       else showSkip();
     };
     const onPointer = (e: PointerEvent) => {
       e.stopPropagation();
-      opts.unlockAudio?.();
+      // The touch that wakes the light is not also the first press toward a skip.
+      if (root.classList.contains('waiting')) {
+        start();
+        return;
+      }
+      hushAndUnlock();
       if (e.target === skip || root.classList.contains('skippable')) void finish(true);
       else showSkip();
     };
@@ -122,6 +151,35 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
     };
     window.addEventListener('keydown', onKey, true);
     root.addEventListener('pointerdown', onPointer);
+
+    /** The gesture: the light fades, and the film starts with its sound. */
+    let go = false;
+    const start = () => {
+      if (go) return;
+      go = true;
+      root.classList.remove('waiting');
+      root.classList.add('touched');
+      hushAndUnlock();
+      const muted = !!opts.gameMuted?.();
+      video.volume = 1;
+      video.muted = muted;
+      startTimer = window.setTimeout(() => {
+        if (video.currentTime < 0.05) void finish(false);
+      }, START_TIMEOUT);
+      const fail = (err: unknown) => {
+        // Interrupted (the page is unloading, say): not a reason to call it seen. The start timeout covers a stall.
+        if ((err as { name?: string })?.name === 'AbortError') return;
+        console.warn('The intro could not play; going straight to the title.', err);
+        void finish(false);
+      };
+      video.play().catch((err: unknown) => {
+        if (muted || (err as { name?: string })?.name === 'AbortError') return fail(err);
+        console.warn('The intro could not play with sound; playing it muted.', err);
+        video.muted = true;
+        video.play().catch(fail);
+      });
+      window.setTimeout(() => root.querySelector('.intro-light')?.remove(), LIGHT_OUT + 100);
+    };
 
     const finish = async (skipped: boolean) => {
       if (finishing) return;
@@ -138,6 +196,7 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
       await (opts.ready ?? Promise.resolve()).catch(() => undefined);
       window.removeEventListener('keydown', onKey, true);
       opts.uncover?.();
+      opts.holdAudio?.(false);
       // The world fades up from black, and the title card rises a beat later (see intro.css).
       const help = document.querySelector('.overlay.help');
       help?.classList.add('intro-reveal');
@@ -153,14 +212,8 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
       console.warn('The intro could not load; going straight to the title.', video.error);
       void finish(false);
     });
-    startTimer = window.setTimeout(() => {
-      if (video.currentTime < 0.05) void finish(false);
-    }, START_TIMEOUT);
-    video.play().catch((err: unknown) => {
-      // Interrupted (the page is unloading, say): not a reason to call it seen. The start timeout covers a stall.
-      if ((err as { name?: string })?.name === 'AbortError') return;
-      console.warn('The intro could not play; going straight to the title.', err);
-      void finish(false);
-    });
+    if (waiting) return; // the light waits for a touch; start() does the rest
+    // "Watch again" comes from a click, so sound is allowed straight away.
+    start();
   });
 }

@@ -12,7 +12,11 @@ export function install(game: Game): GamePlugin {
     link.onclick = () => {
       if (playing) return;
       playing = true;
-      void playIntro({ unlockAudio: () => game.audio.unlock() }).then(() => (playing = false));
+      void playIntro({
+        unlockAudio: () => game.audio.unlock(),
+        holdAudio: (on) => game.audio.holdForFilm(on),
+        gameMuted: () => game.audio.muted,
+      }).then(() => (playing = false));
     };
     card.appendChild(link);
   }

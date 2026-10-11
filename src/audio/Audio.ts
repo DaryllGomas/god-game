@@ -58,6 +58,8 @@ export class Audio {
   private noiseBuf!: AudioBuffer;
 
   muted = false;
+  /** The intro film has the room: the game's own sound is silent until it ends. */
+  private heldForFilm = false;
   musicOn = true;
   /** Number of one-shot sounds started (debugging/tests). */
   played = 0;
@@ -115,7 +117,7 @@ export class Audio {
     this.ctx = ctx;
 
     this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.85;
+    this.master.gain.value = this.muted || this.heldForFilm ? 0 : 0.85;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16;
     comp.ratio.value = 4;
@@ -223,7 +225,13 @@ export class Audio {
 
   setMuted(m: boolean) {
     this.muted = m;
-    if (this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.85, this.ctx.currentTime, 0.05);
+    if (this.ctx) this.master.gain.setTargetAtTime(m || this.heldForFilm ? 0 : 0.85, this.ctx.currentTime, 0.05);
+  }
+
+  /** Silence the whole game while the intro film plays (its own soundtrack); false lets the game's sound in again. */
+  holdForFilm(on: boolean) {
+    this.heldForFilm = on;
+    if (this.ctx) this.master.gain.setTargetAtTime(on || this.muted ? 0 : 0.85, this.ctx.currentTime, on ? 0.05 : 0.6);
   }
 
   setMusic(on: boolean) {
