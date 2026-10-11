@@ -501,35 +501,6 @@ canvas {
   }
 }
 
-/* -------------------------------------------------------------- tooltip */
-
-.tooltip {
-  position: absolute;
-  left: 0;
-  top: 0;
-  max-width: 230px;
-  background: rgba(14, 12, 20, 0.88);
-  border: 1px solid var(--panel-edge);
-  border-radius: 8px;
-  padding: 7px 10px;
-}
-.tip-title {
-  font-weight: 600;
-  color: var(--gold);
-}
-.tip-body {
-  color: var(--text);
-  margin-top: 2px;
-}
-.tip-hint {
-  color: var(--muted);
-  font-size: 11px;
-  margin-top: 4px;
-}
-.tip-hint.bad {
-  color: var(--bad);
-}
-
 /* --------------------------------------------------------------- banner */
 
 .banner {

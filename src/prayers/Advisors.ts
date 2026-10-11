@@ -4,19 +4,15 @@ import type { Prayer, PrayerKind } from './Prayers';
 
 // ------------------------------------------------------------- tuning knobs
 
-/** Real seconds after the game starts before the first onboarding card. */
-const ONBOARD_START = 9;
-/** Pause after one onboarding step is done before the next is offered. */
-const ONBOARD_PAUSE = 8;
-/** Give up waiting on a step after this long and move on (never nag). */
-const ONBOARD_PATIENCE = 120;
-/** Chatter: at least this long since the last card ended, and this long between chats. */
-const CHAT_GAP = 45;
-const CHAT_MIN = 80;
+/** Chatter: at least this long since the last card ended, and this long between chats (real seconds). */
+const CHAT_GAP = 75;
+const CHAT_MIN = 150;
 /** Default cooldown for one topic of chatter. */
-const TOPIC_COOLDOWN = 150;
-/** The golem key ('C') or call ('L') counts as meeting it. */
-const GOLEM_KEYS = new Set(['c', 'l']);
+const TOPIC_COOLDOWN = 300;
+/** Chance they remark on an ordinary answered prayer (the first one always gets a word). */
+const ANSWER_CHANCE = 0.3;
+/** Hold a villager this long (or a boulder over a village) and Fizz starts whispering. */
+const TEMPT_AFTER = 5;
 const STORE_KEY = 'godgame.advisors.v1';
 
 export type Who = 'spirit' | 'imp';
@@ -24,7 +20,7 @@ export interface Line {
   who: Who;
   text: string;
 }
-type Priority = 'onboard' | 'important' | 'chat';
+type Priority = 'important' | 'chat';
 
 const NAME: Record<Who, string> = { spirit: 'Lumi', imp: 'Fizz' };
 
@@ -101,41 +97,28 @@ const CRUEL_DEATH: Line[][] = [
   ],
 ];
 
-/** Everything the advisors say that is not an onboarding step. */
+/** The very first answered prayer: where the player first meets them. */
 const FIRST_ANSWER: Line[] = [
   { who: 'spirit', text: 'They heard you! Look at those little faces light up.' },
   { who: 'imp', text: 'Fine, that was good. Do not let it go to your head.' },
 ];
 
-interface Step {
-  id: string;
-  lines: Line[];
-}
-
-const STEPS: Step[] = [
-  {
-    id: 'grab',
-    lines: [{ who: 'spirit', text: 'Hello, little god! Click a villager, tree or rock to pick it up. Gently, they are ticklish.' }],
-  },
-  {
-    id: 'pan',
-    lines: [{ who: 'imp', text: 'Bored of that view? Drag the ground with the left mouse button and the whole island slides along.' }],
-  },
-  {
-    id: 'prayer',
-    lines: [
-      { who: 'spirit', text: 'Listen, the villagers are praying! Click a parchment bubble to fly over to them.' },
-      { who: 'imp', text: 'They want wood. Carry a tree over and let go on their store. Riveting, I know.' },
-    ],
-  },
-  {
-    id: 'golem',
-    lines: [{ who: 'imp', text: 'Psst. You own a very large pet rock. Press C to find your golem. It will pretend not to like a pat.' }],
-  },
-  {
-    id: 'miracle',
-    lines: [{ who: 'spirit', text: 'When you are ready, press 1 for rain or 2 for food. Hold the miracle over a village and let go.' }],
-  },
+/** Fizz's temptations (and Lumi's answer), when the hand lingers with something it could misuse. */
+const TEMPT_VILLAGER: Line[][] = [
+  [
+    { who: 'imp', text: 'Go on. One little toss. They love it. Probably.' },
+    { who: 'spirit', text: 'Fizz! They are not a ball.' },
+  ],
+  [
+    { who: 'imp', text: 'You know, from up here they look very... throwable.' },
+    { who: 'spirit', text: 'They can hear you, you know.' },
+  ],
+];
+const TEMPT_BOULDER: Line[][] = [
+  [
+    { who: 'imp', text: 'That boulder would make such a lovely noise. Right about... there.' },
+    { who: 'spirit', text: 'It would also make a hole in somebody\'s roof.' },
+  ],
 ];
 
 // ---------------------------------------------------------------- the class
@@ -163,23 +146,17 @@ export class Advisors {
   private readonly queue: Queued[] = [];
   private readonly topics = new Map<string, number>();
   private lastBottom = '';
-
-  // Onboarding progress, remembered between visits so a returning player isn't re-taught.
-  private readonly done: Record<string, boolean> = {};
-  private step = 0;
-  private prompted = false;
-  private promptedAt = 0;
-  private nextStepAt = ONBOARD_START;
-  private startTarget = { x: 0, z: 0 };
   private moodTopic = 0;
+  /** Real seconds the hand has held its current temptation. */
+  private holding = 0;
 
-  constructor(
-    private readonly game: Game,
-    private readonly hasPrayers: () => boolean,
-  ) {
+  /**
+   * Lumi and Fizz are characters, not a tutorial (the no-hints rule): they react to what you do,
+   * praise, grumble and tempt, but never explain the controls. The game teaches through play.
+   */
+  constructor(private readonly game: Game) {
     try {
-      const raw = JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') as { done?: Record<string, boolean>; muted?: boolean };
-      Object.assign(this.done, raw.done ?? {});
+      const raw = JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') as { muted?: boolean };
       this.muted = !!raw.muted;
     } catch {
       /* storage unavailable: carry on without it */
@@ -191,7 +168,6 @@ export class Advisors {
     this.faceEl = this.card.querySelector('.adv-face')!;
     this.nameEl = this.card.querySelector('.adv-name')!;
     this.textEl = this.card.querySelector('.adv-text')!;
-    this.card.title = 'Click to dismiss';
     this.card.onclick = () => (this.cardLife = 0);
     game.hud.root.appendChild(this.card);
     this.messages = game.hud.root.querySelector('.messages');
@@ -203,8 +179,6 @@ export class Advisors {
     this.toggle.onclick = () => this.setMuted(!this.muted);
     (game.hud.root.querySelector('.speeds') ?? game.hud.root).appendChild(this.toggle);
     this.syncToggle();
-
-    this.startTarget = { x: game.godCam.target.x, z: game.godCam.target.z };
     this.listen();
   }
 
@@ -225,16 +199,10 @@ export class Advisors {
 
   private save() {
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify({ done: this.done, muted: this.muted }));
+      localStorage.setItem(STORE_KEY, JSON.stringify({ muted: this.muted }));
     } catch {
       /* ignore */
     }
-  }
-
-  private mark(id: string) {
-    if (this.done[id]) return;
-    this.done[id] = true;
-    this.save();
   }
 
   // ------------------------------------------------------------- reactions
@@ -242,9 +210,7 @@ export class Advisors {
   private listen() {
     const g = this.game;
     const ev = g.events;
-    ev.on('grab', () => this.mark('grab'));
     ev.on('miracle', ({ id }) => {
-      this.mark('miracle');
       if (id === 'fire') {
         this.say(
           [
@@ -259,7 +225,7 @@ export class Advisors {
     ev.on('villageLost', ({ village }) =>
       this.say(
         [
-          { who: 'spirit', text: `${village.name} has lost heart. A kind deed might bring them back.` },
+          { who: 'spirit', text: `Oh, ${village.name}. They have stopped believing.` },
           { who: 'imp', text: 'Easy come, easy go.' },
         ],
         { pri: 'chat', topic: 'lost-village', cooldown: 200 },
@@ -270,7 +236,7 @@ export class Advisors {
         this.say(
           [
             { who: 'imp', text: 'Your golem just ate a villager. Chef\'s kiss.' },
-            { who: 'spirit', text: 'That is not funny. Please feed it a boulder.' },
+            { who: 'spirit', text: 'That is not funny. That was somebody\'s grandad.' },
           ],
           { pri: 'chat', topic: 'eaten' },
         );
@@ -281,13 +247,10 @@ export class Advisors {
       this.say(
         [
           { who: 'imp', text: 'Smashing! Literally.' },
-          { who: 'spirit', text: 'They will need timber for that, you know.' },
+          { who: 'spirit', text: 'That was somebody\'s home.' },
         ],
         { pri: 'chat', topic: 'house' },
       );
-    });
-    window.addEventListener('keydown', (e) => {
-      if (GOLEM_KEYS.has(e.key.toLowerCase())) this.mark('golem');
     });
   }
 
@@ -309,12 +272,11 @@ export class Advisors {
 
   /** Called by the plugin whenever a prayer is answered. */
   prayerAnswered(p: Prayer, totalAnswered: number) {
-    this.mark('prayer');
     if (totalAnswered === 1) {
       this.say(FIRST_ANSWER, { pri: 'important', topic: 'answered-first', cooldown: 0 });
       return;
     }
-    if (Math.random() < 0.5) this.say(pick(ANSWERED[p.kind]), { pri: 'chat', topic: 'answered', cooldown: 60 });
+    if (Math.random() < ANSWER_CHANCE) this.say(pick(ANSWERED[p.kind]), { pri: 'chat', topic: 'answered', cooldown: 150 });
   }
 
   // -------------------------------------------------------------- the queue
@@ -330,11 +292,9 @@ export class Advisors {
     if (pri === 'chat') {
       if (busy || this.clock - this.lastEnd < CHAT_GAP || this.clock - this.lastChat < CHAT_MIN) return false;
       this.lastChat = this.clock;
-    } else if (pri === 'onboard') {
-      if (busy) return false;
     } else if (this.queue.some((q) => q.pri === 'important')) return false;
     if (topic) this.topics.set(topic, this.clock);
-    arr.forEach((line, i) => this.queue.push({ line, pri, gap: i === 0 ? (pri === 'important' ? 2 : pri === 'onboard' ? 3 : 0) : 1 }));
+    arr.forEach((line, i) => this.queue.push({ line, pri, gap: i === 0 ? (pri === 'important' ? 2 : 0) : 1 }));
     return true;
   }
 
@@ -373,7 +333,7 @@ export class Advisors {
     } else if (this.queue.length && this.clock - this.lastEnd >= this.queue[0].gap) this.showNext();
 
     this.watchMood();
-    this.onboard();
+    this.watchTemptation(dt);
     this.place();
   }
 
@@ -410,51 +370,15 @@ export class Advisors {
     }
   }
 
-  // -------------------------------------------------------------- onboarding
-
-  private stepDone(id: string): boolean {
+  /** Fizz notices when the hand lingers with a villager, or with a boulder over a village. */
+  private watchTemptation(dt: number) {
     const g = this.game;
-    switch (id) {
-      case 'grab':
-        return !!this.done.grab;
-      case 'pan':
-        if (g.controls.mode === 'pan' && Math.hypot(g.godCam.target.x - this.startTarget.x, g.godCam.target.z - this.startTarget.z) > 10) this.mark('pan');
-        return !!this.done.pan;
-      case 'prayer':
-        return !!this.done.prayer;
-      case 'golem':
-        return !!this.done.golem;
-      default:
-        if (g.hand.held?.kind === 'orb') this.mark('miracle');
-        return !!this.done.miracle;
-    }
-  }
-
-  /** One step at a time, driven by what the player has actually done. */
-  private onboard() {
-    const g = this.game;
-    // Moving the camera counts even if the prompt hasn't come up yet.
-    if (this.step >= STEPS.length) return;
-    const s = STEPS[this.step];
-    if (this.stepDone(s.id)) {
-      // Done (possibly before we even asked): skip quietly, short breather before the next.
-      this.step++;
-      this.prompted = false;
-      this.nextStepAt = Math.max(this.nextStepAt, this.clock + (this.promptedAt ? ONBOARD_PAUSE : 2));
-      return;
-    }
-    if (!this.prompted) {
-      if (this.clock < this.nextStepAt || g.time < 3) return;
-      // The prayer step waits for a prayer to exist; the later ones wait for it to be answered.
-      if (s.id === 'prayer' && !this.hasPrayers()) return;
-      if (this.say(s.lines, { pri: 'onboard' })) {
-        this.prompted = true;
-        this.promptedAt = this.clock;
-      }
-    } else if (this.clock - this.promptedAt > ONBOARD_PATIENCE) {
-      this.step++;
-      this.prompted = false;
-      this.nextStepAt = this.clock + ONBOARD_PAUSE;
-    }
+    const held = g.hand.held;
+    const villager = held?.kind === 'villager';
+    const boulder = held?.kind === 'rock' && !!g.villageAt(held.pos.x, held.pos.z);
+    this.holding = villager || boulder ? this.holding + dt : 0;
+    if (this.holding < TEMPT_AFTER) return;
+    this.holding = 0;
+    this.say(pick(villager ? TEMPT_VILLAGER : TEMPT_BOULDER), { pri: 'chat', topic: 'tempt', cooldown: 420 });
   }
 }

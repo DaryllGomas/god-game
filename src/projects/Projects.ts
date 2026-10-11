@@ -63,12 +63,12 @@ const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
 const START_LINES: Record<ProjectId, Line[][]> = {
   well: [
     [
-      { who: 'spirit', text: 'They dream of a well! Drop a boulder on the marked ground for stone, and carry trees to their store for timber.' },
+      { who: 'spirit', text: 'They dream of a well! Listen to them. So much hope in one little hole in the ground.' },
       { who: 'imp', text: 'Rocks. You throw rocks at things. Finally, a use for your hobby.' },
     ],
   ],
-  temple: [[{ who: 'spirit', text: 'A temple! The builders do the timber, but they cannot lift stone. That part is yours.' }]],
-  festival: [[{ who: 'imp', text: 'A festival? Count me in. Bring bread, and perhaps a boulder or two for the fireworks. (There are no fireworks.)' }]],
+  temple: [[{ who: 'spirit', text: 'A temple! For you. They are already arguing about the roof.' }]],
+  festival: [[{ who: 'imp', text: 'A festival? Count me in. I hear there will be fireworks. (There will not be fireworks.)' }]],
   wonder: [],
 };
 
@@ -463,7 +463,7 @@ export class Projects {
     this.advisors.say(
       [
         { who: 'spirit', text: 'Every heart on the island is yours. Now they want to build you something. A Wonder!' },
-        { who: 'imp', text: 'Big. Shiny. Mostly rocks, naturally. Start throwing.' },
+        { who: 'imp', text: 'Big. Shiny. Mostly rocks, naturally. My kind of building.' },
       ],
       { pri: 'important', topic: 'wonder-unlock', cooldown: 0 },
     );

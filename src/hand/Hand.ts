@@ -112,7 +112,9 @@ export class Hand {
 
     // The TEND drop sigil replaces the soft ground spot while carrying; the spot returns when the hand is empty.
     const carrying = !!this.held && this.valid;
-    const h = this.hover;
+    // The ring is the only hover cue (no tooltips): grab targets, and with an empty hand also the
+    // things you can click (buildings, fields, building sites, the golem).
+    const h = this.hover ?? (this.held ? null : game.hoverBuilding);
     this.marker.update(
       game.terrain,
       dt,

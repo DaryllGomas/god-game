@@ -61,7 +61,7 @@ Your hand only works inside the golden ring of influence around villages that wo
 - **Alignment.** Kind acts push you toward *Benevolent*, cruelty toward *Malevolent*. Your hand changes to match.
 - **Faith.** Your own villages lose faith if they starve or you hurt them. A converted village whose faith hits zero leaves you.
 - **Your golem** eats, sleeps, plays and grows. It chooses what to do by itself, and your strokes and slaps teach it which habits you approve of. Its looks follow its own good or evil nature.
-- **Prayers.** Villages ask for things: timber, food, rain, a sign, a lost child brought home, a fire put out, help with a project. Answering one gives power and faith (or belief, for neutral villages); ignored prayers just fade. Two advisors, Lumi (kind) and Fizz (cheeky), point things out. The 💬 button mutes them.
+- **Prayers.** Villages ask for things: timber, food, rain, a sign, a lost child brought home, a fire put out, help with a project. Each shows as a picture with a ring, never a sentence. Answering one gives power and faith (or belief, for neutral villages); ignored prayers just fade. Two advisors, Lumi (kind) and Fizz (cheeky), react to what you do (they never explain the controls; the 💬 button mutes them), and Ora, the voice of balance, speaks rarely at the big moments.
 - **Projects.** Each village works through a Well, then a Temple, then a Harvest Festival, with its builders hauling wood, stone and food. Drop materials on a site to help. A neutral village is only won over by projects **you** helped with.
 - **The Wonder.** Once all three villages worship you, they raise the Wonder together. Finishing it ends the first island.
 - **Seasons.** A year is four seasons of 2.5 days each, and each changes the look, the crops and hunger. Each season brings one announced nature event: a spring bloom, a summer dry spell, an autumn storm with lightning, or a winter cold snap.
@@ -73,6 +73,7 @@ Your hand only works inside the golden ring of influence around villages that wo
   - **A violet storm.**
 
   A village drained to zero faith turns to him, and you win it back by impressing it. Your home village never turns, and he never kills anyone. Foil four schemes and keep him villageless for a season, and he retreats. His panel has a difficulty setting: Gentle, Steady or Cunning.
+- **The intro** plays before the title on a first visit (`src/intro/`); "Watch the intro" on the `?` screen replays it.
 - **Saving.** The island autosaves every minute and whenever you leave the tab. The title screen offers **Continue** or **New island**.
 
 ## Code map
@@ -94,7 +95,9 @@ src/
   fx/Particles.ts       pooled GPU particles and effect helpers
   ui/                   DOM HUD and styles
   plugins/              features loaded automatically (each exports install(game)); see docs/agents.md
-  prayers/              prayer system, prayer bubbles, the advisors Lumi and Fizz
+  prayers/              prayer system, prayer bubbles and tiles (icons.ts), the advisors Lumi and Fizz
+  ora/                  Ora, the voice of balance (rare lines at the big moments)
+  intro/                the intro film before the title on a first visit
   projects/             Well/Temple/Festival chain, building sites, the Wonder
   seasons/              calendar, seasonal looks, nature events, the storm, falling leaves/snow/petals
   rival/                Vexahl: his spire (distance follows the balance), stirring, schemes, visuals, panel
@@ -116,6 +119,7 @@ docs/                   vision.md (design north star), agents.md (how to add fea
 - `game.projectSystem.startNow(village)`
 - `game.prayerSystem.spawnNow(village, 'food')`
 - `game.saves.save()`
+- `game.ora.raise('kind', true)` and `game.ora.state()`
 
 ## Not built yet
 

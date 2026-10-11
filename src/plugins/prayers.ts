@@ -6,12 +6,12 @@ import { Advisors } from '../prayers/Advisors';
 /**
  * Prayers & advisors: the purpose layer. Villages ask for things (wood, food, rain, a lost
  * child, help with a fire, a sign) and you answer with your hands. Two advisors, a kind
- * spirit and a cheeky imp, teach the basics and comment on what you do.
+ * spirit and a cheeky imp, react to what you do (they never explain the controls).
  */
 export function install(game: Game): GamePlugin {
   const prayers = new Prayers(game);
   const bubbles = new PrayerBubbles(game);
-  const advisors = new Advisors(game, () => prayers.active.length > 0);
+  const advisors = new Advisors(game);
 
   prayers.setListener({
     added: (p) => bubbles.added(p),

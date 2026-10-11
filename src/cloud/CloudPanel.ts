@@ -5,6 +5,21 @@ import './cloud.css';
 /** Longest god name the server accepts. */
 const NAME_MAX = 24;
 
+/**
+ * Arriving from the end of THE PATH (`?from=thepath&initials=AVR`): the initials the player signed there,
+ * offered as a god name. Letters only, one to three of them; anything else is ignored.
+ */
+export function pathInitials(search = location.search): string {
+  try {
+    const q = new URLSearchParams(search);
+    if (q.get('from') !== 'thepath') return '';
+    const raw = (q.get('initials') ?? '').trim();
+    return /^[A-Za-z]{1,3}$/.test(raw) ? raw.toUpperCase() : '';
+  } catch {
+    return '';
+  }
+}
+
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -47,6 +62,8 @@ export function mountCloudPanel(game: Game, help: HTMLElement) {
     input.placeholder = 'Your god name (optional)';
     input.autocomplete = 'off';
     input.spellcheck = false;
+    // Only a suggestion: still optional, editable, and nothing happens until the player presses Begin.
+    input.value = pathInitials();
     // Keys typed here must not drive the camera or miracles.
     input.addEventListener('keydown', (e) => e.stopPropagation());
     const hint = el('div', 'cloud-hint', 'Leave a name to get an island code. The code brings your island back on any device.');

@@ -117,7 +117,7 @@ function tex(canvas: HTMLCanvasElement): THREE.CanvasTexture {
  * Where a held thing will land: a flat gold TEND sigil draped on the terrain at the landing point,
  * with the star axis as a thin beam of light from the held object down to it. Blocked or outside
  * the golden ring of influence it dims to a reddish sigil with no beam. Also draws the soft gold
- * ring under the hovered grab target.
+ * ring under the hovered grab target (or clickable building), reddish when it is out of reach.
  */
 export class DropMarker {
   private readonly decal: THREE.Mesh;
@@ -317,7 +317,8 @@ export class DropMarker {
       }
       rp.needsUpdate = true;
       this.ring.frustumCulled = false;
-      this.ringMat.color.copy(GOLD);
+      // Outside your influence the ring dims toward red, like the sigil (this replaces the old "Outside your influence" tooltip).
+      this.ringMat.color.copy(GOLD).lerp(BAD, this.bad * 0.8);
       this.ringMat.opacity = this.ringFade * (0.8 + 0.2 * Math.sin(time * 4.5));
     }
   }
