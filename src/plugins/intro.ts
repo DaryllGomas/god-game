@@ -1,5 +1,5 @@
 import type { Game, GamePlugin } from '../Game';
-import { playIntro } from '../intro/Intro';
+import { filmCamera, playIntro } from '../intro/Intro';
 
 /** "Watch the intro" on the ? screen: plays it full screen over the game, then fades back to the screen. */
 export function install(game: Game): GamePlugin {
@@ -12,7 +12,10 @@ export function install(game: Game): GamePlugin {
     link.onclick = () => {
       if (playing) return;
       playing = true;
+      const cam = filmCamera(() => game);
       void playIntro({
+        land: cam.land,
+        glide: cam.glide,
         unlockAudio: () => game.audio.unlock(),
         holdAudio: (on) => game.audio.holdForFilm(on),
         gameMuted: () => game.audio.muted,

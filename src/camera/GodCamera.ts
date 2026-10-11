@@ -8,6 +8,14 @@ const MIN_PITCH = 0.22;
 const MAX_PITCH = 1.48;
 const BOUND = 520;
 
+export interface CameraPose {
+  x: number;
+  z: number;
+  distance: number;
+  pitch: number;
+  yaw: number;
+}
+
 /**
  * Orbit camera around a ground focus point. Supports B&W-style "grab the land"
  * dragging: the world point under the cursor stays pinned to the cursor.
@@ -20,6 +28,8 @@ export class GodCamera {
   distance = 130;
 
   private readonly goal = { target: new THREE.Vector3(), yaw: 0.5, pitch: 0.85, distance: 130 };
+  /** A timed glide of the goal values (see glideTo); null when idle. */
+  private glide: { from: CameraPose; to: CameraPose; t: number; dur: number } | null = null;
   private readonly grabPoint = new THREE.Vector3();
   private grabbing = false;
   private shakeAmt = 0;
@@ -34,6 +44,33 @@ export class GodCamera {
     this.target.set(x, terrain.surfaceAt(x, z), z);
     this.goal.target.copy(this.target);
     this.apply(terrain);
+  }
+
+  /** The pose the camera is heading for (its goal), as {x, z, distance, pitch, yaw}. */
+  getPose(): CameraPose {
+    return { x: this.goal.target.x, z: this.goal.target.z, distance: this.goal.distance, pitch: this.goal.pitch, yaw: this.goal.yaw };
+  }
+
+  /** Put the camera at a pose: instantly (current and goal values both), or let it ease there. Cancels any glide. */
+  setPose(p: CameraPose, instant: boolean, terrain?: Terrain) {
+    this.glide = null;
+    this.goal.target.x = p.x;
+    this.goal.target.z = p.z;
+    this.goal.yaw = p.yaw;
+    this.goal.pitch = clamp(p.pitch, MIN_PITCH, MAX_PITCH);
+    this.goal.distance = clamp(p.distance, MIN_DIST, MAX_DIST);
+    if (!instant) return;
+    if (terrain) this.goal.target.y = terrain.surfaceAt(p.x, p.z);
+    this.target.copy(this.goal.target);
+    this.yaw = this.goal.yaw;
+    this.pitch = this.goal.pitch;
+    this.distance = this.goal.distance;
+    if (terrain) this.apply(terrain);
+  }
+
+  /** Glide the goal values to a pose over `seconds` with a smooth ease-in-out (the damped follow smooths it further). */
+  glideTo(p: CameraPose, seconds: number) {
+    this.glide = { from: this.getPose(), to: { ...p }, t: 0, dur: Math.max(0.01, seconds) };
   }
 
   flyTo(x: number, z: number) {
@@ -111,6 +148,19 @@ export class GodCamera {
   }
 
   update(dt: number, terrain: Terrain) {
+    const g = this.glide;
+    if (g) {
+      g.t = Math.min(g.dur, g.t + dt);
+      const u = g.t / g.dur;
+      const e = u * u * u * (u * (u * 6 - 15) + 10); // smootherstep
+      const L = (a: number, b: number) => a + (b - a) * e;
+      this.goal.target.x = L(g.from.x, g.to.x);
+      this.goal.target.z = L(g.from.z, g.to.z);
+      this.goal.yaw = L(g.from.yaw, g.to.yaw);
+      this.goal.pitch = L(g.from.pitch, g.to.pitch);
+      this.goal.distance = L(g.from.distance, g.to.distance);
+      if (g.t >= g.dur) this.glide = null;
+    }
     const k = damp(9, dt);
     if (!this.grabbing) {
       this.target.x += (this.goal.target.x - this.target.x) * k;

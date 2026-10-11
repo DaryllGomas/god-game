@@ -1,18 +1,17 @@
 import { Game } from './Game';
 import { loadAssets } from './assets';
 import { preload as preloadCloud } from './cloud/Cloud';
-import { isFirstVisit, playIntro, restBehind } from './intro/Intro';
+import { filmCamera, isFirstVisit, playIntro } from './intro/Intro';
 
 // A first visit opens on the intro (on black). The game is built behind it once the film is playing,
-// rests while covered, and fades up from black into the title screen when it ends.
+// renders underneath the film, which dissolves into the live island; the camera then glides to the title view.
 let gameReady = () => {};
 const ready = new Promise<void>((r) => (gameReady = r));
 let introStarted = () => {};
 const started = new Promise<void>((r) => (introStarted = r));
-let covered = false;
-let resume: (() => void) | null = null;
-if (isFirstVisit()) {
-  covered = true;
+const cam = filmCamera(() => (window as unknown as { game?: Game }).game);
+const first = isFirstVisit();
+if (first) {
   void playIntro({
     ready,
     waitForTouch: true,
@@ -20,10 +19,8 @@ if (isFirstVisit()) {
     holdAudio: (on) => (window as unknown as { game?: Game }).game?.audio.holdForFilm(on),
     gameMuted: () => !!(window as unknown as { game?: Game }).game?.audio.muted,
     started: () => introStarted(),
-    uncover: () => {
-      covered = false;
-      resume?.();
-    },
+    land: cam.land,
+    glide: cam.glide,
   });
 } else introStarted();
 
@@ -35,6 +32,6 @@ Promise.all([loadAssets(), preloadCloud(), started]).then(() => {
   const game = new Game(container);
   // Handy for debugging from the console.
   (window as unknown as { game: Game }).game = game;
-  if (covered) resume = restBehind(game);
+  if (first) cam.land(); // a first visit: the camera waits at the landing pose behind the film
   gameReady();
 });

@@ -5,13 +5,11 @@
   inset: 0;
   z-index: 1000;
   background: #000;
-  opacity: 1;
-  transition: opacity 2.4s cubic-bezier(0.45, 0, 0.35, 1);
   cursor: default;
 }
-.intro.reveal {
-  opacity: 0;
-  pointer-events: none;
+/* The film dissolves into the live island behind it (the game is rendering underneath). */
+.intro.dissolving {
+  background: transparent;
 }
 .intro-video {
   display: block;
@@ -20,10 +18,30 @@
   /* The film starts and ends on black, so letterboxing on other screen shapes just melts into the black. */
   object-fit: contain;
   background: #000;
-  transition: opacity 0.7s ease;
+  transition: opacity var(--dissolve, 1.8s) ease-in-out;
 }
-.intro.ending .intro-video {
+.intro.dissolving .intro-video {
   opacity: 0;
+}
+.intro.dissolving .intro-skip {
+  display: none;
+}
+
+/* While the film plays and the camera glides, the title screen and HUD wait; then they rise. */
+body.intro-film .hud {
+  opacity: 0;
+  pointer-events: none;
+}
+body.intro-hud-in .hud {
+  animation: intro-hud-in 1.2s ease both;
+}
+@keyframes intro-hud-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* A click or key shows this; a second one skips. */

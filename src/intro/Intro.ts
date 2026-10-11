@@ -13,14 +13,19 @@ const SRC = `${import.meta.env.BASE_URL}intro/intro.mp4`;
 const START_TIMEOUT = 9000;
 /** The "skip" pill stays this long after the last click or key (ms). */
 const SKIP_SHOW = 3500;
-/** On a skip, the picture fades to black first (ms). */
-const TO_BLACK = 700;
-/** A held beat of black before the world fades up (ms). */
-const HOLD_BLACK = 500;
+/** The film dissolves into the live island over this long (ms; matches --dissolve in intro.css). */
+const DISSOLVE = 1800;
+/** On a skip, the dissolve is quick (ms). */
+const DISSOLVE_SKIP = 600;
+/** The dissolve starts this long before the film's end (s): its last frames are the held painting of the island. */
+const DISSOLVE_LEAD = 2.0;
+/** After the dissolve the camera glides down to the start view over this long (ms). */
+const GLIDE = 4000;
+/** The pose the painting at the end of the film was made from (measured from the live game). */
+const LANDING = { x: 0, z: 0, distance: 420, pitch: 0.62, yaw: 0.5 };
+
 /** The point of light fades out over this long when touched (ms; matches .intro-light in intro.css). */
 const LIGHT_OUT = 600;
-/** The fade up from black into the title screen (ms; matches .intro's transition in intro.css). */
-const REVEAL = 2400;
 
 /** A first visit: no island saved here, no island code, and the intro not seen before. */
 export function isFirstVisit(): boolean {
@@ -55,8 +60,30 @@ export interface IntroOptions {
   gameMuted?: () => boolean;
   /** The film is under way (or has given up): heavy work can start without stalling its first frames. */
   started?: () => void;
-  /** Just before the world fades up from black. */
-  uncover?: () => void;
+  /** Put the game camera at the landing pose (idempotent; may be called before the game exists, then does nothing). */
+  land?: () => void;
+  /** Glide the game camera from the landing pose to the start view over `ms`. */
+  glide?: (ms: number) => void;
+}
+
+/**
+ * Camera hooks for the film's landing: `land` remembers the camera's current (start) pose and puts it at the
+ * landing pose; `glide` eases it back. `getGame` may return undefined until the game has been built.
+ */
+export function filmCamera(getGame: () => Game | undefined): Required<Pick<IntroOptions, 'land' | 'glide'>> {
+  let start: ReturnType<Game['godCam']['getPose']> | null = null;
+  return {
+    land() {
+      const game = getGame();
+      if (!game || start) return;
+      start = game.godCam.getPose();
+      game.godCam.setPose(LANDING, true, game.terrain);
+    },
+    glide(ms) {
+      const game = getGame();
+      if (game && start) game.godCam.glideTo(start, ms / 1000);
+    },
+  };
 }
 
 /**
@@ -102,6 +129,9 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
     root.append(light);
   }
   document.body.appendChild(root);
+  // The game behind the film is already at the landing pose; its title screen and HUD wait until the glide is done.
+  document.body.classList.add('intro-film');
+  opts.land?.();
 
   return new Promise<void>((resolve) => {
     let finishing = false;
@@ -189,24 +219,37 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
       window.clearTimeout(skipTimer);
       window.clearTimeout(startTimer);
       root.classList.remove('skippable');
-      root.classList.add('ending');
-      if (skipped) await wait(TO_BLACK);
-      video.pause();
-      await wait(HOLD_BLACK);
+      // The game is built behind the film; wait for it, put it at the landing pose, then dissolve the film away.
       await (opts.ready ?? Promise.resolve()).catch(() => undefined);
-      window.removeEventListener('keydown', onKey, true);
-      opts.uncover?.();
+      opts.land?.();
+      const ms = skipped ? DISSOLVE_SKIP : DISSOLVE;
+      root.style.setProperty('--dissolve', `${ms}ms`);
+      root.classList.add('dissolving');
       opts.holdAudio?.(false);
-      // The world fades up from black, and the title card rises a beat later (see intro.css).
+      await wait(ms + 100);
+      video.pause();
+      // The overlay stays (clear, still catching keys and clicks) while the camera glides to the start view.
+      opts.glide?.(GLIDE);
+      await wait(opts.glide ? GLIDE + 150 : 0);
+      window.removeEventListener('keydown', onKey, true);
       const help = document.querySelector('.overlay.help');
       help?.classList.add('intro-reveal');
-      root.classList.add('reveal');
-      await wait(REVEAL);
+      document.body.classList.remove('intro-film');
+      document.body.classList.add('intro-hud-in');
       root.remove();
-      window.setTimeout(() => help?.classList.remove('intro-reveal'), 1500);
+      window.setTimeout(() => {
+        help?.classList.remove('intro-reveal');
+        document.body.classList.remove('intro-hud-in');
+      }, 1500);
       resolve();
     };
 
+    // The dissolve starts a little before the end, while the film holds on the painting of the island.
+    video.addEventListener('timeupdate', () => {
+      if (Number.isFinite(video.duration) && video.duration > DISSOLVE_LEAD && video.currentTime >= video.duration - DISSOLVE_LEAD) {
+        void finish(false);
+      }
+    });
     video.addEventListener('ended', () => void finish(false));
     video.addEventListener('error', () => {
       console.warn('The intro could not load; going straight to the title.', video.error);
