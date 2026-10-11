@@ -27,6 +27,9 @@ if (!existsSync(`${STUDIO}/CNAME`)) {
   console.log(`Studio repo not found at ${STUDIO}; skipped studio.bigpicsolutions.com/the-first-world/ (set STUDIO_DIR).`);
 } else {
   rmSync(`${STUDIO}/the-first-world`, { recursive: true, force: true });
+    // Other sessions work in the studio repo too: never publish onto someone else's branch.
+  const studioBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: STUDIO }).toString().trim();
+  if (studioBranch !== 'main') throw new Error(`studio repo is on '${studioBranch}', not main: publish from a main worktree instead`);
   cpSync('dist', `${STUDIO}/the-first-world`, { recursive: true, filter: (src) => !/[\\/]\.git([\\/]|$)/.test(src) });
   run('git add -A the-first-world', STUDIO);
   const changed = execSync('git diff --cached --quiet -- the-first-world || echo yes', { cwd: STUDIO }).toString().trim();
