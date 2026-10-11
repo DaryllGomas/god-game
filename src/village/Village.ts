@@ -60,6 +60,10 @@ export class Village {
   prayerRate = 0;
   /** > 0 while the rival god is pressing on this village (set by src/rival): if its faith hits 0 it turns to him instead of drifting away. */
   rivalPressure = 0;
+  /** Not yours: belief holds (no fading) until this game time, set whenever a deed raises it (VILLAGE.beliefHold). */
+  beliefHeldUntil = 0;
+  /** Belief after the last update, to notice rises from any source (impress, prayers, projects). */
+  private lastBelief = Infinity;
 
   private roleTimer = 0;
   private birthTimer = 0;
@@ -305,7 +309,10 @@ export class Village {
       this.belief = Math.max(this.isHome ? 5 : 0, this.belief);
     } else {
       this.prayerRate = 0;
-      this.belief = Math.max(0, this.belief - VILLAGE.beliefDecay * dt);
+      // A deed that raised belief holds it for a while; only a long silence lets it fade, and slowly.
+      if (this.belief > this.lastBelief) this.beliefHeldUntil = game.time + VILLAGE.beliefHold;
+      if (game.time >= this.beliefHeldUntil) this.belief = Math.max(0, this.belief - VILLAGE.beliefDecay * dt);
+      this.lastBelief = this.belief;
     }
 
     this.updateGrowth(game, dt);
