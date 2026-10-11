@@ -104,6 +104,8 @@ export class RivalIsle {
   private storm = 0;
   private stormGoal = 0;
   private awake = false;
+  /** v0.5 endings (src/endings): hold the isle at this nearness instead of the balance's (above 1 = nearer than the balance ever brings it); null = the balance decides. */
+  hold: number | null = null;
   private readonly crown = new THREE.Group();
   private readonly eye = new THREE.Group();
   private readonly glow: THREE.Sprite;
@@ -268,7 +270,7 @@ export class RivalIsle {
 
   /** The world's balance (0..1) sets how near and tall the isle stands and how awake its storm is. `instant` skips the drift. */
   setBalance(balance: number, instant = false) {
-    this.nearGoal = smoothstep(ISLE_RANGE[0], ISLE_RANGE[1], balance);
+    this.nearGoal = this.hold ?? smoothstep(ISLE_RANGE[0], ISLE_RANGE[1], balance);
     this.stormGoal = Math.max(smoothstep(ISLE_STORM[0], ISLE_STORM[1], balance), this.awake ? 0.12 : 0);
     if (instant) {
       this.near = this.nearGoal;
@@ -302,7 +304,7 @@ export class RivalIsle {
     this.group.visible = a > 0.003;
     if (!this.group.visible) return;
     // Far and small, or near and tall; rising out of the sea (or sinking) with `appear`.
-    const n = easeInOut(clamp(this.near, 0, 1));
+    const n = this.near > 1 ? this.near : easeInOut(clamp(this.near, 0, 1)); // past 1 only while the endings hold it (v0.5)
     const dist = lerp(ISLE_FAR.dist, ISLE_NEAR.dist, n);
     const scale = lerp(ISLE_FAR.scale, ISLE_NEAR.scale, n);
     this.group.position.set(ISLE_DIR.x * dist, ISLE_POS.y - (1 - e) * 190 * scale, ISLE_DIR.y * dist);

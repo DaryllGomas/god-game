@@ -1051,4 +1051,66 @@ export class Audio {
     this.drift = clamp(drift, 0, 1);
     this.harmony = clamp(harmony, 0, 1);
   }
+
+  // ------------------------------------------------------- the endings (src/endings, v0.5)
+
+  /** Collapse: the music and the island's sounds sink away over `seconds`, under one slow falling line of low bells. */
+  endingHush(seconds: number) {
+    const o = this.out(null, 0.45);
+    if (!o) return;
+    const t = this.ctx!.currentTime;
+    const g = this.duckGain.gain;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(0.04, t, seconds / 3);
+    [62, 59, 57, 54, 50].forEach((m, i) => this.bell(o, m, 4.2, 0.17 - i * 0.015, t + 1 + i * 1.6));
+    this.tone(o, midi(38), seconds, 0.12, { type: 'sine', attack: 3, at: t });
+  }
+
+  /** Back from a hush: the music and ambience breathe in again. */
+  endingBreathe(seconds = 4) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const g = this.duckGain.gain;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(1, t, seconds / 3);
+  }
+
+  /** Whole: a low violet fifth and the warm chord sound together, drift into one, and resolve upward in bells. */
+  endingWhole() {
+    const o = this.out(null, 0.55);
+    if (!o) return;
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(500, t);
+    lp.frequency.linearRampToValueAtTime(2600, t + 7);
+    lp.connect(o);
+    // His fifth (B, F#), slightly flat, sliding up into the warm chord's root and fifth.
+    for (const [m, to] of [[47, 50], [54, 57]] as [number, number][]) this.tone(lp, midi(m) * 0.995, 7, 0.08, { type: 'triangle', attack: 2.5, to: midi(to), at: t });
+    for (const m of [...this.chordUp(45), ...this.chordUp(57)]) {
+      for (const det of [-6, 0, 6]) this.tone(lp, midi(m), 9, 0.07, { type: 'sawtooth', attack: 3, detune: det, at: t + 1 });
+    }
+    this.chordUp(69).concat(this.chordUp(81)).forEach((m, i) => this.bell(o, m, 3.4, 0.22, t + 3.6 + i * 0.32));
+    this.duck(0.5, 9);
+  }
+
+  /** Ready to See: a long glowing choir under bells climbing the chord, slower and brighter than the Wonder's. */
+  endingReady() {
+    const o = this.out(null, 0.6);
+    if (!o) return;
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(600, t);
+    lp.frequency.linearRampToValueAtTime(2400, t + 8);
+    lp.connect(o);
+    for (const m of [...this.chordUp(45), ...this.chordUp(57), ...this.chordUp(69).slice(0, 2)]) {
+      for (const det of [-8, 0, 8]) this.tone(lp, midi(m), 14, 0.07, { type: 'sawtooth', attack: 4, detune: det, at: t });
+    }
+    const notes = [...this.chordUp(69), ...this.chordUp(81), ...this.chordUp(93)];
+    notes.forEach((m, i) => this.bell(o, m, 4, 0.2, t + 2 + i * 0.55));
+    this.duck(0.45, 12);
+  }
 }

@@ -701,6 +701,20 @@ export class Rival {
     if (this.stage === 'dormant') this.ui.show(false);
   }
 
+  /**
+   * v0.5 endings (src/endings), Whole: he is drawn back into you. No lines, no retreat, no panel; he never
+   * schemes or stirs again. His isle is left standing for the endings to dissolve into light.
+   */
+  reintegrate() {
+    if (this.scheme) this.finish('faded');
+    this.stage = 'retreated';
+    this.pending = false;
+    this.stirring = false;
+    this.setMood('defeated', 1e9);
+    this.ui.clearQueue();
+    this.ui.show(false);
+  }
+
   // --------------------------------------------------------------- the slap
 
   private hoverHand() {

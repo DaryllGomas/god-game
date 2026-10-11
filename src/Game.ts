@@ -547,16 +547,11 @@ export class Game {
     // Winning every heart now unlocks the Wonder (see plugins/projects.ts); finishing it wins the island.
   }
 
-  /** The Wonder is complete: the island is yours. */
+  /** The Wonder is complete. (v0.5: no longer the ending; the endings are Collapse and Ready to See, see src/endings.) */
   onWonderCompleted() {
     if (this.won) return;
     this.won = true;
     this.events.emit('wonderCompleted', {});
-    setTimeout(() => {
-      const followers = this.villages.reduce((s, x) => s + x.population, 0);
-      const mins = Math.floor(this.time / 60);
-      this.hud.showWin({ time: `${mins} min`, alignment: this.player.alignmentLabel, followers });
-    }, 6000);
   }
 
   onVillageLost(v: Village) {

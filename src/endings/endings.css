@@ -1,0 +1,259 @@
+/* The endings (src/endings): the stage over the game, Ora's line, and the end card. Timing is driven from code. */
+
+/* While a sequence plays, everything else on the HUD fades away. */
+.hud.endings-cine > :not(.endings-layer):not(.endings-card) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 1.4s ease !important;
+}
+
+.endings-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+/* During a sequence the layer takes the pointer, so nothing reaches the world. */
+.endings-layer.on {
+  pointer-events: auto;
+  cursor: none;
+}
+
+.endings-veil {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Ora: the same orb and voice as in play, lower and a little larger, for the big moments. */
+.endings-ora {
+  --blur: 6px;
+  --rise: 8px;
+  position: absolute;
+  left: 50%;
+  bottom: 17vh;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  max-width: min(820px, calc(100vw - 48px));
+  transform: translate(-50%, var(--rise));
+  opacity: 0;
+  pointer-events: none;
+}
+.endings-ora::before {
+  content: '';
+  position: absolute;
+  inset: -46px -80px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(3, 6, 16, 0.6), rgba(3, 6, 16, 0.32) 55%, transparent);
+  filter: blur(10px);
+}
+.endings-ora-orb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 16px 5px rgba(159, 220, 255, 0.55),
+    0 0 46px 14px rgba(95, 184, 255, 0.22);
+}
+.endings-ora-orb svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.endings-ora-line {
+  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 31px;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  color: #eef8ff;
+  text-shadow:
+    0 0 2px rgba(4, 10, 24, 0.95),
+    0 1px 10px rgba(4, 10, 24, 0.8),
+    0 0 22px rgba(159, 220, 255, 0.6);
+  filter: blur(var(--blur));
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- the end card */
+
+.endings-card {
+  --ec-mark: 0;
+  --ec-title: 0;
+  --ec-line: 0;
+  --ec-save: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(ellipse 120% 80% at 50% 118%, #2a1d0a 0%, #0b0d18 42%, #03050b 100%);
+  pointer-events: auto;
+  cursor: default;
+}
+.endings-card.on {
+  display: flex;
+}
+.ec-stars {
+  position: absolute;
+  inset: -4%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.85;
+  animation: ec-drift 140s linear infinite alternate;
+}
+.ec-horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34vh;
+  background:
+    radial-gradient(ellipse 60% 70% at 50% 100%, rgba(255, 196, 102, 0.22), transparent 70%),
+    linear-gradient(to top, rgba(255, 180, 80, 0.08), transparent);
+}
+.ec-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.ec-mark {
+  width: min(46vh, 430px);
+  aspect-ratio: 1;
+  opacity: var(--ec-mark);
+  transform: scale(calc(0.92 + 0.08 * var(--ec-mark)));
+  filter: drop-shadow(0 0 18px rgba(255, 200, 110, 0.45)) drop-shadow(0 0 60px rgba(255, 170, 70, 0.22));
+  margin-bottom: 1.2vh;
+}
+.ec-mark svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.tend-arcs {
+  transform-origin: 0 0;
+  animation: ec-turn 110s linear infinite;
+}
+.tend-star {
+  animation: ec-twinkle 6s ease-in-out infinite;
+}
+.ec-title {
+  margin: 0;
+  font-family: 'Cinzel', 'Georgia', serif;
+  font-weight: 500;
+  font-size: clamp(30px, 4.4vw, 62px);
+  letter-spacing: 0.32em;
+  padding-left: 0.32em;
+  color: #f6d891;
+  text-shadow:
+    0 0 18px rgba(255, 196, 96, 0.45),
+    0 0 2px rgba(255, 236, 190, 0.8);
+  opacity: var(--ec-title);
+}
+.ec-rule {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 2.2vh 0 2vh;
+  opacity: var(--ec-title);
+}
+.ec-rule span {
+  width: min(16vw, 180px);
+  height: 1px;
+  background: linear-gradient(to var(--d, right), transparent, rgba(244, 207, 115, 0.75));
+}
+.ec-rule span:last-child {
+  --d: left;
+}
+.ec-rule i {
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: #f6d891;
+  box-shadow: 0 0 10px rgba(255, 210, 120, 0.9);
+}
+.ec-line {
+  margin: 0;
+  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: clamp(22px, 2.3vw, 32px);
+  letter-spacing: 0.02em;
+  color: #eaf3ff;
+  text-shadow: 0 0 18px rgba(159, 220, 255, 0.45);
+  opacity: var(--ec-line);
+}
+.ec-save {
+  position: absolute;
+  right: 30px;
+  bottom: 28px;
+  width: 46px;
+  height: 46px;
+  padding: 11px;
+  border-radius: 50%;
+  border: 1px solid rgba(244, 207, 115, 0.5);
+  background: rgba(10, 14, 28, 0.55);
+  color: #f4cf73;
+  cursor: pointer;
+  opacity: calc(var(--ec-save) * 0.72);
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.ec-save:hover,
+.ec-save:focus-visible {
+  opacity: var(--ec-save);
+  background: rgba(40, 32, 14, 0.75);
+  box-shadow: 0 0 18px rgba(255, 200, 110, 0.4);
+  outline: none;
+}
+.ec-save svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes ec-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ec-twinkle {
+  50% {
+    opacity: 0.72;
+  }
+}
+@keyframes ec-drift {
+  to {
+    transform: translate(-1.5%, -1%) scale(1.03);
+  }
+}
+
+@media (max-width: 720px) {
+  .endings-ora-line {
+    font-size: 21px;
+    white-space: normal;
+  }
+  .endings-ora-orb {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tend-arcs,
+  .tend-star,
+  .ec-stars {
+    animation: none;
+  }
+}

@@ -55,6 +55,8 @@ export interface SaveData {
   piles: [number, number, number, number][];
   golem: ReturnType<Golem['saveState']>;
   plugins: Record<string, unknown>;
+  /** v0.5: the Legacy record for the RPG, written once at Ready to See (src/endings/Legacy.ts; AGREED v1 in HANDOFF TO THE RPG.md). */
+  legacy?: unknown;
 }
 
 const r2 = (n: number): number => {
@@ -187,6 +189,7 @@ export function serialize(game: Game): SaveData {
   const owned = game.villages.filter((v) => v.owner === 'player').length;
   const season = (game as unknown as { seasons?: { seasonName?: string } }).seasons?.seasonName;
   const summary = [`Day ${game.day}`, season, `${owned} of ${game.villages.length} villages`].filter(Boolean).join(' · ');
+  const legacy = (game as unknown as { endings?: { legacy?: unknown } }).endings?.legacy;
 
   return {
     version: SAVE_VERSION,
@@ -208,6 +211,8 @@ export function serialize(game: Game): SaveData {
     piles,
     golem: roundGolem(game.creature.saveState()),
     plugins,
+    // v0.5 endings: at the top level, so the RPG finds it as `save.legacy`.
+    ...(legacy ? { legacy } : {}),
   };
 }
 

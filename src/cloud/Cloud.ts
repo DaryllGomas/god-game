@@ -1,4 +1,5 @@
 import { BACKUP_KEY, SAVE_KEY, SAVE_VERSION } from '../systems/Save';
+import { rebirthPending } from '../endings/memory';
 
 /**
  * Cloud saves, kept light: the island code is the only way back in. The browser holds a random secret key
@@ -114,6 +115,8 @@ export async function restoreIsland(rawCode: string): Promise<RestoreResult> {
 export async function preload(): Promise<void> {
   const link = getLink();
   if (!link) return;
+  // v0.5 endings: a world that just began again must not be replaced by the cloud copy of the one that fell.
+  if (rebirthPending()) return;
   try {
     const r = await call(`/v1/island?code=${encodeURIComponent(link.code)}`, { method: 'GET' }, PRELOAD_TIMEOUT);
     if (!r.ok) return;
