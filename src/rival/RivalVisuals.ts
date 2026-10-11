@@ -86,6 +86,8 @@ function disposeGroup(g: THREE.Object3D) {
 
 /** Which way his isle lies: out on the sea, off the island's north-west shoulder. Its distance follows the balance (see ISLE_FAR / ISLE_NEAR). */
 export const ISLE_POS = new THREE.Vector3(-640, 0, -400);
+/** How far behind a turned village's prayer place his banner stands (z), clear of the pyramid (v0.5 shrines). */
+const BANNER_BACK = -12;
 const ISLE_DIR = new THREE.Vector2(ISLE_POS.x, ISLE_POS.z).normalize();
 
 /**
@@ -761,8 +763,11 @@ export class TurnedMark {
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x1d1034, roughness: 0.7, emissive: 0x2a0f55, emissiveIntensity: 0.4 });
     const clothMat = new THREE.MeshStandardMaterial({ color: VIOLET, emissive: 0x3a1a78, emissiveIntensity: 0.5, roughness: 0.7, side: THREE.DoubleSide });
     this.mats.push(poleMat, clothMat);
+    // The banner stands behind the prayer place, clear of the biggest shrine stage (the pyramid), on the ground there.
+    const bz = BANNER_BACK;
+    const dy = game.terrain.heightAt(w.x, w.z + bz) - w.y;
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, 14, 6), poleMat);
-    pole.position.set(0, 7, -5);
+    pole.position.set(0, 7 + dy, bz);
     const shape = new THREE.Shape();
     shape.moveTo(0, 0);
     shape.lineTo(5.2, -1.2);
@@ -771,11 +776,11 @@ export class TurnedMark {
     shape.lineTo(0, -5.2);
     shape.closePath();
     this.cloth = new THREE.Mesh(new THREE.ShapeGeometry(shape), clothMat);
-    this.cloth.position.set(0.2, 13.4, -5);
+    this.cloth.position.set(0.2, 13.4 + dy, bz);
     // Ember trim along the pole's top.
     const orb = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), new THREE.MeshBasicMaterial({ color: EMBER }));
     this.mats.push(orb.material as THREE.Material);
-    orb.position.set(0, 14.4, -5);
+    orb.position.set(0, 14.4 + dy, bz);
     this.group.add(pole, this.cloth, orb);
 
     const flameMat = new THREE.SpriteMaterial({ map: glowTexture(), color: 0x9a60ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });

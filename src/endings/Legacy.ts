@@ -2,7 +2,7 @@ import type { Game } from '../Game';
 import type { Village } from '../village/Village';
 import { WORLD_SEED } from '../config';
 import { getLink } from '../cloud/Cloud';
-import { chroniclePeople, stagesReached } from './lane3a';
+import type { ChronicleEntry } from '../chronicle/Chronicle';
 
 /**
  * The Legacy record, AGREED v1 (`THE FIRST WORLD/HANDOFF TO THE RPG.md`): written once, at Ready to See,
@@ -73,8 +73,34 @@ export function nearestVillage(game: Game, x: number, z: number): Village | null
   return best;
 }
 
-/** Build the record from the world as it stands. `lowest` is the lowest balance this island ever reached. */
-export function buildLegacy(game: Game, lowest: number, bestAct: string | null): Legacy {
+const SCHEMES: Record<string, string> = { whispers: 'whispers', blight: 'blight', hand: 'grasping hand', storm: 'violet storm' };
+
+/** The chronicle's kind moments, best first (lane 3a's weights), as one line for marks.bestAct. */
+const KIND_ACTS: Record<string, (e: ChronicleEntry) => string> = {
+  lost_child_home: (e) => `You carried ${e.name ?? 'a lost child'} home from the woods.`,
+  saved_from_fire: (e) =>
+    e.note === 'home' ? `You saved ${e.name ?? 'a family'}'s home from the flames.` : e.note === 'water' ? `You carried ${e.name ?? 'a villager'}, burning, to the water.` : `Your rain saved ${e.name ?? 'a villager'} from the flames.`,
+  fed_in_famine: (e) => `You fed ${e.name ?? 'the hungry'} when ${e.village ?? 'the village'}'s stores ran empty.`,
+  scheme_foiled: (e) => `You turned Vexahl's ${SCHEMES[e.note ?? ''] ?? 'scheme'} away from ${e.village ?? 'the village'}.`,
+};
+const KIND_RANK = ['lost_child_home', 'saved_from_fire', 'fed_in_famine', 'scheme_foiled'];
+
+/** The kindest thing the chronicle remembers (most memorable kind first, then the latest). */
+export function bestFromChronicle(entries: readonly ChronicleEntry[]): string | null {
+  let best: ChronicleEntry | null = null;
+  for (const e of entries) {
+    const r = KIND_RANK.indexOf(e.kind);
+    if (r < 0) continue;
+    if (!best || r < KIND_RANK.indexOf(best.kind) || (r === KIND_RANK.indexOf(best.kind) && e.t >= best.t)) best = e;
+  }
+  return best ? KIND_ACTS[best.kind](best) : null;
+}
+
+/**
+ * Build the record from the world as it stands. `lowest` is the lowest balance this island ever reached;
+ * `fallbackBest` is the endings' own note of a kind act, used when the chronicle has none.
+ */
+export function buildLegacy(game: Game, lowest: number, fallbackBest: string | null): Legacy {
   const bal = (game as unknown as { balance?: { value: number; worst: { x: number; z: number; what: string; points: number } | null } }).balance;
   const golem = game.creature;
   const o = golem.opinions;
@@ -85,7 +111,7 @@ export function buildLegacy(game: Game, lowest: number, bestAct: string | null):
     v: 1,
     completedAt: new Date().toISOString(),
     world: { godName: getLink()?.name ?? null, islandName: null, peopleName: null, seed: WORLD_SEED },
-    villages: game.villages.map((v) => ({ name: v.name, joined: v.owner === 'player', stagesReached: stagesReached(game, v) })),
+    villages: game.villages.map((v) => ({ name: v.name, joined: v.owner === 'player', stagesReached: [...v.shrineStagesReached] })),
     balance: { final: r3(final), lowest: r3(Math.min(lowest, final)) },
     alignment: r3(game.player.alignment),
     golem: {
@@ -101,13 +127,8 @@ export function buildLegacy(game: Game, lowest: number, bestAct: string | null):
         throwsRocks: r3(o['throw:rock']),
       },
     },
-    people: chroniclePeople(game, PEOPLE).map((p) => ({
-      name: String(p.name),
-      village: typeof p.village === 'string' ? p.village : (p.village?.name ?? null),
-      role: String(p.role ?? ''),
-      story: String(p.story ?? ''),
-    })),
-    marks: { worstAct: describeWorst(game, bal?.worst ?? null), bestAct },
+    people: (game.chronicle?.people(PEOPLE) ?? []).map((p) => ({ name: p.name, village: p.village || null, role: p.role, story: p.story })),
+    marks: { worstAct: describeWorst(game, bal?.worst ?? null), bestAct: bestFromChronicle(game.chronicle?.entries ?? []) ?? fallbackBest },
     vexahl: { outcome: 'reintegrated' },
   };
 }

@@ -140,7 +140,7 @@ export class Ascension {
     const gy = (x: number, z: number) => g.terrain.surfaceAt(x, z);
     const home = g.villages.find((v) => v.isHome) ?? g.villages[0];
     const temple = home.worship.pos;
-    this.landing = v3(temple.x, gy(temple.x, temple.z) + 10, temple.z);
+    this.landing = v3(temple.x, gy(temple.x, temple.z) + Math.max(10, home.worship.topHeight + 4), temple.z);
     const c = v3(10, 0, 60);
     const away = (p: THREE.Vector3, d: number, lift: number, side = 0) => {
       const x = p.x - DIR.x * d - DIR.y * side;

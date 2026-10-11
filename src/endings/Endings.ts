@@ -14,7 +14,6 @@ import { CityLights } from './CityLights';
 import { EndCard } from './EndCard';
 import { RuinModel, ruinSite } from './Ruin';
 import { buildLegacy, downloadLegacy, nearestVillage, type Legacy } from './Legacy';
-import { allTemplesStand } from './lane3a';
 import { clearRebirth, readRebirth, writeRebirth, type Ruin } from './memory';
 import './endings.css';
 
@@ -120,7 +119,7 @@ export class Endings {
     const followers = g.villages.reduce((n, v) => n + (v.owner === 'player' ? v.population : 0), 0);
     this.goneFor = followers === 0 ? this.goneFor + dt : 0;
     if (this.lowFor >= COLLAPSE_AFTER || this.goneFor >= PEOPLE_GONE_AFTER) this.startCollapse();
-    else if (b.highFor >= WHOLE_AFTER && allTemplesStand(g)) this.startAscension(false);
+    else if (b.highFor >= WHOLE_AFTER && g.allTemplesStand()) this.startAscension(false);
   }
 
   // ------------------------------------------------------------- sequences
@@ -283,7 +282,7 @@ export class Endings {
 
   // ------------------------------------------------------------- kindness
 
-  /** The kindest single thing you did, for the legacy (lane 3a's chronicle may tell this better later). */
+  /** The kindest single thing you did, as a fallback for the legacy when the chronicle remembers nothing kinder (see Legacy.bestAct). */
   private watchKindness() {
     const ev = this.game.events;
     const note = (score: number, text: string) => {
@@ -376,7 +375,7 @@ export class Endings {
       ruins: this.ruins,
       lowest: Math.round(this.lowest * 1000) / 1000,
       collapse: { below: COLLAPSE_BELOW, lowFor: Math.round(this.lowFor), after: COLLAPSE_AFTER, goneFor: Math.round(this.goneFor), goneAfter: PEOPLE_GONE_AFTER },
-      whole: { templesStand: allTemplesStand(this.game), highFor: Math.round(b?.highFor ?? 0), after: WHOLE_AFTER },
+      whole: { templesStand: this.game.allTemplesStand(), highFor: Math.round(b?.highFor ?? 0), after: WHOLE_AFTER },
       best: this.best?.text ?? null,
       legacy: !!this.legacy,
       sequenceTime: this.seq ? Math.round(((this.seq as unknown as { t?: number }).t ?? 0) * 10) / 10 : null,

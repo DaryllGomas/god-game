@@ -143,6 +143,8 @@ interface Lit {
   pool: THREE.ShaderMaterial;
   pillars: THREE.ShaderMaterial[];
   crown: THREE.Sprite;
+  /** Ground height at the prayer place, in the village group's space (the crown sits on top of whatever stands there). */
+  crownBase: number;
   halo: THREE.Mesh;
   lanterns: { s: THREE.Sprite; d: number; base: number }[];
   houses: Map<House, { s: THREE.Sprite; d: number }>;
@@ -272,7 +274,7 @@ export class CityLights {
       const r = Math.sqrt(rnd()) * v.radius * 0.9;
       lamp(v.center.x + Math.cos(a) * r, v.center.z + Math.sin(a) * r, 2.2 + rnd() * 1.6);
     }
-    const lit: Lit = { v, group, delay, pool, pillars: [outer, inner], crown, halo, lanterns, houses: new Map() };
+    const lit: Lit = { v, group, delay, pool, pillars: [outer, inner], crown, crownBase: wl.y, halo, lanterns, houses: new Map() };
     this.scanHouses(lit);
     return lit;
   }
@@ -323,6 +325,7 @@ export class CityLights {
         p.uniforms.uTime.value = this.time;
       }
       l.crown.material.opacity = L * start * (0.75 + 0.15 * Math.sin(this.time * 1.1));
+      l.crown.position.y = l.crownBase + Math.max(7, l.v.worship.topHeight * 0.92);
       (l.halo.material as THREE.MeshBasicMaterial).opacity = L * start * 0.8;
       l.halo.rotation.z = this.time * 0.05;
       for (const ln of l.lanterns) ln.s.material.opacity = L * this.reach(l, ln.d) * ln.base * (0.85 + 0.15 * Math.sin(this.time * 1.7 + ln.d));
