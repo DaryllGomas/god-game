@@ -52,8 +52,10 @@ export class SkyRings {
           void main() {
             vU = uv.x;
             vec4 wp = modelMatrix * vec4(position, 1.0);
-            vec3 n = normalize(mat3(modelMatrix) * normal);
-            vFace = abs(dot(n, normalize(cameraPosition - wp.xyz)));
+            // Guarded: a zero-length normal (tube seams) would make NaN, which bloom smears into black specks.
+            vec3 n = mat3(modelMatrix) * normal;
+            vec3 v = cameraPosition - wp.xyz;
+            vFace = abs(dot(n, v)) / max(length(n) * length(v), 1e-4);
             gl_Position = projectionMatrix * viewMatrix * wp;
           }
         `,
@@ -66,7 +68,7 @@ export class SkyRings {
           varying float vFace;
           void main() {
             // A soft core, brightest where the tube faces you and fading to nothing at its edges.
-            float core = pow(vFace, HALO == 1 ? 2.5 : 1.4);
+            float core = pow(clamp(vFace, 0.0, 1.0), HALO == 1 ? 2.5 : 1.4);
             // Gentle swells along the ring, and one slow glint travelling around it.
             float swell = 0.65 + 0.35 * sin(vU * 6.2831853 * 2.0 + uTime * 0.1);
             float d = fract(vU - uTime * 0.008 + 0.5) - 0.5;

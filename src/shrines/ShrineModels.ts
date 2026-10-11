@@ -70,8 +70,9 @@ export const SHRINE_BEAM = new THREE.ShaderMaterial({
     void main() {
       vH = uv.y;
       vec4 wp = modelMatrix * vec4(position, 1.0);
-      vec3 n = normalize(mat3(modelMatrix) * normal);
-      vFace = abs(dot(n, normalize(cameraPosition - wp.xyz)));
+      vec3 n = mat3(modelMatrix) * normal;
+      vec3 v = cameraPosition - wp.xyz;
+      vFace = abs(dot(n, v)) / max(length(n) * length(v), 1e-4); // guarded: no NaN (see docs/agents.md)
       gl_Position = projectionMatrix * viewMatrix * wp;
     }
   `,
@@ -81,7 +82,7 @@ export const SHRINE_BEAM = new THREE.ShaderMaterial({
     varying float vH;
     varying float vFace;
     void main() {
-      float a = uOpacity * pow(vFace, 3.0) * pow(1.0 - vH, 2.2) * smoothstep(0.0, 0.04, vH);
+      float a = uOpacity * pow(clamp(vFace, 0.0, 1.0), 3.0) * pow(clamp(1.0 - vH, 0.0, 1.0), 2.2) * smoothstep(0.0, 0.04, vH);
       gl_FragColor = vec4(uColor * a, 1.0);
     }
   `,

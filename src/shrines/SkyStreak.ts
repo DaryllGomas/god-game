@@ -143,8 +143,9 @@ export class SkyStreaks {
         void main() {
           vU = uv.x;
           vec4 wp = modelMatrix * vec4(position, 1.0);
-          vec3 n = normalize(mat3(modelMatrix) * normal);
-          vFace = abs(dot(n, normalize(cameraPosition - wp.xyz)));
+          vec3 n = mat3(modelMatrix) * normal;
+          vec3 v = cameraPosition - wp.xyz;
+          vFace = abs(dot(n, v)) / max(length(n) * length(v), 1e-4); // guarded: no NaN (see docs/agents.md)
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
       `,
@@ -161,7 +162,7 @@ export class SkyStreaks {
           if (behind < 0.0) discard;
           float k = 1.0 - clamp(behind / TAIL, 0.0, 1.0);
           // The tail thins as it fades: a sharper edge falloff further back.
-          float core = pow(vFace, (HALO == 1 ? 2.4 : 1.3) + (1.0 - k) * 7.0);
+          float core = pow(clamp(vFace, 0.0, 1.0), (HALO == 1 ? 2.4 : 1.3) + (1.0 - k) * 7.0);
           float a = pow(k, 2.2) * core * uFade * (HALO == 1 ? 0.3 : 1.0);
           vec3 col = mix(uGold, uWhite, pow(k, 9.0));
           gl_FragColor = vec4(col * a, 1.0);
