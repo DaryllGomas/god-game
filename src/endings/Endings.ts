@@ -357,6 +357,9 @@ export class Endings {
         const h = home.houses.find((x) => !x.destroyed) ?? home.store;
         b.worst = { x: Math.round(h.pos.x), z: Math.round(h.pos.z), what: 'home destroyed', points: -4, day: this.game.day };
       }
+      // After the good ending he is gone; a debug fall needs his spire back on the sea.
+      const r = this.stage.rival;
+      if (r && !r.isle.present) r.isle.setPresent(true, true);
       this.phase = 'play';
       this.startCollapse();
     } else {

@@ -61,7 +61,8 @@ Put supporting modules in your own folder, e.g. `src/prayers/`.
   - `game.balance`: `value` (0..1), `target`, `band`, `breakdown()`, `force(v | null)`, `deed(points, what, x, z)`; event `balanceBand`.
   - `game.shrines`: `setStage(village, stage, animate?)`, `streak(village)`, `allTemplesStand()`, `state()`; each village has `shrineStage` and `shrineStagesReached`.
   - `game.chronicle`: `entries`, `add(entry)`, `people(n)`, `of(seed)`; each villager has a `name` (from its seed) and a `bornAt`.
-  - `game.saves`: `save()`.
+  - `game.endings`: `debug('collapse' | 'whole' | 'ready')`, `state()`, `legacy`, `phase`. While a sequence plays it owns the camera (it replaces `godCam.update`), hides the HUD (`.hud.endings-cine`), swallows keys and pointer, and may pin `game.balance` and set `game.dayTime`. Its plugin is `world-endings.ts` so its `frame` runs last.
+  - `game.saves`: `save()`. The save may carry `legacy` at the top level (the record for the RPG; see `src/endings/Legacy.ts`).
 - **Save and load:** a plugin with state that must survive a reload returns `save(): unknown` and `load(data)` from `install()`. The data goes into the versioned save (`src/systems/Save.ts`). Keep it small and JSON-safe.
 - **`game.renderOverride = (scene, camera) => ...`**: take over the final render (post-processing).
 - **UI:**

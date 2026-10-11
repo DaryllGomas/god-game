@@ -65,6 +65,7 @@ Your hand only works inside the golden ring of influence around villages that wo
 - **Prayers.** Villages ask for things: timber, food, rain, a sign, a lost child brought home, a fire put out, help with a project. Each shows as a picture with a ring, never a sentence. Answering one gives power and faith (or belief, for neutral villages); ignored prayers just fade. Two advisors, Lumi (kind) and Fizz (cheeky), react to what you do (they never explain the controls; the 💬 button mutes them), and Ora, the voice of balance, speaks rarely at the big moments.
 - **Projects and the shrine track** (v0.5). Each village works through a Well, then a pyramid, then a temple, with its builders hauling wood, stone and food. Drop materials on a site to help. A neutral village is only won over by projects **you** helped with. Every project raises the village's prayer place an age: **totem → stone circle** (when the Well is finished) **→ pyramid → temple** (both built at the prayer place itself; the temple opens with a night of dancing). The dance goes on at whatever stands. See `src/shrines/`.
 - **The island's goal** is every village worshipping you with its temple standing (`game.allTemplesStand()`). The Wonder of v0.4 is retired (one already finished in an old save still stands).
+- **The endings** (v0.5, `src/endings/`). **Collapse**: the balance held below 0.2 for 1.5 game days, or none of your people alive for 20 s. The island greys under his storm, his spire stands over it, your own hand turns violet (it was always you), Ora speaks, black; then a new island begins with a ruin where your worst act was and the count of fallen worlds kept in the save. No legacy. **Whole → Ready to See**: every temple stands (`game.allTemplesStand()`) and the balance has stayed above 0.75 for a game day. Your gold hand and his violet hand meet and become one light, his spire dissolves; the villages become a city of light; the end card ("The Nexus is forming.") with a download icon for the legacy. The legacy record (AGREED v1, HANDOFF TO THE RPG.md) is written to `save.legacy` as Ready to See begins.
 - **Signs in the sky.** From the stone circle on, answering a village's prayers sometimes sends a soft streak of light across its sky, and the pyramid and temple carry gold murals of that visitor. No words.
 - **Names and the chronicle.** Every villager has a name made from its seed (never shown as a label). The chronicle (`src/chronicle/`) quietly records the notable moments (a lost child carried home, saved from a fire, fed in a famine, born, passing away old, each age raised, the worst thing you did...) for the endings and the legacy record. Villagers age, and the eldest pass away peacefully after a long life.
 - **Seasons.** A year is four seasons of 2.5 days each, and each changes the look, the crops and hunger. Each season brings one announced nature event: a spring bloom, a summer dry spell, an autumn storm with lightning, or a winter cold snap.
@@ -108,6 +109,8 @@ src/
   people/               villager names (from the seed) and ages
   seasons/              calendar, seasonal looks, nature events, the storm, falling leaves/snow/petals
   rival/                Vexahl: his spire (distance follows the balance), stirring, schemes, visuals, panel
+  endings/              Collapse and Arrival, Whole and Ready to See (Ascension), the stage (Cine), the ruin, the city of light,
+                        the end card (TEND mark), the Legacy record; plugins/world-endings.ts loads it last
   balance/              the world's balance (Balance.ts: terms and weights) and how the island shows it (BalanceLook, SkyRings)
   systems/Save.ts       versioned save in localStorage (godgame.save.v1), autosave, Continue/New island
   systems/Events.ts     typed event bus (game.events)
@@ -130,6 +133,7 @@ docs/                   vision.md (design north star), agents.md (how to add fea
 - `game.ora.raise('kind', true)` and `game.ora.state()`
 - `game.shrines.setStage(0, 'pyramid', true)` (village index or name; `true` plays the arrival), `game.shrines.streak(0)`, `game.shrines.state()`, `game.allTemplesStand()`
 - `game.chronicle.people(5)`, `game.chronicle.entries`, `game.chronicle.add({ kind, villagerSeed, village, note })`
+- `game.endings.debug('collapse' | 'whole' | 'ready')` (collapse ends by reloading into the new island), `game.endings.state()` (phase, timers, thresholds, fallen worlds, ruins), `game.endings.legacy`
 
 ## Not built yet
 

@@ -53,8 +53,12 @@ const pillarMat = (color: THREE.Color, power: number) =>
       void main() {
         vUv = uv;
         vec4 wp = modelMatrix * vec4(position, 1.0);
-        vec3 n = normalize(mat3(modelMatrix) * normal);
-        vFace = abs(dot(n, normalize(cameraPosition - wp.xyz)));
+        // Guarded (never let a NaN out: see docs/agents.md).
+        vec3 n = mat3(modelMatrix) * normal;
+        n /= max(length(n), 1e-4);
+        vec3 v = cameraPosition - wp.xyz;
+        v /= max(length(v), 1e-4);
+        vFace = clamp(abs(dot(n, v)), 0.0, 1.0);
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
@@ -67,7 +71,7 @@ const pillarMat = (color: THREE.Color, power: number) =>
       void main() {
         float y = vUv.y;
         // Brightest down the middle of the beam, soft at its edges, fading up into the sky; a slow rising shimmer.
-        float a = uStrength * pow(vFace, ${power.toFixed(1)}) * smoothstep(0.0, 0.035, y) * pow(1.0 - y, 1.4);
+        float a = uStrength * pow(clamp(vFace, 0.0, 1.0), ${power.toFixed(1)}) * smoothstep(0.0, 0.035, y) * pow(clamp(1.0 - y, 0.0, 1.0), 1.4);
         a *= 0.82 + 0.18 * sin(uTime * 0.9 - y * 16.0);
         gl_FragColor = vec4(uColor * a, 1.0);
       }
@@ -129,7 +133,8 @@ const poolMat = () =>
       uniform float uStrength;
       varying float vR;
       void main() {
-        float a = uStrength * (pow(1.0 - vR, 2.0) * 0.26 + pow(1.0 - vR, 8.0) * 0.22);
+        float r = clamp(1.0 - vR, 0.0, 1.0);
+        float a = uStrength * (pow(r, 2.0) * 0.26 + pow(r, 8.0) * 0.22);
         gl_FragColor = vec4(uColor * a, 1.0);
       }
     `,
