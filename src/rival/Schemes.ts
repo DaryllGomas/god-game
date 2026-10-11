@@ -135,7 +135,7 @@ export class Whispers extends Scheme {
       this.phase = 'active';
       this.game.message(`The whispers settle on ${v.name}. Their faith is slipping.`, 'warn', 'whisper-on');
     }
-    if (this.phase === 'active') drainFaith(this.rival, v, WHISPERS.drain * this.rival.diff.bite * dt);
+    if (this.phase === 'active') drainFaith(this.rival, v, WHISPERS.drain * this.rival.bite * dt);
     this.mist.setGoal(this.phase === 'warning' ? 0.3 + 0.2 * (this.t / this.warn) : 1 - 0.8 * (this.repel / WHISPERS.repel));
     if (this.repel >= WHISPERS.repel) return 'foiled';
     if (this.phase === 'active' && this.t - this.warn >= WHISPERS.max) return 'succeeded';
@@ -273,7 +273,7 @@ export class GraspingHand extends Scheme {
     super(rival, village);
     this.target = target;
     this.total = rand(HAND.shadow[0], HAND.shadow[1]);
-    this.hand = new DarkHand(rival.game);
+    this.hand = new DarkHand(rival.game, rival.isle.group.position);
     this.aim.set(target.pos.x, target.pos.y, target.pos.z);
     this.hand.aim.copy(this.aim);
     this.phase = 'warning';
@@ -437,7 +437,7 @@ export class VioletStorm extends Scheme {
       this.game.message('His storm is over the island. A sign from you (a miracle over the village) will settle the villagers.', 'warn', 'vstorm-on');
     }
     if (this.phase === 'active') {
-      for (const v of this.villages) if (v.owner === 'player' && !this.reassured.has(v)) drainFaith(this.rival, v, STORM.drain * this.rival.diff.bite * dt);
+      for (const v of this.villages) if (v.owner === 'player' && !this.reassured.has(v)) drainFaith(this.rival, v, STORM.drain * this.rival.bite * dt);
     }
     const live = this.villages.filter((v) => v.owner === 'player');
     if (!live.length) return this.villages.some((v) => v.owner === 'rival') ? 'succeeded' : 'faded';

@@ -7,12 +7,15 @@ import type { PrayerBubbles } from '../prayers/PrayerBubbles';
 import type { Advisors } from '../prayers/Advisors';
 import type { Seasons } from '../seasons/Seasons';
 import { SEA_LEVEL } from '../config';
+import { lerp, smoothstep } from '../util/math';
+import type { Balance } from '../balance/Balance';
 import {
   ADVISOR_FOILED, ADVISOR_RETREAT, ADVISOR_START, ADVISOR_TURNED, ADVISOR_WON_BACK, ARRIVAL_LINES, ARRIVE_DELAY, ARRIVE_PATIENCE, CHILD_NAMES,
-  DIFFICULTY, FIRST_SCHEME_DELAY, FOIL_GOAL, FOIL_POWER, HAND, IDLE_TAUNTS, MOOD_TEXT, PEACE_SECONDS, RETREAT_LINES, RIVAL_NAME, SCHEME_GAP,
-  SCHEME_INFO, SCHEME_LINES, TURNED_BELIEF, TURN_LINES, WON_BACK_LINES, type Difficulty, type Line, type Mood, type SchemeKind,
+  DEPTHS, DIFFICULTY, EARLY, FIRST_SCHEME_DELAY, FOIL_GOAL, FOIL_POWER, HAND, IDLE_TAUNTS, MOOD_LINE_GAP, MOOD_TEXT, PEACE_SECONDS, QUIET, QUIET_LINES,
+  RESUME_LINES, RETREAT_LINES, RIVAL_NAME, SCHEME_GAP, SCHEME_INFO, SCHEME_LINES, SCHEME_MIN_PRESSURE, STIR, STIR_LINES, TURNED_BELIEF, TURN_LINES,
+  WONDER_LINES, WON_BACK_LINES, type Difficulty, type Line, type Mood, type SchemeKind,
 } from './data';
-import { ISLE_POS, RivalIsle, TurnedMark } from './RivalVisuals';
+import { RivalIsle, TurnedMark } from './RivalVisuals';
 import { GraspingHand, Blight, VioletStorm, Whispers, type Fading, type Outcome, type Scheme } from './Schemes';
 import { RivalUI } from './RivalUI';
 
@@ -33,14 +36,22 @@ interface Abducted {
 }
 
 /**
- * The rival god: a jealous lord from across the sea who wants hearts, not war. He arrives when the
- * Wonder is done, and then, one scheme at a time with breathing room between, tries to turn your
- * villages with whispers, blight, a grasping hand and a violet storm. Every scheme is telegraphed
- * and counterable; nothing is destroyed or killed; turned villages can be won back.
+ * The rival god: a jealous lord from across the sea who wants hearts, not war. His spire stands far
+ * out at sea from the first day, drawing nearer as the world's balance falls (see src/balance).
+ * Before the Wonder he stirs only when the balance drops below STIR, and his schemes grow with how low
+ * it is; above QUIET he goes quiet again. Once the Wonder is done he plays by the v0.4 rules: one
+ * scheme at a time with breathing room between, until you foil four and keep him villageless for a
+ * season. Every scheme is telegraphed and counterable; nothing is destroyed or killed; turned villages
+ * can be won back.
  */
 export class Rival {
   readonly name = RIVAL_NAME;
+  /** 'dormant': only his spire on the horizon. 'present': he has shown himself (panel up). 'retreated': gone (after the Wonder). */
   stage: 'dormant' | 'present' | 'retreated' = 'dormant';
+  /** The Wonder woke him fully: the v0.4 rules (schemes whatever the balance; he can be driven off). */
+  wonder = false;
+  /** Before the Wonder: the world is low enough that he schemes (between STIR and QUIET it keeps its last state). */
+  stirring = false;
   mood: Mood = 'brooding';
   difficulty: Difficulty = 'steady';
   foiled = 0;
@@ -69,6 +80,9 @@ export class Rival {
   private snapshot: Prayer[] = [];
   private lastAnswered = 0;
   private lostId = 0;
+  private moodLineAt = -1e9;
+  /** Put the isle straight where the balance says on the first frame (a loaded island shouldn't drift in). */
+  private snapIsle = true;
   private cam: { x: number; z: number; dist: number; dyaw: number; dpitch: number } | null = null;
   private readonly ray = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
@@ -84,12 +98,19 @@ export class Rival {
     this.ui.onDifficulty = () => this.setDifficulty(this.difficulty === 'gentle' ? 'steady' : this.difficulty === 'steady' ? 'cunning' : 'gentle');
     this.ui.onScheme = () => this.lookAtScheme();
     this.isle = new RivalIsle(game);
+    // There from the first day: far out at sea, small and still while the world is in tune.
+    this.isle.setPresent(true, true);
+    this.isle.setBalance(this.balance, true);
 
     const ev = game.events;
     ev.on('wonderCompleted', () => {
-      if (this.stage !== 'dormant' || this.pending) return;
-      this.pending = true;
-      this.pendingWait = 0;
+      if (this.stage === 'retreated') return;
+      this.wonder = true;
+      if (this.stage === 'present') this.wonderWhilePresent();
+      else if (!this.pending) {
+        this.pending = true;
+        this.pendingWait = 0;
+      }
     });
     ev.on('gift', ({ village }) => this.scheme?.onGift(village));
     ev.on('miracle', ({ id, x, z }) => this.scheme?.onMiracle(id, x, z));
@@ -103,6 +124,25 @@ export class Rival {
 
   get diff() {
     return DIFFICULTY[this.difficulty];
+  }
+
+  private get balanceSystem(): Balance | null {
+    return (this.game as unknown as { balance?: Balance }).balance ?? null;
+  }
+
+  /** The world's balance, 0..1 (see src/balance). */
+  get balance(): number {
+    return this.balanceSystem?.value ?? 0.75;
+  }
+
+  /** How hard the world's imbalance drives him: 0 at or above STIR, 1 at DEPTHS. */
+  get pressure(): number {
+    return smoothstep(STIR, DEPTHS, this.balance);
+  }
+
+  /** How hard his schemes bite: the difficulty, and before the Wonder how low the world has fallen. */
+  get bite(): number {
+    return this.diff.bite * (this.wonder ? 1 : lerp(EARLY.bite[0], EARLY.bite[1], this.pressure));
   }
 
   get prayers(): PrayerSystem | null {
@@ -141,11 +181,12 @@ export class Rival {
 
   // ---------------------------------------------------------------- arrival
 
-  /** He arrives (the debug hook and the real thing). `quick` skips the camera glance and the long speeches. */
+  /** He arrives after the Wonder (the debug hook and the real thing). `quick` skips the camera glance and the long speeches. */
   arriveNow(quick = false) {
     if (this.stage !== 'dormant') return;
     const g = this.game;
     this.stage = 'present';
+    this.wonder = true;
     this.pending = false;
     this.arrivedAt = g.time;
     this.nextIn = FIRST_SCHEME_DELAY * this.diff.gap;
@@ -164,15 +205,76 @@ export class Rival {
     this.later(4, () => this.ui.say(ARRIVAL_LINES));
   }
 
+  /**
+   * Before the Wonder: the world has tipped far enough that he turns his attention to it. His panel
+   * comes up and, a little later, his first small scheme. `quick` skips the camera glance and the lines.
+   */
+  stir(quick = false) {
+    if (this.stage !== 'dormant') return;
+    const g = this.game;
+    this.stage = 'present';
+    this.stirring = true;
+    this.pending = false;
+    this.arrivedAt = g.time;
+    this.nextIn = FIRST_SCHEME_DELAY * this.diff.gap;
+    this.tauntT = rand(100, 160);
+    this.moodLineAt = g.time;
+    this.setMood('scheming', 60);
+    this.ui.show(true);
+    g.events.emit('rivalArrived', {});
+    if (quick) return;
+    this.isle.pulse(1.2);
+    g.audio.rivalArrives();
+    this.ui.banner('Something stirs across the sea', '');
+    g.message(`${RIVAL_NAME} is watching your island from his spire across the sea.`, 'warn', 'rival-stir');
+    this.glance(true);
+    this.later(7, () => this.glance(false));
+    this.later(3, () => this.ui.say(STIR_LINES));
+  }
+
+  /** The Wonder is finished while he is already here: from now on, the v0.4 rules. */
+  private wonderWhilePresent() {
+    this.stirring = true;
+    this.nextIn = Math.min(this.nextIn, FIRST_SCHEME_DELAY * this.diff.gap);
+    this.setMood('scheming', 90);
+    this.isle.pulse(1.2);
+    this.ui.say(WONDER_LINES, { delay: 8 });
+  }
+
+  /** Before the Wonder: go quiet when the world recovers past QUIET, and wake again below STIR. */
+  private followBalance() {
+    const g = this.game;
+    const b = this.balance;
+    const talk = g.time - this.moodLineAt > MOOD_LINE_GAP && !this.ui.talking;
+    if (this.stirring && b > QUIET) {
+      this.stirring = false;
+      this.setMood('sulking', 120);
+      if (talk) {
+        this.moodLineAt = g.time;
+        this.ui.say(pick(QUIET_LINES));
+      }
+    } else if (!this.stirring && b < STIR) {
+      this.stirring = true;
+      this.nextIn = Math.max(this.nextIn, 60 * this.diff.gap);
+      this.setMood('scheming', 60);
+      this.isle.pulse(0.8);
+      if (talk) {
+        this.moodLineAt = g.time;
+        this.ui.say(pick(RESUME_LINES));
+      }
+    }
+  }
+
   /** Swing the camera out to sea so you see his isle, then bring it back. */
   private glance(on: boolean) {
     const cam = this.game.godCam;
+    const isle = this.isle.group.position;
     if (on) {
       const t = cam.target;
-      const px = t.x + (ISLE_POS.x - t.x) * 0.3;
-      const pz = t.z + (ISLE_POS.z - t.z) * 0.3;
-      const dx = ISLE_POS.x - px;
-      const dz = ISLE_POS.z - pz;
+      const px = t.x + (isle.x - t.x) * 0.3;
+      const pz = t.z + (isle.z - t.z) * 0.3;
+      const dx = isle.x - px;
+      const dz = isle.z - pz;
       const want = Math.atan2(-dx, -dz);
       let dyaw = (want - cam.yaw) % (Math.PI * 2);
       if (dyaw > Math.PI) dyaw -= Math.PI * 2;
@@ -203,10 +305,10 @@ export class Rival {
 
   // ---------------------------------------------------------------- schemes
 
-  /** Debug/test hook: start a scheme right now (arriving first if needed). Returns whether it started. */
+  /** Debug/test hook: start a scheme right now (stirring first if needed). Returns whether it started. */
   trigger(kind: SchemeKind, villageName?: string): boolean {
     if (this.stage === 'retreated') return false;
-    if (this.stage === 'dormant') this.arriveNow(true);
+    if (this.stage === 'dormant') this.stir(true);
     if (this.scheme) this.finish('faded');
     const v = villageName ? this.game.villages.find((x) => x.name === villageName) : undefined;
     const s = this.makeScheme(kind, v);
@@ -256,9 +358,18 @@ export class Rival {
   }
 
   private pickKind(): SchemeKind | null {
-    const kinds: [SchemeKind, number][] = [['whispers', 1.3], ['blight', 1], ['hand', 1], ['storm', 0.8]];
-    // No second natural storm on top of his; and not the same trick twice running.
-    const options = kinds.filter(([k]) => k !== this.lastKind && (k !== 'storm' || (!this.seasons?.storm && !this.seasons?.state().event?.startsWith('storm'))));
+    // His schemes echo your cruelties: where you burned, he blights; where you threw villagers, he
+    // snatches them; where you let them suffer, he whispers.
+    const echo = this.balanceSystem?.echo ?? { burn: 0, throw: 0, neglect: 0 };
+    const kinds: [SchemeKind, number][] = [
+      ['whispers', 1.3 * (1 + Math.min(2, echo.neglect * 0.3))],
+      ['blight', 1 + Math.min(2, echo.burn * 0.5)],
+      ['hand', 1 + Math.min(2, echo.throw * 0.5)],
+      ['storm', 0.8],
+    ];
+    // No second natural storm on top of his; and not the same trick twice running. Before the Wonder he starts small.
+    const p = this.pressure;
+    const options = kinds.filter(([k]) => k !== this.lastKind && (this.wonder || p >= SCHEME_MIN_PRESSURE[k]) && (k !== 'storm' || (!this.seasons?.storm && !this.seasons?.state().event?.startsWith('storm'))));
     while (options.length) {
       const total = options.reduce((a, [, w]) => a + w, 0);
       let r = Math.random() * total;
@@ -469,6 +580,8 @@ export class Rival {
   /** Simulation step (game seconds). */
   update(dt: number) {
     const g = this.game;
+    // Before the Wonder, the world tipping far enough wakes him.
+    if (this.stage === 'dormant' && !this.pending && this.balance < STIR) this.stir();
     // Waiting for the Wonder's moment to pass.
     if (this.pending) {
       this.pendingWait += dt;
@@ -494,12 +607,14 @@ export class Rival {
     if (this.held.length === 0) this.peaceT += dt;
     else this.peaceT = 0;
 
+    if (!this.wonder) this.followBalance();
     if (this.scheme) {
       const out = this.scheme.update(dt);
       if (out) this.finish(out);
-    } else {
-      this.nextIn -= dt;
-      if (this.foiled >= FOIL_GOAL && this.peaceT >= PEACE_SECONDS) {
+    } else if (this.wonder || this.stirring) {
+      // Before the Wonder the wait runs down faster the lower the world has fallen.
+      this.nextIn -= dt * (this.wonder ? 1 : lerp(EARLY.pace[0], EARLY.pace[1], this.pressure));
+      if (this.wonder && this.foiled >= FOIL_GOAL && this.peaceT >= PEACE_SECONDS) {
         this.retreatNow();
         return;
       }
@@ -514,7 +629,7 @@ export class Rival {
 
   private updateMood(dt: number) {
     this.moodT -= dt;
-    if (this.moodT <= 0) this.mood = this.held.length ? 'gloating' : this.scheme ? 'scheming' : 'brooding';
+    if (this.moodT <= 0) this.mood = this.held.length ? 'gloating' : this.scheme ? 'scheming' : this.wonder || this.stirring ? 'brooding' : 'sulking';
     // A little idle pettiness now and then.
     this.tauntT -= dt;
     if (this.tauntT <= 0 && !this.scheme && !this.ui.talking) {
@@ -545,6 +660,9 @@ export class Rival {
         t.fn();
       }
     }
+    this.isle.setBalance(this.balance, this.snapIsle);
+    this.snapIsle = false;
+    this.isle.setAwake(this.stage === 'present');
     this.isle.frame(dt);
     this.ui.frame(dt);
     for (const [v, m] of this.marks) {
@@ -566,16 +684,19 @@ export class Rival {
     this.hoverHand();
 
     const s = this.scheme;
+    const pace = this.wonder ? 1 : lerp(EARLY.pace[0], EARLY.pace[1], this.pressure);
     this.ui.setChip({
       mood: this.mood,
       difficulty: this.difficulty,
       scheme: s ? { kind: s.kind, text: s.chipText(), time: s.countdown(), progress: s.progress(), warning: s.phase === 'warning' } : null,
-      next: this.stage === 'present' ? Math.max(0, this.nextIn) : null,
+      next: this.stage === 'present' && (this.wonder || this.stirring) ? Math.max(0, this.nextIn / pace) : null,
       foiled: this.foiled,
       goal: FOIL_GOAL,
       held: this.held.length,
-      peace: this.foiled >= FOIL_GOAL ? Math.min(1, this.peaceT / PEACE_SECONDS) : null,
+      peace: this.wonder && this.foiled >= FOIL_GOAL ? Math.min(1, this.peaceT / PEACE_SECONDS) : null,
       retreated: this.stage === 'retreated',
+      early: !this.wonder,
+      quiet: !this.wonder && !this.stirring && !s,
     });
     if (this.stage === 'dormant') this.ui.show(false);
   }
@@ -629,6 +750,8 @@ export class Rival {
       nextIn: Math.round((this.scheme ? rand(SCHEME_GAP[0], SCHEME_GAP[1]) * this.diff.gap : this.nextIn) * 10) / 10,
       peaceT: Math.round(this.peaceT * 10) / 10,
       pending: this.pending,
+      wonder: this.wonder,
+      stirring: this.stirring,
       arrivedAt: Math.round(this.arrivedAt * 10) / 10,
       // Villagers he carried off still wash up on a beach (time left, in game seconds).
       abducted: this.abducted.map((a) => ({ v: g.villages.indexOf(a.village), in: Math.round(Math.max(0, a.at - g.time)), name: a.name })),
@@ -646,6 +769,9 @@ export class Rival {
     this.peaceT = d.peaceT;
     this.arrivedAt = d.arrivedAt;
     this.nextIn = d.nextIn;
+    // Before v0.5 he only ever came after the Wonder.
+    this.wonder = typeof d.wonder === 'boolean' ? d.wonder : d.stage !== 'dormant' || !!d.pending;
+    this.stirring = typeof d.stirring === 'boolean' ? d.stirring : d.stage === 'present';
     this.abducted.length = 0;
     for (const a of d.abducted ?? []) {
       const village = g.villages[a.v];
@@ -665,6 +791,7 @@ export class Rival {
       this.tauntT = rand(100, 160);
       this.setMood(this.held.length ? 'gloating' : 'brooding', 60);
       this.isle.setPresent(true, true);
+      this.isle.setBalance(this.balance, true);
       for (const v of this.held) this.marks.set(v, new TurnedMark(g, v));
     } else {
       this.setMood('defeated', 1e9);
@@ -686,6 +813,12 @@ export class Rival {
       turned: this.turned,
       wonBack: this.wonBack,
       held: this.held.map((v) => v.name),
+      wonder: this.wonder,
+      stirring: this.stirring,
+      balance: +this.balance.toFixed(3),
+      pressure: +this.pressure.toFixed(2),
+      bite: +this.bite.toFixed(2),
+      isleNear: +this.isle.nearness.toFixed(2),
       nextIn: +this.nextIn.toFixed(1),
       peace: +this.peaceT.toFixed(1),
       peaceNeeded: PEACE_SECONDS,

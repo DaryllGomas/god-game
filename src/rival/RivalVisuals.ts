@@ -1,8 +1,13 @@
 import * as THREE from 'three';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import type { Game } from '../Game';
 import type { Village } from '../village/Village';
+import type { HandRig } from '../hand/HandRig';
+import { SkinnedHand } from '../hand/SkinnedHand';
+import { ProceduralHand } from '../hand/ProceduralHand';
+import { assets } from '../assets';
 import { clamp, damp, lerp, smoothstep } from '../util/math';
-import { EMBER, VIOLET, VIOLET_LIGHT } from './data';
+import { EMBER, ISLE_DRIFT, ISLE_FAR, ISLE_NEAR, ISLE_RANGE, ISLE_STORM, VIOLET, VIOLET_LIGHT } from './data';
 
 // ------------------------------------------------------------------ shared bits
 
@@ -53,6 +58,20 @@ function aoSkip(game: Game, obj: THREE.Object3D, on: boolean) {
   else if (!on && i >= 0) list.splice(i, 1);
 }
 
+/** Let a distant silhouette read through the haze: the fog never covers more than `cap` of this material. */
+function capFog(mat: THREE.Material, cap: number) {
+  mat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <fog_fragment>',
+      `#if defined(USE_FOG) && !defined(FOG_EXP2)
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, smoothstep(fogNear, fogFar, vFogDepth) * ${cap.toFixed(2)});
+      #else
+        #include <fog_fragment>
+      #endif`,
+    );
+  };
+}
+
 function disposeGroup(g: THREE.Object3D) {
   g.traverse((o) => {
     const m = o as THREE.Mesh;
@@ -65,24 +84,36 @@ function disposeGroup(g: THREE.Object3D) {
 
 // ----------------------------------------------------------------------- his isle
 
-/** Where his isle sits: far out on the sea, off the island's north-west shoulder (in view of the default camera). */
+/** Which way his isle lies: out on the sea, off the island's north-west shoulder. Its distance follows the balance (see ISLE_FAR / ISLE_NEAR). */
 export const ISLE_POS = new THREE.Vector3(-640, 0, -400);
+const ISLE_DIR = new THREE.Vector2(ISLE_POS.x, ISLE_POS.z).normalize();
 
 /**
- * A dark spire-isle out at sea, ringed by a slow violet storm-eye with ember windows.
- * Rises out of the waves when he arrives and sinks away when he retreats.
+ * A dark spire-isle out at sea, ringed by a slow violet storm-eye with ember windows. There from the
+ * first day: far, small and still while the world is in tune, drifting nearer and taller (and its
+ * storm waking) as the balance falls; it recedes as the world recovers. Sinks away if he retreats.
  */
 export class RivalIsle {
   readonly group = new THREE.Group();
   private appear = 0;
   private goal = 0;
+  /** 0 = far and small .. 1 = near and tall (eased), and where the balance wants it. */
+  private near = 0;
+  private nearGoal = 0;
+  /** 0 = still .. 1 = his storm fully awake (eased), and its goal. */
+  private storm = 0;
+  private stormGoal = 0;
+  private awake = false;
   private readonly crown = new THREE.Group();
   private readonly eye = new THREE.Group();
   private readonly glow: THREE.Sprite;
   private readonly beam: THREE.Mesh;
   private readonly bolt: THREE.Line;
-  private readonly clouds: THREE.Mesh[] = [];
+  private readonly clouds: THREE.Sprite[] = [];
   private readonly mats: THREE.Material[] = [];
+  private readonly puffScale: THREE.Vector3[] = [];
+  private shardMat!: THREE.MeshStandardMaterial;
+  private cloudMats: THREE.SpriteMaterial[] = [];
   private t = Math.random() * 10;
   private flash = 0;
   private nextBolt = 3;
@@ -96,6 +127,9 @@ export class RivalIsle {
     const spireMat = this.track(new THREE.MeshStandardMaterial({ color: 0x2b1d4a, roughness: 0.8, flatShading: true, emissive: 0x2a0f55, emissiveIntensity: 0.55 }));
     const emberMat = this.track(new THREE.MeshBasicMaterial({ color: EMBER }));
     const shardMat = this.track(new THREE.MeshStandardMaterial({ color: 0x4a2a8a, emissive: VIOLET, emissiveIntensity: 1.5, roughness: 0.3, flatShading: true }));
+    this.shardMat = shardMat;
+    // Far out at sea it must still read as a dark spire on the horizon, not vanish into the haze.
+    for (const m of [rockMat, spireMat, emberMat, shardMat]) capFog(m, 0.48);
 
     // The rocky foot of the isle, jittered so it looks hewn, half drowned.
     const rock = new THREE.ConeGeometry(78, 46, 9, 3);
@@ -160,19 +194,24 @@ export class RivalIsle {
     }
     g.add(this.crown);
 
-    // The storm-eye: a slow ring of dark violet cloud around the spire.
-    const cloudMat = this.track(
-      new THREE.MeshStandardMaterial({ color: 0x241638, emissive: 0x2a1052, emissiveIntensity: 0.6, roughness: 1, transparent: true, opacity: 0.94 }),
-    );
-    for (let i = 0; i < 44; i++) {
-      const a = (i / 44) * Math.PI * 2 + rand(-0.08, 0.08);
-      const r = rand(70, 120);
-      const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), cloudMat);
-      puff.scale.set(rand(22, 38), rand(10, 17), rand(18, 30));
-      puff.position.set(Math.cos(a) * r, 92 + rand(-14, 26), Math.sin(a) * r);
-      puff.rotation.set(rand(0, 1), rand(0, 3), rand(0, 1));
+    // The storm-eye: a slow ring of dark violet cloud around the spire, soft and painterly, with a
+    // few puffs lit violet from inside.
+    const cloudMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x1e1236, transparent: true, opacity: 0, depthWrite: false }));
+    const litMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x6a3cc0, transparent: true, opacity: 0, depthWrite: false }));
+    capFog(cloudMat, 0.5);
+    capFog(litMat, 0.5);
+    this.cloudMats = [cloudMat, litMat];
+    for (let i = 0; i < 46; i++) {
+      const a = (i / 46) * Math.PI * 2 * 2.3 + rand(-0.1, 0.1);
+      const h = rand(0, 1);
+      const r = lerp(105, 40, h) + rand(-12, 12);
+      const puff = new THREE.Sprite(i % 4 === 0 ? litMat : cloudMat);
+      const w = lerp(120, 60, h) * rand(0.8, 1.15);
+      puff.scale.set(w, w * rand(0.55, 0.85), 1);
+      puff.position.set(Math.cos(a) * r, lerp(70, 215, h), Math.sin(a) * r);
       this.eye.add(puff);
       this.clouds.push(puff);
+      this.puffScale.push(puff.scale.clone());
     }
     g.add(this.eye);
 
@@ -227,23 +266,58 @@ export class RivalIsle {
     this.flash = Math.min(1.5, this.flash + amount);
   }
 
+  /** The world's balance (0..1) sets how near and tall the isle stands and how awake its storm is. `instant` skips the drift. */
+  setBalance(balance: number, instant = false) {
+    this.nearGoal = smoothstep(ISLE_RANGE[0], ISLE_RANGE[1], balance);
+    this.stormGoal = Math.max(smoothstep(ISLE_STORM[0], ISLE_STORM[1], balance), this.awake ? 0.12 : 0);
+    if (instant) {
+      this.near = this.nearGoal;
+      this.storm = this.stormGoal;
+    }
+  }
+
+  /** He has shown himself (his panel is up): a little storm-light even when the world is calm. */
+  setAwake(on: boolean) {
+    this.awake = on;
+  }
+
+  /** 0 (far) .. 1 (near). */
+  get nearness(): number {
+    return this.near;
+  }
+
   /** World position of the spire's tip (where his schemes seem to come from). */
   tip(out: THREE.Vector3): THREE.Vector3 {
-    return out.set(this.group.position.x, this.group.position.y + 255 * this.appear, this.group.position.z);
+    return this.crown.getWorldPosition(out);
   }
 
   frame(dt: number) {
     this.t += dt;
     this.appear += (this.goal - this.appear) * damp(0.5, dt);
     if (Math.abs(this.goal - this.appear) < 0.002) this.appear = this.goal;
+    this.near += (this.nearGoal - this.near) * damp(1 / ISLE_DRIFT, dt);
+    this.storm += (this.stormGoal - this.storm) * damp(1 / ISLE_DRIFT, dt);
     const a = this.appear;
     const e = easeInOut(clamp(a, 0, 1));
     this.group.visible = a > 0.003;
     if (!this.group.visible) return;
-    this.group.position.y = ISLE_POS.y - (1 - e) * 150;
-    this.group.scale.setScalar((0.4 + 0.6 * e) * 0.8);
+    // Far and small, or near and tall; rising out of the sea (or sinking) with `appear`.
+    const n = easeInOut(clamp(this.near, 0, 1));
+    const dist = lerp(ISLE_FAR.dist, ISLE_NEAR.dist, n);
+    const scale = lerp(ISLE_FAR.scale, ISLE_NEAR.scale, n);
+    this.group.position.set(ISLE_DIR.x * dist, ISLE_POS.y - (1 - e) * 190 * scale, ISLE_DIR.y * dist);
+    this.group.scale.setScalar((0.4 + 0.6 * e) * scale);
 
-    this.crown.rotation.y = this.t * 0.25;
+    // His storm wakes as the world falls: the storm-eye gathers, the shards burn, bolts come.
+    const st = this.storm;
+    const eyeK = smoothstep(0.08, 0.7, st);
+    this.eye.visible = eyeK > 0.01;
+    for (let i = 0; i < this.clouds.length; i++) this.clouds[i].scale.copy(this.puffScale[i]).multiplyScalar(0.7 + 0.3 * eyeK);
+    this.cloudMats[0].opacity = 0.9 * eyeK;
+    this.cloudMats[1].opacity = 0.55 * eyeK * (0.8 + 0.2 * Math.sin(this.t * 0.9));
+    this.shardMat.emissiveIntensity = 0.5 + 1.3 * st;
+
+    this.crown.rotation.y = this.t * (0.1 + 0.2 * st);
     this.crown.position.y = 276 + Math.sin(this.t * 0.7) * 3;
     this.eye.rotation.y = this.t * 0.04;
     for (let i = 0; i < this.clouds.length; i++) this.clouds[i].position.y += Math.sin(this.t * 0.3 + i) * 0.01;
@@ -251,13 +325,16 @@ export class RivalIsle {
     this.flash = Math.max(0, this.flash - dt * 1.2);
     this.nextBolt -= dt;
     if (this.nextBolt <= 0) {
-      this.nextBolt = rand(5, 10);
-      this.flash = Math.max(this.flash, 1);
-      this.rebuildBolt();
+      // Bolts only once his storm is properly awake; more often the further the world falls.
+      this.nextBolt = rand(5, 10) * lerp(1.6, 0.8, st);
+      if (st > 0.35) {
+        this.flash = Math.max(this.flash, 1);
+        this.rebuildBolt();
+      }
     }
     const throb = 0.55 + 0.25 * Math.sin(this.t * 0.8);
-    (this.glow.material as THREE.SpriteMaterial).opacity = e * (throb * 0.5 + this.flash * 0.5);
-    (this.beam.material as THREE.MeshBasicMaterial).opacity = e * (0.07 + 0.06 * throb + this.flash * 0.1);
+    (this.glow.material as THREE.SpriteMaterial).opacity = e * (throb * 0.5 * (0.15 + 0.85 * st) + this.flash * 0.5);
+    (this.beam.material as THREE.MeshBasicMaterial).opacity = e * ((0.07 + 0.06 * throb) * st + this.flash * 0.1);
     (this.bolt.material as THREE.LineBasicMaterial).opacity = this.flash > 0.5 ? clamp((this.flash - 0.4) * 1.5, 0, 1) : 0;
   }
 
@@ -356,9 +433,29 @@ export class Mist {
 
 export type HandMode = 'hover' | 'strike' | 'lift' | 'recoil' | 'gone';
 
+/** World size of his hand: about the size yours is at a normal viewing distance. */
+const HAND_SCALE = 11;
+/** Midnight violet skin with a soft violet sheen; lilac nails and fingertip glow. Never red. */
+const HAND_SKIN = 0x160c2a;
+const HAND_SHEEN = 0x9a70ff;
+const HAND_GLOW = 0x3a1878;
+const HAND_NAIL = 0xb48cff;
+/** Glow sprites made by the hand rigs, told apart by their render order (see SkinnedHand): fingertips, wrist mist, halo. */
+const SPRITE_LOOK: Record<number, { color: number; opacity: number }> = {
+  12: { color: 0xc8a8ff, opacity: 0.55 },
+  9: { color: 0x7a46d8, opacity: 0.22 },
+  8: { color: 0x6a3ad0, opacity: 0.18 },
+};
+
+/** The same hand model as the player's (the skinned Blender hand, or the primitive fallback), as its own copy. */
+function makeRig(): HandRig {
+  return assets.hand ? new SkinnedHand(cloneSkinned(assets.hand)) : new ProceduralHand();
+}
+
 /**
- * His Grasping Hand: a gnarled dark hand with ember fingertips that lowers from a violet cloud
- * toward a point on the ground, where its shadow (and a closing ember ring) grows to warn you.
+ * His Grasping Hand: your own hand, darkened to midnight violet, lowering from a violet cloud toward
+ * a point on the ground, where its shadow (and a closing violet ring) grows to warn you. It moves the
+ * way yours does: the same model, the same finger sway, the same grip.
  */
 export class DarkHand {
   readonly group = new THREE.Group();
@@ -366,16 +463,18 @@ export class DarkHand {
   /** Ground point it reaches for. */
   readonly aim = new THREE.Vector3();
   private readonly hand = new THREE.Group();
-  private readonly fingers: { pivot: THREE.Group; tip: THREE.Group; base: number }[] = [];
+  private readonly turn = new THREE.Group();
+  private readonly rig: HandRig;
+  private readonly sprites: { s: THREE.Sprite; base: number }[] = [];
+  private readonly skins: THREE.Material[] = [];
   private readonly hit: THREE.Mesh;
   private readonly shadow: THREE.Mesh;
   private readonly ring: THREE.Mesh;
-  private readonly arm: THREE.Mesh;
+  private readonly wisp: THREE.Sprite;
   private readonly cloud: THREE.Sprite;
   private readonly held = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
   private readonly mats: THREE.Material[] = [];
-  private curl = 0.15;
-  private curlGoal = 0.15;
+  private grip = 0.1;
   private height = 95;
   private t = 0;
   private modeT = 0;
@@ -383,72 +482,84 @@ export class DarkHand {
   private hover = false;
   private shadowR = 0;
   private liftDir = new THREE.Vector2(-1, -1);
-  private readonly skin: THREE.MeshStandardMaterial;
+  private readonly lastPos = new THREE.Vector3();
+  private readonly skin: THREE.MeshPhysicalMaterial;
+  private readonly nail: THREE.MeshStandardMaterial;
 
-  constructor(private readonly game: Game) {
-    const ember = new THREE.MeshBasicMaterial({ color: EMBER });
-    const skin = new THREE.MeshStandardMaterial({ color: 0x1d1034, roughness: 0.55, emissive: 0x3a1470, emissiveIntensity: 0.5, transparent: true });
-    this.skin = skin;
-    this.mats.push(skin, ember);
-    const S = 1.05;
-    // Palm and knuckles.
-    const palm = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), skin);
-    palm.scale.set(4.6 * S, 1.7 * S, 5 * S);
-    this.hand.add(palm);
-    // Four fingers + thumb: two segments each, curled by `curl`.
-    const finger = (x: number, z: number, len: number, rad: number, yaw: number, thumb = false) => {
-      const pivot = new THREE.Group();
-      pivot.position.set(x * S, 0, z * S);
-      pivot.rotation.y = yaw;
-      const seg1 = new THREE.Mesh(new THREE.CapsuleGeometry(rad * S, len * S, 4, 8), skin);
-      seg1.rotation.x = Math.PI / 2;
-      seg1.position.z = (len * S) / 2 + rad * S;
-      pivot.add(seg1);
-      const tip = new THREE.Group();
-      tip.position.z = len * S + rad * 2 * S;
-      const seg2 = new THREE.Mesh(new THREE.CapsuleGeometry(rad * 0.82 * S, len * 0.8 * S, 4, 8), skin);
-      seg2.rotation.x = Math.PI / 2;
-      seg2.position.z = (len * 0.8 * S) / 2 + rad * 0.8 * S;
-      tip.add(seg2);
-      const nail = new THREE.Mesh(new THREE.SphereGeometry(rad * 0.7 * S, 8, 6), ember);
-      nail.position.z = len * 0.8 * S + rad * 1.9 * S;
-      tip.add(nail);
-      pivot.add(tip);
-      this.hand.add(pivot);
-      this.fingers.push({ pivot, tip, base: thumb ? 0.6 : 0 });
-    };
-    finger(-3.3, 4.2, 4.6, 0.75, 0.08);
-    finger(-1.1, 4.6, 5.4, 0.8, 0.02);
-    finger(1.1, 4.6, 5.2, 0.8, -0.03);
-    finger(3.3, 4.0, 4.2, 0.7, -0.1);
-    finger(5.2, -0.2, 3.4, 0.85, -1.25, true);
+  constructor(
+    private readonly game: Game,
+    /** Where his isle is (he reaches from there, and carries his prize back to it). */
+    private readonly isle: THREE.Vector3,
+  ) {
+    this.skin = new THREE.MeshPhysicalMaterial({
+      color: HAND_SKIN,
+      roughness: 0.45,
+      sheen: 0.55,
+      sheenRoughness: 0.45,
+      sheenColor: new THREE.Color(HAND_SHEEN),
+      emissive: HAND_GLOW,
+      emissiveIntensity: 0.4,
+      transparent: true,
+    });
+    this.nail = new THREE.MeshStandardMaterial({ color: 0x6a48b0, emissive: HAND_NAIL, emissiveIntensity: 0.9, roughness: 0.3, transparent: true });
+    this.mats.push(this.skin, this.nail);
 
-    // The arm reaching up into a violet cloud.
-    this.arm = new THREE.Mesh(new THREE.CylinderGeometry(2.2 * S, 3.2 * S, 120, 10, 1, true), skin);
-    this.arm.position.set(0, 60, -6);
-    this.arm.rotation.x = -0.22;
-    this.hand.add(this.arm);
+    // Your hand, recoloured: the material used by the most meshes is skin, the rest are nails.
+    this.rig = makeRig();
+    const uses = new Map<THREE.Material, THREE.Mesh[]>();
+    this.rig.root.traverse((o) => {
+      const sp = o as THREE.Sprite;
+      if (sp.isSprite) {
+        const look = SPRITE_LOOK[sp.renderOrder];
+        const m = sp.material as THREE.SpriteMaterial;
+        m.color.setHex(look?.color ?? VIOLET_LIGHT);
+        this.sprites.push({ s: sp, base: look?.opacity ?? 0.2 });
+        return;
+      }
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || Array.isArray(m.material)) return;
+      const list = uses.get(m.material) ?? [];
+      list.push(m);
+      uses.set(m.material, list);
+    });
+    const skinOld = [...uses.entries()].sort((x, y) => y[1].length - x[1].length)[0]?.[0];
+    for (const [mat, meshes] of uses) {
+      for (const m of meshes) m.material = mat === skinOld ? this.skin : this.nail;
+      this.skins.push(mat);
+    }
+    this.rig.root.scale.setScalar(HAND_SCALE);
+    this.turn.add(this.rig.root);
+    this.hand.add(this.turn);
+
+    // A thread of violet mist up from the wrist into a violet cloud.
+    const wispMat = new THREE.SpriteMaterial({ map: glowTexture(), color: 0x5a2aa8, transparent: true, opacity: 0.35, depthWrite: false });
+    this.mats.push(wispMat);
+    this.wisp = new THREE.Sprite(wispMat);
+    this.wisp.scale.set(10, 95, 1);
+    this.wisp.position.set(0, 58, 0);
+    this.hand.add(this.wisp);
     const cloudMat = new THREE.SpriteMaterial({ map: glowTexture(), color: 0x4a2090, transparent: true, opacity: 0.8, depthWrite: false });
     this.mats.push(cloudMat);
     this.cloud = new THREE.Sprite(cloudMat);
     this.cloud.scale.set(120, 70, 1);
-    this.cloud.position.set(0, 118, -28);
+    this.cloud.position.set(0, 112, 0);
     this.hand.add(this.cloud);
 
     const heldMat = this.held.material as THREE.MeshStandardMaterial;
     this.mats.push(heldMat);
-    this.held.position.set(0, -1.6, 5);
+    // Under the palm, and the slap target over the whole hand (the model reaches along -Z from the wrist).
+    this.held.position.set(0, -2.6, -0.45 * HAND_SCALE);
     this.held.visible = false;
-    this.hand.add(this.held);
+    this.turn.add(this.held);
 
     this.hit = new THREE.Mesh(new THREE.SphereGeometry(10, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
     this.mats.push(this.hit.material as THREE.Material);
-    this.hit.position.set(0, 0, 3);
-    this.hand.add(this.hit);
+    this.hit.position.set(0, 0, -0.45 * HAND_SCALE);
+    this.turn.add(this.hit);
 
     this.group.add(this.hand);
 
-    // Shadow on the ground and the closing ember ring.
+    // Shadow on the ground and the closing violet ring (yours is gold; his is violet).
     const shadowMat = new THREE.MeshBasicMaterial({
       map: discTexture(),
       color: 0x0c0214,
@@ -462,7 +573,7 @@ export class DarkHand {
     this.mats.push(shadowMat);
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 28), shadowMat);
     this.shadow.rotation.x = -Math.PI / 2;
-    const ringMat = new THREE.MeshBasicMaterial({ color: EMBER, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    const ringMat = new THREE.MeshBasicMaterial({ color: VIOLET_LIGHT, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     this.mats.push(ringMat);
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 40), ringMat);
     this.ring.rotation.x = -Math.PI / 2;
@@ -494,14 +605,14 @@ export class DarkHand {
     this.mode = 'hover';
     this.height = lerp(95, 24, easeInOut(clamp(p, 0, 1)));
     this.shadowR = lerp(1.2, radius, easeInOut(clamp(p, 0, 1)));
-    this.curlGoal = lerp(0.15, 0.45, p);
+    this.grip = lerp(0.08, 0.32, p);
   }
 
   /** Snap shut on the ground. */
   strike(withVillager: number | null) {
     this.mode = 'strike';
     this.modeT = 0;
-    this.curlGoal = 1.35;
+    this.grip = 1;
     if (withVillager !== null) {
       (this.held.material as THREE.MeshStandardMaterial).color.setHex(withVillager);
     }
@@ -511,18 +622,19 @@ export class DarkHand {
   lift(carry: number | null) {
     this.mode = 'lift';
     this.modeT = 0;
-    this.curlGoal = 1.1;
+    this.grip = carry !== null ? 0.85 : 0.5;
     this.held.visible = carry !== null;
     if (carry !== null) (this.held.material as THREE.MeshStandardMaterial).color.setHex(carry);
     // Head back toward his isle.
-    this.liftDir.set(ISLE_POS.x - this.aim.x, ISLE_POS.z - this.aim.z).normalize();
+    this.liftDir.set(this.isle.x - this.aim.x, this.isle.z - this.aim.z).normalize();
   }
 
   /** Slapped: spin away and fade, with comic speed. */
   recoil() {
     this.mode = 'recoil';
     this.modeT = 0;
-    this.curlGoal = 0.1;
+    this.grip = 0;
+    this.rig.swat();
   }
 
   get done(): boolean {
@@ -534,7 +646,6 @@ export class DarkHand {
     this.t += dt;
     this.modeT += dt;
     const g = this.game;
-    this.curl += (this.curlGoal - this.curl) * damp(this.mode === 'strike' ? 14 : 5, dt);
     this.fade = Math.min(1, this.fade + dt * 1.2);
 
     const sway = Math.sin(this.t * 1.7) * 0.6;
@@ -567,19 +678,25 @@ export class DarkHand {
     }
     const gy = g.terrain.heightAt(this.aim.x, this.aim.z);
     this.group.position.set(this.aim.x + ox, gy + h, this.aim.z + oz);
-    this.group.rotation.set(0, sway * 0.12 + spin, spin * 0.3);
-    this.hand.rotation.x = 0.1;
-    for (const f of this.fingers) {
-      const c = this.curl;
-      f.pivot.rotation.x = f.base ? 0.35 + c * 0.45 : c * 0.5; // knuckle
-      f.tip.rotation.x = f.base ? c * 0.6 : c * 0.9; // second joint
-    }
-    this.skin.opacity = clamp(alpha, 0, 1);
-    this.skin.emissiveIntensity = 0.5 + (this.hover ? 0.9 : 0) + Math.sin(this.t * 6) * 0.05;
-    this.cloud.visible = this.mode !== 'recoil';
-    (this.cloud.material as THREE.SpriteMaterial).opacity = 0.8 * alpha;
-    this.arm.visible = this.mode !== 'recoil';
-    this.group.visible = alpha > 0.01;
+    this.group.rotation.set(0, sway * 0.08 + spin, spin * 0.3);
+    // Fingers point away from his isle: he reaches in from his side of the sea, palm down, fingertips dipping.
+    this.turn.rotation.set(-0.35, Math.atan2(-(this.aim.x - this.isle.x), -(this.aim.z - this.isle.z)), 0, 'YXZ');
+    // The same rig as yours: grip, finger sway, and a lean with its motion.
+    this.rig.setGrip(this.grip);
+    const vx = (this.group.position.x - this.lastPos.x) / Math.max(dt, 1e-4);
+    const vy = (this.group.position.y - this.lastPos.y) / Math.max(dt, 1e-4);
+    this.lastPos.copy(this.group.position);
+    this.rig.update(dt, clamp(vx * 0.004, -0.4, 0.4), clamp(-vy * 0.004, -0.4, 0.4));
+
+    const a = clamp(alpha, 0, 1);
+    this.skin.opacity = a;
+    this.nail.opacity = a;
+    this.skin.emissiveIntensity = 0.4 + (this.hover ? 0.9 : 0) + Math.sin(this.t * 2.4) * 0.05;
+    for (const { s, base } of this.sprites) (s.material as THREE.SpriteMaterial).opacity = base * a * (this.hover ? 1.6 : 1);
+    this.cloud.visible = this.wisp.visible = this.mode !== 'recoil';
+    (this.cloud.material as THREE.SpriteMaterial).opacity = 0.8 * a;
+    (this.wisp.material as THREE.SpriteMaterial).opacity = 0.32 * a;
+    this.group.visible = a > 0.01;
 
     // Shadow + ring on the ground below the aim point; they stay put while the hand sways.
     const sm = this.shadow.material as THREE.MeshBasicMaterial;
@@ -592,7 +709,8 @@ export class DarkHand {
     sm.opacity = 0.85 * this.fade;
     this.ring.position.set(this.aim.x, gy + 0.45, this.aim.z);
     this.ring.scale.set(r * 1.05, r * 1.05, 1);
-    rm.opacity = this.fade * (0.45 + 0.35 * Math.sin(this.t * 7) * (this.mode === 'hover' ? 1 : 0));
+    // A slow pulse (under one beat a second, well clear of any flashing).
+    rm.opacity = this.fade * (0.5 + 0.3 * Math.sin(this.t * 4) * (this.mode === 'hover' ? 1 : 0));
   }
 
   private finish() {
@@ -605,10 +723,18 @@ export class DarkHand {
   dispose() {
     this.game.scene.remove(this.group, this.shadow, this.ring);
     for (const o of [this.group, this.shadow, this.ring]) aoSkip(this.game, o, false);
+    // Leave the hand model's geometry alone: the copy shares it with your own hand.
+    this.hand.remove(this.turn);
     disposeGroup(this.group);
+    for (const { s } of this.sprites) {
+      const m = s.material as THREE.SpriteMaterial;
+      m.map?.dispose();
+      m.dispose();
+    }
     this.shadow.geometry.dispose();
     this.ring.geometry.dispose();
     for (const m of this.mats) m.dispose();
+    for (const m of this.skins) m.dispose();
   }
 }
 

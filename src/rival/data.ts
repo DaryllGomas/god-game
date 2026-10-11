@@ -46,6 +46,32 @@ export const STORM = { warn: 55, drain: 0.5, villages: 2, active: 80 };
 export type SchemeKind = 'whispers' | 'blight' | 'hand' | 'storm';
 export type Difficulty = 'gentle' | 'steady' | 'cunning';
 
+// ------------------------------------------------- v0.5: there from the start (see src/balance)
+
+/** Before the Wonder, he stirs and schemes once the world's balance falls below STIR, and goes quiet again above QUIET. */
+export const STIR = 0.5;
+export const QUIET = 0.56;
+/** At this balance and below, his schemes are at their strongest. */
+export const DEPTHS = 0.15;
+/**
+ * Before the Wonder, by pressure (0 just under STIR, 1 at DEPTHS): how fast the wait between schemes
+ * runs down (0.5 = half speed, so twice the wait), and how hard they bite. After the Wonder, the v0.4 rules.
+ */
+export const EARLY = { pace: [0.5, 1.5] as [number, number], bite: [0.55, 1.25] as [number, number] };
+/** He starts small: the least pressure at which each scheme can be picked before the Wonder. */
+export const SCHEME_MIN_PRESSURE: Record<SchemeKind, number> = { whispers: 0, blight: 0.2, hand: 0.4, storm: 0.65 };
+/** His isle: far, low and small while the world is in tune; near and tall as it falls. Distance from the island's centre, and scale. */
+export const ISLE_FAR = { dist: 1450, scale: 0.32 };
+export const ISLE_NEAR = { dist: 580, scale: 0.7 };
+/** Balance at which the isle is farthest, and nearest. */
+export const ISLE_RANGE: [number, number] = [0.85, 0.15];
+/** Balance at which his isle is still, and at its stormiest (glow, beam, the violet storm-eye, bolts). */
+export const ISLE_STORM: [number, number] = [0.62, 0.15];
+/** Real seconds for the isle to drift to where the balance puts it. */
+export const ISLE_DRIFT = 6;
+/** Game seconds between his lines about going quiet or stirring again. */
+export const MOOD_LINE_GAP = 150;
+
 /** The gentle difficulty knob: scales the gap between schemes, how hard they bite, and how long the warnings are. */
 export const DIFFICULTY: Record<Difficulty, { label: string; gap: number; bite: number; warn: number; turnWeight: number }> = {
   gentle: { label: 'Gentle', gap: 1.45, bite: 0.7, warn: 1.3, turnWeight: 0.7 },
@@ -181,6 +207,28 @@ export const RETREAT_LINES: Line[] = [
 export const ADVISOR_RETREAT: Line[] = [
   L('spirit', 'He is leaving! Oh, listen to the whole island breathe out.'),
   L('imp', 'The next island, he says. Ominous! I will pack snacks.'),
+];
+
+/** The world has tipped far enough that he turns his attention to it (before the Wonder). Never names why. */
+export const STIR_LINES: Line[] = [
+  L('rival', 'Do not mind me. I was passing. Across the whole sea. Your little island seems... less happy than it was.'),
+  L('imp', 'Was his spire always that tall? Asking for a friend. The friend is me.'),
+  L('rival', `I am ${RIVAL_NAME}. I will be watching. Closely. More closely every day, I think.`),
+];
+/** The world recovered: he goes quiet. */
+export const QUIET_LINES: Line[] = [
+  L('rival', 'Fine. Tend your little garden. I can wait. I am very good at waiting.'),
+  L('rival', 'Everyone looks so content. It is unbearable. I shall brood somewhere far away.'),
+];
+/** It tipped again: he wakes. */
+export const RESUME_LINES: Line[] = [
+  L('rival', 'Ah. There it is again. That lovely sour note.'),
+  L('rival', 'Missed me? Your island did.'),
+];
+/** The Wonder is finished while he is already here. */
+export const WONDER_LINES: Line[] = [
+  L('rival', 'A Wonder. How tall. How shiny. It will look lovely... on MY island.'),
+  L('imp', 'Uh oh. He has That Look. The one with the eyebrows.'),
 ];
 
 /** Occasional pettiness while he is around and nothing is scheming. */

@@ -6,10 +6,9 @@ import './rival.css';
 const FACE = `<svg viewBox="0 0 58 58" aria-hidden="true">
   <path d="M10 58C10 36 17 16 29 12c12 4 19 24 19 46z" fill="#1a0d31"/>
   <path d="M17 24c2-9 6-14 12-16 6 2 10 7 12 16-3-3-7-5-12-5s-9 2-12 5z" fill="#2e1559"/>
-  <path d="M13 21l-3-12 8 7zM45 21l3-12-8 7zM29 8l-2-8 4 0z" fill="#ff7a2a"/>
   <path d="M17 36c1-7 5-11 12-11s11 4 12 11c-2 8-6 12-12 12s-10-4-12-12z" fill="#0c0617"/>
-  <ellipse class="rv-eye" cx="23.5" cy="35" rx="3.2" ry="2" fill="#ff9a4a"/>
-  <ellipse class="rv-eye" cx="34.5" cy="35" rx="3.2" ry="2" fill="#ff9a4a"/>
+  <ellipse class="rv-eye" cx="23.5" cy="35" rx="3.2" ry="2" fill="#c8a8ff"/>
+  <ellipse class="rv-eye" cx="34.5" cy="35" rx="3.2" ry="2" fill="#c8a8ff"/>
   <path d="M23.5 43q5.5 3 11 0" fill="none" stroke="#b48cff" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
 </svg>`;
 
@@ -111,9 +110,13 @@ export class RivalUI {
     held: number;
     peace: number | null;
     retreated: boolean;
+    /** Before the Wonder: there is no foil count to reach yet. */
+    early?: boolean;
+    /** Before the Wonder, with the world in tune: he is only watching. */
+    quiet?: boolean;
   }) {
     const s = o.scheme;
-    const sig = `${o.mood}|${o.difficulty}|${s?.kind}|${s ? Math.ceil(s.time) : o.next === null ? '-' : Math.ceil(o.next)}|${s?.warning}|${o.foiled}|${o.held}|${o.peace === null ? '-' : Math.round(o.peace * 100)}|${o.retreated}`;
+    const sig = `${o.mood}|${o.difficulty}|${s?.kind}|${s ? Math.ceil(s.time) : o.next === null ? '-' : Math.ceil(o.next)}|${s?.warning}|${o.foiled}|${o.held}|${o.peace === null ? '-' : Math.round(o.peace * 100)}|${o.retreated}|${o.early}|${o.quiet}`;
     if (sig !== this.last) {
       this.last = sig;
       this.moodEl.textContent = MOOD_TEXT[o.mood];
@@ -130,13 +133,19 @@ export class RivalUI {
         this.iconEl.textContent = SCHEME_INFO[s.kind].icon;
         this.txtEl.textContent = s.text;
         this.timeEl.textContent = fmt(s.time);
+      } else if (o.quiet) {
+        this.iconEl.textContent = '🌫️';
+        this.txtEl.textContent = 'Watching from afar';
+        this.timeEl.textContent = '';
       } else {
         this.iconEl.textContent = '💭';
         this.txtEl.textContent = 'Plotting his next scheme';
         this.timeEl.textContent = o.next === null ? '' : fmt(o.next);
       }
       this.chip.classList.toggle('warn', !!s && s.warning);
-      this.counter.innerHTML = `<span>Foiled <b>${o.foiled}</b> / ${o.goal}</span><span>His villages <b>${o.held}</b></span>`;
+      this.counter.innerHTML = o.early
+        ? `<span>Foiled <b>${o.foiled}</b></span><span>His villages <b>${o.held}</b></span>`
+        : `<span>Foiled <b>${o.foiled}</b> / ${o.goal}</span><span>His villages <b>${o.held}</b></span>`;
       if (o.peace !== null && !o.retreated) {
         this.peace.style.display = '';
         this.peace.textContent = o.held === 0 ? `A season without a village: ${Math.round(o.peace * 100)}%` : 'Win back his villages to end his hold';
