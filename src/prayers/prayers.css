@@ -1,4 +1,4 @@
-/* Prayers & advisors: soft parchment bubbles over villages, two little advisor cards. */
+/* Prayers & advisors: picture bubbles over villages, the Prayers tiles, two little advisor cards. */
 
 .prayer-layer {
   position: absolute;
@@ -8,23 +8,75 @@
   z-index: 6;
 }
 
+/* ----------------------------------------------------- the icon medallion */
+
+/* A picture of what they want in a round medallion, with a ring around it: delivery progress
+   (wood, food, projects) or the time left (rain, a sign, a lost child, a fire). */
+.pr-medal {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+}
+.pr-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.pr-ring-track {
+  fill: none;
+  stroke: rgba(120, 90, 40, 0.18);
+  stroke-width: 3.6;
+}
+.pr-ring-fill {
+  fill: none;
+  stroke: #6fb85a;
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.4s ease;
+}
+/* No quantity to deliver: the ring is the time left, in soft amber. */
+.k-rain .pr-ring-fill,
+.k-sign .pr-ring-fill,
+.k-lost .pr-ring-fill,
+.k-fire .pr-ring-fill {
+  stroke: #dba443;
+}
+.pr-glyph {
+  position: absolute;
+  inset: 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, #fffdf6, #f3e4bf 78%);
+  box-shadow: inset 0 0 0 1px rgba(160, 120, 50, 0.35), 0 1px 3px rgba(60, 40, 10, 0.25);
+  transition: background 0.3s ease;
+}
+.pr-glyph svg {
+  width: 74%;
+  height: 74%;
+  display: block;
+}
+.done .pr-glyph {
+  background: radial-gradient(circle at 50% 38%, #9bd486, #64a952 80%);
+}
+.done .pr-ring-fill {
+  stroke: #7bbf6a;
+}
+
 /* ------------------------------------------------------------- bubbles */
 
 .pr-bubble {
   position: absolute;
   left: 0;
   top: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 214px;
-  padding: 7px 12px 8px 8px;
-  border-radius: 14px;
+  padding: 4px;
+  border-radius: 50%;
   background: linear-gradient(180deg, #fbf1d3, #efdcab);
-  border: 1px solid #c4a35e;
-  color: #4b3820;
-  font: 600 12.5px/1.3 var(--sans);
-  box-shadow: 0 4px 14px rgba(40, 28, 10, 0.4), inset 0 0 14px rgba(255, 255, 255, 0.35);
+  border: 2px solid color-mix(in srgb, var(--vc, #c4a35e) 70%, #c4a35e);
+  box-shadow: 0 4px 14px rgba(40, 28, 10, 0.4), 0 0 16px color-mix(in srgb, var(--vc, #ffd36b) 45%, transparent);
   cursor: pointer;
   pointer-events: auto;
   transform-origin: 50% 100%;
@@ -44,64 +96,32 @@
   position: absolute;
   left: 50%;
   bottom: -7px;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
   background: #efdcab;
-  border-right: 1px solid #c4a35e;
-  border-bottom: 1px solid #c4a35e;
+  border-right: 2px solid color-mix(in srgb, var(--vc, #c4a35e) 70%, #c4a35e);
+  border-bottom: 2px solid color-mix(in srgb, var(--vc, #c4a35e) 70%, #c4a35e);
   transform: rotate(45deg);
 }
-.pr-icon {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 18px;
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(160, 120, 50, 0.35);
-}
-.pr-text {
-  min-width: 0;
-}
-.pr-bar {
-  height: 4px;
-  margin-top: 4px;
-  border-radius: 2px;
-  background: rgba(120, 90, 40, 0.2);
-  overflow: hidden;
-}
-.pr-bar > div {
-  height: 100%;
-  width: 0;
-  background: linear-gradient(90deg, #c4a35e, #7bbf6a);
-  transition: width 0.4s ease;
-}
 .pr-bubble.done {
-  background: linear-gradient(180deg, #e9f6d4, #cfe9b0);
   border-color: #7bb06a;
 }
 .pr-bubble.done::after {
-  background: #cfe9b0;
   border-color: #7bb06a;
-}
-.pr-bubble.done .pr-icon {
-  background: #7bbf6a;
-  color: #fff;
-  font-weight: 800;
 }
 .pr-bubble.fading {
   opacity: 0 !important;
 }
 /* Off-screen prayers shrink to a small pill pinned to the screen edge. */
 .pr-bubble.edge {
-  padding: 4px;
-  border-radius: 50%;
-  opacity: 0.8;
+  padding: 2px;
+  opacity: 0.85;
 }
-.pr-bubble.edge .pr-text,
+.pr-bubble.edge .pr-medal {
+  width: 38px;
+  height: 38px;
+}
 .pr-bubble.edge::after {
   display: none;
 }
@@ -117,23 +137,35 @@
   display: none;
 }
 
-/* The small "help" flag over a lost villager. */
+/* The small "!" pin over a lost villager. */
 .pr-help {
   position: absolute;
   left: 0;
   top: 0;
-  padding: 2px 9px 3px;
-  border-radius: 10px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
   background: #fbf1d3;
-  border: 1px solid #c4a35e;
-  color: #7a3b22;
-  font: 700 11px var(--sans);
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(40, 28, 10, 0.4);
+  border: 2px solid #d27d22;
+  color: #b8601a;
+  font: 800 16px/1 var(--sans);
+  box-shadow: 0 2px 8px rgba(40, 28, 10, 0.4), 0 0 12px rgba(255, 190, 90, 0.6);
   cursor: pointer;
   pointer-events: auto;
   opacity: 0;
   transition: opacity 0.4s;
+}
+.pr-help::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  margin-left: -4px;
+  border: 4px solid transparent;
+  border-top: 5px solid #d27d22;
+  border-bottom: 0;
 }
 .pr-help.show {
   opacity: 0.95;
@@ -200,10 +232,10 @@
 }
 .pr-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 7px;
   width: 100%;
-  padding: 2px 2px 6px;
+  padding: 0 2px 7px;
   background: none;
   border: 0;
   color: var(--gold);
@@ -211,11 +243,18 @@
 }
 .pr-panel.collapsed .pr-head,
 .pr-panel.cramped .pr-head {
-  padding-bottom: 2px;
+  padding-bottom: 0;
 }
-.pr-head .stat-label {
-  margin: 0;
+.pr-head-icon {
+  font-size: 15px;
+  filter: drop-shadow(0 0 4px rgba(255, 211, 107, 0.6));
+}
+.pr-count {
+  flex: 1;
+  text-align: left;
+  font: 700 14px var(--serif);
   color: var(--gold);
+  font-variant-numeric: tabular-nums;
 }
 .pr-chev {
   color: var(--gold-dim);
@@ -226,28 +265,33 @@
   transform: rotate(90deg);
 }
 .pr-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
   overflow-y: auto;
-  padding-right: 2px;
+  padding: 2px 2px 2px 0;
   scrollbar-width: thin;
   scrollbar-color: #c4a35e transparent;
 }
 .pr-card {
-  flex: none;
-  padding: 6px 9px 7px;
-  border-radius: 10px;
+  position: relative;
+  height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 6px 6px;
+  border-radius: 12px;
   background: linear-gradient(180deg, #fbf1d3, #efdcab);
   border: 1px solid #c4a35e;
-  color: #4b3820;
-  font: 600 12px/1.3 var(--sans);
   box-shadow: 0 2px 8px rgba(40, 28, 10, 0.35), inset 0 0 12px rgba(255, 255, 255, 0.3);
+  overflow: hidden;
   cursor: pointer;
-  transition: opacity 0.5s ease, filter 0.2s ease;
+  transition: opacity 0.5s ease, filter 0.2s ease, transform 0.2s ease;
 }
 .pr-card:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.07);
+  transform: translateY(-2px);
 }
 .pr-card.pending {
   opacity: 0;
@@ -259,70 +303,36 @@
   background: linear-gradient(180deg, #e9f6d4, #cfe9b0);
   border-color: #7bb06a;
 }
-.pc-top {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font: 700 10px var(--serif);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #7a6034;
-}
-.pc-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(75, 56, 32, 0.45);
-}
-.pc-vil {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pc-time {
-  font: 700 10.5px var(--sans);
-  letter-spacing: 0;
-  font-variant-numeric: tabular-nums;
-}
-.pc-body {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 3px;
-}
-.pc-icon {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 14px;
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(160, 120, 50, 0.35);
-}
-.pr-card.done .pc-icon {
-  background: #7bbf6a;
-  color: #fff;
-  font-weight: 800;
-}
-.pc-help {
-  margin-top: 4px;
-  color: #7a3b22;
-  font-weight: 700;
-  font-size: 11px;
-}
-.pc-help b {
-  display: inline-block;
-  animation: pr-bob 1s ease-in-out infinite;
+/* The village's colour, as a ribbon across the top. */
+.pc-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 5px;
+  background: var(--vc);
+  box-shadow: 0 0 10px var(--vc);
 }
 .pr-card .pr-bar {
+  width: 64%;
+  height: 3px;
   margin-top: 5px;
+  border-radius: 2px;
+  background: rgba(120, 90, 40, 0.2);
+  overflow: hidden;
+  visibility: hidden;
+}
+.pr-card.timed .pr-bar {
+  visibility: visible;
+}
+.pr-card .pr-bar > div {
+  height: 100%;
+  width: 100%;
+  background: #c99a45;
+  transition: width 0.4s ease;
 }
 .pr-card.done .pr-bar {
-  display: none;
+  visibility: hidden;
 }
 
 /* ------------------------------------------------------------ advisors */

@@ -246,9 +246,7 @@ export class Prayers {
     for (const p of [...this.active]) {
       if (now < p.expiresAt) continue;
       if (p.kind === 'lost' && p.villager?.held) continue;
-      if (p.kind === 'lost') {
-        g.floatText(p.village.center.x, p.village.center.y + 10, p.village.center.z, `${p.childName} found their own way home`, '#cfe6ff');
-      }
+      // A lost child who waited too long walks home on their own; the card just fades.
       this.drop(p);
     }
 
@@ -420,17 +418,11 @@ export class Prayers {
     const power = POWER[p.kind];
     g.player.addPower(power);
     g.player.shiftAlignment(0.012);
-    let line: string;
-    if (v.owner === 'player') {
-      v.belief = Math.min(100, v.belief + BELIEF_OWNED);
-      line = `+${BELIEF_OWNED} faith · +${power} power`;
-    } else {
-      v.belief += BELIEF_NEUTRAL;
-      line = `+${BELIEF_NEUTRAL} belief · +${power} power`;
-    }
+    if (v.owner === 'player') v.belief = Math.min(100, v.belief + BELIEF_OWNED);
+    else v.belief += BELIEF_NEUTRAL;
+    // Thanks without words: sparkles, the bells, and the power it brought (the village label's bar shows the faith).
     g.fx.sparkle(s.x, s.y + 6, s.z, 70, 0xfff0b0, 6);
-    g.floatText(s.x, s.y + 14, s.z, p.thanks, '#ffe9a8');
-    g.floatText(s.x, s.y + 10, s.z, line, '#bff0c0');
+    g.floatText(s.x, s.y + 11, s.z, `+${power}`, '#ffe9a8');
     g.audio.prayerFulfilled();
     this.listener?.fulfilled(p);
     if (v.owner !== 'player' && v.belief >= VILLAGE.convertAt) v.convert(g);

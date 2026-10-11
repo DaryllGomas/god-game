@@ -416,14 +416,14 @@ export class Seasons {
         g.message('The air grows dry... a dry spell is coming. Crops will slow; rain will help.', 'warn', 'dry-warn');
         this.say([
           { who: 'spirit', text: 'The air grows dry. The fields will want rain soon.' },
-          { who: 'imp', text: 'Have you tried a cloud? They are very wet.' },
+          { who: 'imp', text: 'Dry, you say? Everything burns so much better when it is dry. I am only saying.' },
         ], 'important', 'dry-warn');
         break;
       case 'storm':
         g.message('Dark clouds are gathering over the sea. A storm is coming; the wind is rising.', 'warn', 'storm-warn');
         this.say([
           { who: 'spirit', text: 'Dark clouds are gathering over the sea. A storm is on its way.' },
-          { who: 'imp', text: 'Ooh, lightning! Keep an eye on the trees.' },
+          { who: 'imp', text: 'Ooh, lightning! My favourite kind of weather.' },
         ], 'important', 'storm-warn');
         break;
       case 'coldsnap':
@@ -456,7 +456,7 @@ export class Seasons {
       spring: [{ who: 'spirit', text: 'Spring! Look at all the blossom.' }],
       summer: [{ who: 'imp', text: 'Summer. Prime fire weather. Not that I would suggest anything.' }],
       autumn: [{ who: 'spirit', text: 'The leaves are turning. The harvest will be generous this year.' }],
-      winter: [{ who: 'spirit', text: 'Snow! The crops sleep now. Keep the stores full and we will be cosy.' }],
+      winter: [{ who: 'spirit', text: 'Snow! The crops sleep now. Listen how quiet it is.' }],
     };
     this.say(line[this.season], 'chat', 'season');
   }

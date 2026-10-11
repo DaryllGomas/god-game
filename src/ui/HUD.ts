@@ -1,13 +1,7 @@
 import * as THREE from 'three';
 import type { Game } from '../Game';
 import type { Village } from '../village/Village';
-import type { Entity } from '../entities/Entity';
 import { MIRACLE_INFO, type MiracleId } from '../miracles/Miracles';
-import { Villager } from '../entities/Villager';
-import { Tree, Pile } from '../entities/Nature';
-import { Field, House, Store, WorshipSite } from '../entities/Buildings';
-import { VILLAGE } from '../config';
-import { Golem } from '../creature/Golem';
 import { mountCloudPanel } from '../cloud/CloudPanel';
 import { getLink } from '../cloud/Cloud';
 import './hud.css';
@@ -44,7 +38,6 @@ export class HUD {
   private readonly labels = new Map<Village, HTMLDivElement>();
   private readonly labelLayer: HTMLDivElement;
   private readonly messages: HTMLDivElement;
-  private readonly tooltip: HTMLDivElement;
   private readonly help: HTMLDivElement;
   private readonly win: HTMLDivElement;
   private readonly banner: HTMLDivElement;
@@ -135,7 +128,6 @@ export class HUD {
         `<span class="m-icon">${info.icon}</span><span class="m-name">${info.name}</span><span class="m-cost">${info.cost}</span><span class="m-key">${info.key}</span>`,
       );
       b.style.setProperty('--m-color', hex(info.color));
-      b.title = `${info.name} miracle: ${info.blurb}`;
       b.onclick = () => game.selectMiracle(id);
       dock.appendChild(b);
       this.miracleBtns.set(id, b);
@@ -151,8 +143,6 @@ export class HUD {
     this.root.appendChild(this.labelLayer);
     this.messages = el('div', 'messages');
     this.root.appendChild(this.messages);
-    this.tooltip = el('div', 'tooltip hidden');
-    this.root.appendChild(this.tooltip);
     this.banner = el('div', 'banner');
     this.root.appendChild(this.banner);
 
@@ -361,7 +351,6 @@ export class HUD {
 
     this.updateLabels();
     this.updateFloats(dt);
-    this.updateTooltip();
 
     this.slowTimer -= dt;
     if (this.slowTimer <= 0) {
@@ -424,27 +413,6 @@ export class HUD {
         this.floats.splice(i, 1);
       }
     }
-  }
-
-  private updateTooltip() {
-    const g = this.game;
-    const e: Entity | null = g.hand.held ?? g.hand.hover ?? g.hoverBuilding;
-    const tip = this.tooltip;
-    if (!e || g.controls.mode === 'pan' || g.controls.mode === 'rotate' || this.helpOpen) {
-      tip.classList.add('hidden');
-      return;
-    }
-    let html = describe(e);
-    if (!g.hand.held && g.hand.hover === e) {
-      html += g.hand.blocked ? `<div class="tip-hint bad">Outside your influence</div>` : `<div class="tip-hint">Click to pick up</div>`;
-    } else if (g.hand.held === e) {
-      html += `<div class="tip-hint">Right-flick to throw · click ground to set down</div>`;
-    }
-    tip.innerHTML = html;
-    tip.classList.remove('hidden');
-    const x = Math.min(window.innerWidth - 240, g.input.x + 22);
-    const y = Math.min(window.innerHeight - 90, g.input.y + 18);
-    tip.style.transform = `translate(${x}px, ${y}px)`;
   }
 
   private updateVillageList() {
@@ -516,32 +484,4 @@ export class HUD {
     const w = this.detail.querySelector('.d-wval');
     if (w) w.textContent = `${Math.round(v.worshipFraction * 100)}%`;
   }
-}
-
-function describe(e: Entity): string {
-  if (e instanceof Golem)
-    return `<div class="tip-title">Your golem</div><div class="tip-body">${e.statusText}</div><div class="tip-hint">Left-click &amp; rub to stroke · right-click to slap</div>`;
-  if (e instanceof Villager) {
-    const hunger = Math.round(e.hunger * 100);
-    return `<div class="tip-title">Villager of ${e.village.name}</div><div class="tip-body">${e.statusText} · Hunger ${hunger}%${e.health < 0.99 ? ` · Health ${Math.round(e.health * 100)}%` : ''}</div>`;
-  }
-  if (e instanceof Tree) {
-    const state = e.charred ? 'Charred' : e.burning ? 'Burning!' : e.growth < 0.65 ? 'Young tree' : 'Tree';
-    return `<div class="tip-title">${state}</div><div class="tip-body">${Math.floor(e.wood)} wood · drop it on a village store as timber</div>`;
-  }
-  if (e instanceof Pile) return `<div class="tip-title">${e.kind === 'food' ? 'Food' : 'Wood'}</div><div class="tip-body">${Math.floor(e.amount)} units. Drop it on a store</div>`;
-  if (e.kind === 'rock') return `<div class="tip-title">Boulder</div><div class="tip-body">Heavy. Throw it for a spectacle</div>`;
-  if (e.kind === 'orb') {
-    const id = (e as unknown as { miracle: MiracleId }).miracle;
-    return `<div class="tip-title">${MIRACLE_INFO[id].icon} ${MIRACLE_INFO[id].name} miracle</div><div class="tip-body">${MIRACLE_INFO[id].blurb}</div>`;
-  }
-  if (e.kind === 'site') return (e as unknown as { tooltip(): string }).tooltip();
-  if (e instanceof Store) return `<div class="tip-title">${e.village.name} Store</div><div class="tip-body">Food ${Math.floor(e.food)} · Wood ${Math.floor(e.wood)}</div>`;
-  if (e instanceof House) {
-    const s = e.destroyed ? 'Ruins' : e.progress < 1 ? `Under construction ${Math.round(e.progress * 100)}%` : `${e.residents.length}/${VILLAGE.houseCapacity} residents`;
-    return `<div class="tip-title">House, ${e.village.name}</div><div class="tip-body">${s}${e.burning ? ' · Burning!' : ''}</div>`;
-  }
-  if (e instanceof WorshipSite) return `<div class="tip-title">${e.village.name} Worship Site</div><div class="tip-body">${e.village.dancers} dancing${e.village.owner === 'player' ? ' for you' : ''}</div>`;
-  if (e instanceof Field) return `<div class="tip-title">Field, ${e.village.name}</div><div class="tip-body">${e.ripe ? 'Ripe for harvest' : `Growing ${Math.round(e.growth * 100)}%`}</div>`;
-  return `<div class="tip-title">${e.kind}</div>`;
 }

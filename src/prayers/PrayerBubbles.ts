@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { Game } from '../Game';
 import type { Village } from '../village/Village';
 import type { Prayer, PrayerListener } from './Prayers';
-import { PrayerPanel, DONE_LINGER, FADE, type Card } from './PrayerPanel';
+import { PrayerPanel, DONE_LINGER, FADE, ringOf, setRing, type Card } from './PrayerPanel';
+import { DONE_ICON, medallion } from './icons';
 import './prayers.css';
 
 /** How long a new prayer hovers over its village before flying to the list, in real seconds. */
@@ -13,6 +14,8 @@ const ANCHOR_Y = 18;
 /** Pixels between the village label and the first bubble, and between stacked bubbles. */
 const LABEL_GAP = 44;
 const STACK_GAP = 8;
+/** Height of one bubble, for stacking several over one village. */
+const BUBBLE_H = 58;
 /** A bubble from an off-screen village shows as an edge pill, kept clear of the HUD panels. */
 const EDGE = { left: 310, right: 300, top: 90, bottom: 150 };
 
@@ -21,6 +24,7 @@ type Phase = 'rise' | 'fly' | 'docked';
 interface Entry {
   prayer: Prayer;
   el: HTMLDivElement;
+  ring: SVGCircleElement;
   card: Card | null;
   help: HTMLDivElement | null;
   age: number;
@@ -39,10 +43,12 @@ interface Marker {
 }
 
 const ease = (t: number) => t * t * (3 - 2 * t);
+const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
 /**
  * A new prayer rises over its village as a parchment bubble, then flies into the Prayers list.
- * Only a small praying marker with a count stays over the land.
+ * Only a small praying marker with a count stays over the land. The bubble holds a picture of
+ * what they want, never a sentence (the no-hints rule).
  */
 export class PrayerBubbles implements PrayerListener {
   private readonly layer: HTMLDivElement;
@@ -60,21 +66,24 @@ export class PrayerBubbles implements PrayerListener {
 
   added(p: Prayer) {
     const el = document.createElement('div');
-    el.className = 'pr-bubble';
-    el.innerHTML = `<div class="pr-icon">${p.icon}</div><div class="pr-text"><div class="pr-line"></div></div>`;
-    el.querySelector('.pr-line')!.textContent = p.text;
+    el.className = `pr-bubble k-${p.kind}`;
+    el.style.setProperty('--vc', hex(p.village.color));
+    el.setAttribute('aria-label', `${p.village.name}: ${p.text}`);
+    el.innerHTML = medallion(p.kind, 'pb-medal');
     el.onclick = () => this.flyTo(p);
     this.layer.appendChild(el);
-    this.entries.push({ prayer: p, el, card: null, help: this.makeHelp(p), age: 0, phase: 'rise', state: 'active', stateAge: 0, from: { x: 0, y: 0, s: 1 }, to: null });
+    const ring = el.querySelector<SVGCircleElement>('.pr-ring-fill')!;
+    setRing(ring, ringOf(p, this.game.time).ring);
+    this.entries.push({ prayer: p, el, ring, card: null, help: this.makeHelp(p), age: 0, phase: 'rise', state: 'active', stateAge: 0, from: { x: 0, y: 0, s: 1 }, to: null });
   }
 
-  /** The little "help" flag over a lost villager. */
+  /** The little "!" pin over a lost villager. */
   private makeHelp(p: Prayer) {
     if (p.kind !== 'lost' || !p.villager) return null;
     const help = document.createElement('div');
     help.className = 'pr-help';
-    help.innerHTML = '<b>!</b> ';
-    help.append(`${p.childName} needs help`);
+    help.innerHTML = '<b>!</b>';
+    help.setAttribute('aria-label', `${p.childName} is lost`);
     help.onclick = () => this.flyTo(p, true);
     this.layer.appendChild(help);
     return help;
@@ -90,8 +99,8 @@ export class PrayerBubbles implements PrayerListener {
     if (e.phase === 'rise') {
       // Answered before it left the village: thank them right there.
       e.el.classList.add('done');
-      e.el.querySelector('.pr-icon')!.textContent = '✓';
-      e.el.querySelector('.pr-line')!.textContent = p.thanks;
+      e.el.querySelector('.pr-glyph')!.innerHTML = DONE_ICON;
+      setRing(e.ring, 1);
     } else if (e.card) this.panel.fulfilled(e.card);
   }
 
@@ -152,7 +161,6 @@ export class PrayerBubbles implements PrayerListener {
       const el = document.createElement('div');
       el.className = 'pr-mark';
       el.innerHTML = '<span class="pm-icon">🙏</span><span class="pm-num"></span>';
-      el.title = `${v.name} is praying`;
       el.onclick = () => {
         this.game.godCam.flyTo(v.center.x, v.center.z);
         this.game.audio.click();
@@ -210,12 +218,13 @@ export class PrayerBubbles implements PrayerListener {
         if (e.card) e.to = this.panel.target(e.card);
         const x = e.from.x + (e.to.left + e.to.width / 2 - e.from.x) * t;
         const y = e.from.y + (e.to.top + e.to.height / 2 - e.from.y) * t;
-        const s = e.from.s + (0.55 - e.from.s) * t;
+        const s = e.from.s + (0.8 - e.from.s) * t;
         e.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${s})`;
         e.el.style.opacity = String(Math.max(0, 1 - Math.max(0, t - 0.55) / 0.45));
         if (t > 0.6 && e.card) e.card.el.classList.remove('pending');
       } else if (e.phase === 'rise') {
         e.el.classList.toggle('show', e.age > 0.05);
+        if (e.state === 'active') setRing(e.ring, ringOf(p, g.time).ring);
         // Project the anchor above the village.
         this.v.set(vil.center.x, vil.center.y + ANCHOR_Y, vil.center.z);
         const dist = cam.position.distanceTo(this.v);
@@ -231,7 +240,7 @@ export class PrayerBubbles implements PrayerListener {
           const sy = (-this.v.y * 0.5 + 0.5) * hgt;
           const scale = Math.max(0.78, Math.min(1.05, 300 / dist));
           let lift = LABEL_GAP;
-          for (let k = 0; k < idx; k++) lift += 56 + STACK_GAP;
+          for (let k = 0; k < idx; k++) lift += BUBBLE_H + STACK_GAP;
           // A gentle rise into place as it appears.
           lift -= 26 * (1 - ease(Math.min(1, e.age / 0.9)));
           e.el.style.display = '';
