@@ -65,7 +65,8 @@ Your hand only works inside the golden ring of influence around villages that wo
 - **Projects.** Each village works through a Well, then a Temple, then a Harvest Festival, with its builders hauling wood, stone and food. Drop materials on a site to help. A neutral village is only won over by projects **you** helped with.
 - **The Wonder.** Once all three villages worship you, they raise the Wonder together. Finishing it ends the first island.
 - **Seasons.** A year is four seasons of 2.5 days each, and each changes the look, the crops and hunger. Each season brings one announced nature event: a spring bloom, a summer dry spell, an autumn storm with lightning, or a winter cold snap.
-- **Vexahl, the rival god**, arrives across the sea after the Wonder. His schemes are always announced with a countdown, and each can be countered:
+- **The balance of the world** (v0.5): tending (forests, fed villages, faith, answered prayers) lifts it, ruin and cruelty pull it down. It is never shown as a number: the land's colour, two rings of light in the sky, the sea on Vexahl's side and the music show it. See `src/balance/`.
+- **Vexahl, the rival god**: his spire stands far out at sea from the first day, drawing nearer as the balance falls. Below a threshold he stirs and schemes before the Wonder, harder the lower it goes; after the Wonder he schemes regardless. His schemes are always announced with a countdown, and each can be countered:
   - **Whispers** drain a village's faith.
   - **Blight** withers its fields.
   - **A grasping hand** tries to snatch a villager.
@@ -96,7 +97,8 @@ src/
   prayers/              prayer system, prayer bubbles, the advisors Lumi and Fizz
   projects/             Well/Temple/Festival chain, building sites, the Wonder
   seasons/              calendar, seasonal looks, nature events, the storm, falling leaves/snow/petals
-  rival/                Vexahl: arrival, schemes, visuals, panel
+  rival/                Vexahl: his spire (distance follows the balance), stirring, schemes, visuals, panel
+  balance/              the world's balance (Balance.ts: terms and weights) and how the island shows it (BalanceLook, SkyRings)
   systems/Save.ts       versioned save in localStorage (godgame.save.v1), autosave, Continue/New island
   systems/Events.ts     typed event bus (game.events)
   assets.ts             loads public/models/*.glb before the game starts
@@ -109,7 +111,8 @@ docs/                   vision.md (design north star), agents.md (how to add fea
 `window.game` is exposed for debugging. `game.advance(seconds)` fast-forwards the simulation. Feature handles:
 
 - `game.seasons.jumpTo('winter')` and `game.seasons.trigger('storm')`
-- `game.rival.arriveNow()`, `game.rival.trigger('whispers')` and `game.rival.state()`
+- `game.rival.arriveNow()` (the after-Wonder arrival), `game.rival.stir()`, `game.rival.trigger('whispers')` and `game.rival.state()`
+- `game.balance.value`, `game.balance.breakdown()`, `game.balance.force(0.15)` (pin it; `force(null)` releases)
 - `game.projectSystem.startNow(village)`
 - `game.prayerSystem.spawnNow(village, 'food')`
 - `game.saves.save()`

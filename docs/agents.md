@@ -56,7 +56,8 @@ Put supporting modules in your own folder, e.g. `src/prayers/`.
   - `game.prayerSystem`: `spawnNow`, `active`, `advisors.say`.
   - `game.projectSystem`: `startNow`, `cheatFill`.
   - `game.seasons`: `jumpTo`, `trigger`, `state`.
-  - `game.rival`: `arriveNow`, `trigger`, `state`.
+  - `game.rival`: `arriveNow`, `stir`, `trigger`, `state`.
+  - `game.balance`: `value` (0..1), `target`, `band`, `breakdown()`, `force(v | null)`, `deed(points, what, x, z)`; event `balanceBand`.
   - `game.saves`: `save()`.
 - **Save and load:** a plugin with state that must survive a reload returns `save(): unknown` and `load(data)` from `install()`. The data goes into the versioned save (`src/systems/Save.ts`). Keep it small and JSON-safe.
 - **`game.renderOverride = (scene, camera) => ...`**: take over the final render (post-processing).

@@ -2,6 +2,20 @@
 
 Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates are when each change landed.
 
+## [Unreleased]
+
+### Added
+- **The balance of the world.** The island now keeps a balance between tending and ruin, separate from good and evil: standing forests, fed villages, faith, people kept alive, prayers answered and fires put out lift it; stumps and burnt land, starvation, deaths, cruelty (hurling villagers, burning homes) and suffering left unanswered pull it down. Nothing on screen names it. The island shows it instead:
+  - **In tune:** full colour, more birdsong, a soundscape whose chord always comes home, and two thin rings of gold light hanging in the sky.
+  - **Falling out of tune:** the land drains to grey-olive, the sky greys, the rings fade away, the open sea darkens on Vexahl's side, and the music slowly sags out of tune and stops resolving.
+- **Vexahl is there from the first day.** A small dark spire stands far out at sea from the start. As the world tips it drifts closer and grows taller, and its violet storm wakes; as the world recovers it recedes. Once the balance falls far enough he stirs and starts scheming before the Wonder, small at first and bolder the lower it goes; when the world is back in tune he goes quiet again. His schemes echo what you did: burn things and he blights, hurl villagers and he snatches them. Still always announced, always counterable, and he never kills.
+
+### Changed
+- **His Grasping Hand is your hand**, darkened to midnight violet: the same hand, moving the way yours does, with a violet warning ring under it.
+- After the Wonder he plays by the old rules (foil four schemes and keep him villageless for a season to drive him off), whether he arrived then or was already here.
+- **His portrait** loses its orange horns and ember eyes: midnight and violet, not a fantasy villain.
+- **His storm-eye** is soft, painterly cloud lit violet from inside, instead of lumpy grey shapes.
+
 ## [0.4.0] - 2026-10-10: THE FIRST WORLD
 
 ### Changed
