@@ -64,9 +64,10 @@ export const VILLAGE = {
   fieldGrowTime: 60,
   defaultWorship: 0.35,
   neutralWorship: 0.15,
-  beliefDecay: 0.12, // per second, neutral villages only
+  beliefDecay: 0.03, // per second, neutral villages only (v0.5 tuning: was 0.12, which undid a gift before the next one landed)
+  beliefHold: 60, // game seconds belief holds steady after any deed that raised it, before it starts to fade
   convertAt: 100,
-  impressRange: 120,
+  impressRange: 150, // reaches past your own ring: the gap between Ashford's ring and Brambleholt was 128
 };
 
 export const MIRACLES = {

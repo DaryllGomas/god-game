@@ -57,7 +57,8 @@ Your hand only works inside the golden ring of influence around villages that wo
 
 - **Villagers** have hunger and homes. They farm, chop wood, haul goods to the village store, build houses, have children, sleep at night, and panic when on fire.
 - **Worship.** Each village sends a share of its people (the slider) to dance at its totem. In your villages this produces prayer power. More worshippers means fewer farmers.
-- **Belief.** Neutral villages gain belief from impressive deeds nearby: food, rain, long throws, gifts dropped on their store, or fire and destruction. At 100% they convert, extending your influence. Belief slowly fades if you ignore them.
+- **Belief.** Neutral villages gain belief from impressive deeds nearby: food, rain, long throws, gifts dropped on their store, or fire and destruction. A thin gold ring around their totem fills with it (and pulses when a deed lands); when it closes they convert, extending your influence. Belief holds for a minute after each deed, then slowly fades if you ignore them.
+- **Forests.** Trees spread on their own, clearings heal from the trees around them, rain on open land grows a grove, and while the world is in tune villagers replant what they fell. A clear-cut or burnt land comes back only slowly.
 - **Alignment.** Kind acts push you toward *Benevolent*, cruelty toward *Malevolent*. Your hand changes to match.
 - **Faith.** Your own villages lose faith if they starve or you hurt them. A converted village whose faith hits zero leaves you.
 - **Your golem** eats, sleeps, plays and grows. It chooses what to do by itself, and your strokes and slaps teach it which habits you approve of. Its looks follow its own good or evil nature.
@@ -87,7 +88,8 @@ src/
   world/                Terrain (heightfield, ray-march picking, biome + influence-ring shader), Water, Sky (day/night,
                         weather), Grass, PostFX (AO, bloom, grade)
   entities/             Entity base; Villager (needs + task AI); Tree/Rock/Pile; House/Store/WorshipSite/Field; Forest (instanced tree rendering)
-  village/Village.ts    layout, roles, births, construction, belief/faith
+  village/Village.ts    layout, roles, births, construction, belief/faith; BeliefRing.ts draws belief as a gold ring
+  forest/ForestCare.ts  regrowth: seeds, clearings healing, villagers replanting, rain groves
   hand/                 Hand (grab/throw/place); HandModel picks the Blender SkinnedHand or the ProceduralHand fallback
                         and sets the resting angle (POSE)
   input/                raw Input and the Controls mapping
@@ -121,6 +123,7 @@ docs/                   vision.md (design north star), agents.md (how to add fea
 - `game.seasons.jumpTo('winter')` and `game.seasons.trigger('storm')`
 - `game.rival.arriveNow()` (the after-Wonder arrival), `game.rival.stir()`, `game.rival.trigger('whispers')` and `game.rival.state()`
 - `game.balance.value`, `game.balance.breakdown()`, `game.balance.force(0.15)` (pin it; `force(null)` releases)
+- `game.forestCare.stats` (saplings by cause) and `game.beliefRings` (step one with `frame(dt, time)`)
 - `game.projectSystem.startNow(village)`
 - `game.prayerSystem.spawnNow(village, 'food')`
 - `game.saves.save()`

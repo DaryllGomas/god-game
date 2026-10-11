@@ -29,8 +29,6 @@ import { Noise2D } from './util/noise';
 import { SaveSystem, loadPlugins, quarantine, readSave, restoreWorld } from './systems/Save';
 import type { Chronicle } from './chronicle/Chronicle';
 
-const MAX_TREES = 520;
-
 /**
  * A plugin is a self-contained feature (prayers, seasons, rival...). Drop a file in
  * src/plugins/ that exports `install(game)` and it is loaded automatically.
@@ -463,7 +461,7 @@ export class Game {
       }
       v.belief += gain;
       if (gain >= 3) this.audio.chime(v.center, 1.25);
-      this.hud.floatText(v.center.x, v.center.y + 14, v.center.z, `+${Math.round(gain)} belief`, '#f4cf73');
+      // No "+N belief" text: the village's belief ring pulses and fills instead (src/village/BeliefRing.ts).
       if (v.belief >= VILLAGE.convertAt) v.convert(this);
       else if (gain >= 3) this.message(`${v.name}: “${reason}!” (belief ${Math.floor(v.belief)}%)`, 'divine', `imp-${v.name}`);
     }
@@ -859,24 +857,11 @@ export class Game {
       this.updateInfluence();
     }
 
-    // Forests slowly spread on their own, and boulders tumble down from the hills.
+    // Boulders tumble down from the hills. (Forests regrow in src/forest/ForestCare.ts, plugins/forest-care.ts.)
     this.regrowTimer -= dt;
     if (this.regrowTimer <= 0) {
       this.regrowTimer = 4;
       if (Math.random() < 0.25) this.spawnBoulder();
-      const trees = this.entities.filter((e) => e.kind === 'tree' && e.alive) as Tree[];
-      if (trees.length < MAX_TREES && trees.length > 0) {
-        const parent = trees[Math.floor(Math.random() * trees.length)];
-        const a = Math.random() * Math.PI * 2;
-        const d = 4 + Math.random() * 8;
-        const x = parent.pos.x + Math.cos(a) * d;
-        const z = parent.pos.z + Math.sin(a) * d;
-        if (this.canPlantTree(x, z)) {
-          const t = new Tree(Math.floor(Math.random() * 1e6), x, z, 0.05);
-          t.pos.y = this.terrain.heightAt(x, z);
-          this.add(t);
-        }
-      }
     }
 
     this.flushRemovals();
