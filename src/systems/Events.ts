@@ -62,6 +62,8 @@ export interface GameEvents {
   villageTurned: { village: Village };
   /** He gave up and left (the next island awaits). */
   rivalRetreated: Record<string, never>;
+  /** The world's balance crossed into another band (see src/balance): in tune, tipping, or falling. */
+  balanceBand: { band: 'tune' | 'tipping' | 'falling'; from: 'tune' | 'tipping' | 'falling'; value: number };
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;

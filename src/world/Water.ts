@@ -24,6 +24,8 @@ export class Water {
           uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.3) },
           uSunColor: { value: new THREE.Color(0xffffff) },
           uLight: { value: 1 },
+          // The world's balance (see src/balance): xy = direction toward the rival's spire, z = how much the sea darkens there.
+          uShade: { value: new THREE.Vector3(0, -1, 0) },
         },
       ]),
       vertexShader: /* glsl */ `
@@ -48,6 +50,7 @@ export class Water {
         uniform vec3 uSunDir;
         uniform vec3 uSunColor;
         uniform float uLight;
+        uniform vec3 uShade;
         varying vec3 vWorld;
 
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -73,6 +76,13 @@ export class Water {
           vec3 nrm = normalize(vec3((n1 - 0.5) * 0.35 + (n2 - 0.5) * 0.2, 1.0, (n2 - 0.5) * 0.35));
 
           vec3 col = mix(uShallow, uDeep, smoothstep(0.0, 14.0, depth));
+          // Out of balance, the open sea on the rival's side turns dark and inky (never the shallows).
+          if (uShade.z > 0.001) {
+            float side = dot(normalize(vWorld.xz + 0.001), uShade.xy);
+            float open = smoothstep(4.0, 20.0, depth) * smoothstep(150.0, 650.0, length(vWorld.xz));
+            float k = uShade.z * open * smoothstep(-0.35, 0.85, side);
+            col = mix(col, vec3(0.03, 0.025, 0.08), k * 0.85);
+          }
 
           // Shoreline foam bands.
           float band = sin(depth * 2.2 - t * 1.6 + n1 * 3.0) * 0.5 + 0.5;
@@ -108,6 +118,11 @@ export class Water {
     this.mesh.position.y = SEA_LEVEL;
     this.mesh.renderOrder = 1;
     this.mesh.name = 'water';
+  }
+
+  /** The world's balance: darken the open sea toward (dirX, dirZ) by `amount` 0..1. */
+  setShade(dirX: number, dirZ: number, amount: number) {
+    (this.material.uniforms.uShade.value as THREE.Vector3).set(dirX, dirZ, amount);
   }
 
   update(time: number, sunDir: THREE.Vector3, sunColor: THREE.Color, light: number) {

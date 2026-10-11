@@ -86,6 +86,9 @@ export class Audio {
   private beat = 0;
   private chord = 0;
   private melodyIdx = 7;
+  /** The world's balance (see setBalance): 0 = in tune .. 1 = drifted; and 0..1 how fully in tune it is. */
+  private drift = 0;
+  private harmony = 0;
   private input: SoundscapeInput | null = null;
   private readonly last = new Map<string, number>();
 
@@ -605,7 +608,7 @@ export class Audio {
 
     // Creatures: a dawn chorus, daytime birds, crickets and owls at night.
     const dawn = Math.exp(-Math.pow((s.dayTime - 0.27) / 0.04, 2));
-    const birdRate = (0.35 + 2.2 * dawn) * s.daylight * near * s.land;
+    const birdRate = (0.35 + 2.2 * dawn) * s.daylight * near * s.land * (1 - 0.8 * this.drift) * (1 + 0.5 * this.harmony);
     if (Math.random() < dt * birdRate) this.bird();
     if (s.daylight < 0.25 && Math.random() < dt * 0.8 * (0.4 + near)) this.cricket();
     if (s.daylight < 0.15 && Math.random() < dt * 0.06 * s.land) this.owl();
@@ -666,6 +669,8 @@ export class Audio {
     const beatInChord = this.beat % BEATS_PER_CHORD;
     if (beatInChord === 0) {
       this.chord = Math.floor(this.beat / BEATS_PER_CHORD) % CHORDS.length;
+      // Out of balance the music stops coming home: the A chord slips to B minor instead of resolving to D.
+      if (this.chord === 0 && this.beat > 0 && Math.random() < this.drift * 0.9) this.chord = 1;
       if (this.musicOn) this.pad(t, daylight);
     }
     if (this.musicOn) this.melody(t, daylight);
@@ -678,32 +683,37 @@ export class Audio {
     const dur = BEAT * BEATS_PER_CHORD;
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 520 + 380 * daylight;
+    lp.frequency.value = (520 + 380 * daylight) * (1 - 0.3 * this.drift);
     lp.connect(this.music);
     const level = 0.045 * (0.6 + 0.4 * daylight);
-    for (const m of this.chordNotes) {
-      for (const det of [-7, 7]) {
+    // Out of balance the two upper voices sag flat across the chord, the chorus widens and the top thins.
+    const drift = this.drift;
+    this.chordNotes.forEach((m, i) => {
+      const sag = i === 3 ? -30 * drift : i === 2 ? -16 * drift : 0;
+      const vl = level * (i === 3 ? 1 - 0.5 * drift : 1);
+      for (const det of [-7 - 8 * drift, 7 + 8 * drift]) {
         const o = ctx.createOscillator();
         o.type = 'triangle';
         o.frequency.value = midi(m);
-        o.detune.value = det;
+        o.detune.setValueAtTime(det, t);
+        if (sag) o.detune.linearRampToValueAtTime(det + sag, t + dur);
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(level, t + 2.5);
-        g.gain.setValueAtTime(level, t + dur);
+        g.gain.exponentialRampToValueAtTime(vl, t + 2.5);
+        g.gain.setValueAtTime(vl, t + dur);
         g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 3);
         o.connect(g).connect(lp);
         o.start(t);
         o.stop(t + dur + 3.1);
       }
-    }
+    });
     // A soft sub on the root.
     this.tone(lp, midi(this.chordNotes[0] - 12), dur + 2, level * 0.9, { at: t, attack: 2 });
   }
 
   /** A kalimba line that wanders stepwise through the pentatonic scale. */
   private melody(t: number, daylight: number) {
-    const chance = 0.18 + 0.22 * daylight;
+    const chance = (0.18 + 0.22 * daylight) * (1 - 0.45 * this.drift);
     for (const off of [0, BEAT / 2]) {
       if (Math.random() > (off === 0 ? chance : chance * 0.4)) continue;
       const step = Math.random() < 0.7 ? (Math.random() < 0.5 ? -1 : 1) : Math.random() < 0.5 ? -2 : 2;
@@ -1028,5 +1038,17 @@ export class Audio {
     }
     this.chordUp(74).forEach((m, i) => this.bell(o, m, 3, 0.24, t + 3.6 + i * 0.3));
     this.duck(0.5, 8);
+  }
+
+  // ------------------------------------------------------- the world's balance
+
+  /**
+   * The world's balance (see src/balance), called every frame. `drift` 0..1: the pad's upper voices sag
+   * flat, the cadence stops resolving, birds and melody thin out. `harmony` 0..1: a little more birdsong.
+   * Small pitch drift only, never harsh.
+   */
+  setBalance(drift: number, harmony: number) {
+    this.drift = clamp(drift, 0, 1);
+    this.harmony = clamp(harmony, 0, 1);
   }
 }

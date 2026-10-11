@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { MAT } from '../art/Models';
 import { assets } from '../assets';
 import { TREE_VARIANTS, initTrees, treeVariant, type Tree } from './Nature';
+import { BALANCE_TINT, BALANCE_TINT_GLSL } from '../world/balanceTint';
 
 const CAPACITY = 512;
 const WHITE = new THREE.Color(1, 1, 1);
@@ -26,7 +27,7 @@ const SPECIES_CODE: Record<string, number> = { oak: 0, pine: 1, birch: 2, blosso
 function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
   const mat = MAT.base.clone();
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, FOREST_SEASON, { uSpecies: { value: species } });
+    Object.assign(shader.uniforms, FOREST_SEASON, BALANCE_TINT, { uSpecies: { value: species } });
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -36,7 +37,8 @@ function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
         uniform float uBare;
         uniform float uBlossom;
         uniform float uSpecies;
-        varying float vSnowK;`,
+        varying float vSnowK;
+        ${BALANCE_TINT_GLSL}`,
       )
       .replace(
         '#include <color_vertex>',
@@ -67,6 +69,7 @@ function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
           leaf = mix(leaf, vec3(0.30, 0.20, 0.12) * lf, uBare * dec);
           leaf = mix(leaf, base * vec3(0.8, 0.95, 1.12), uBare * pine);
           vColor.rgb = mix(vColor.rgb, leaf * instanceColor.rgb, isLeaf);
+          vColor.rgb = balanceTint(vColor.rgb, 0.4 + 0.6 * isLeaf);
         }`,
       );
     shader.fragmentShader = shader.fragmentShader

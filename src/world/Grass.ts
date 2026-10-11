@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Terrain } from './Terrain';
 import { GROUND_NOISE_GLSL } from './groundNoise';
 import { WORLD_SIZE } from '../config';
+import { BALANCE_TINT, BALANCE_TINT_GLSL } from './balanceTint';
 
 // Tuning knobs.
 const CELL = 2.4; // metres per placement cell
@@ -71,6 +72,7 @@ export class Grass {
       uBoost: { value: 1 },
       uRadius: { value: HALF_CELLS * CELL },
       ...GRASS_SEASON,
+      ...BALANCE_TINT,
     };
 
     this.meshes.push(this.makeMesh(tuftGeometry(), TUFTS_PER_CELL, false), this.makeMesh(flowerGeometry(), FLOWERS_PER_CELL, true));
@@ -105,6 +107,7 @@ export class Grass {
           uniform float uFlower;
           uniform float uWind;
           ${GROUND_NOISE_GLSL}
+          ${BALANCE_TINT_GLSL}
           vec2 hash22(vec2 p) {
             vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
             q += dot(q, q.yzx + 33.33);
@@ -162,6 +165,7 @@ export class Grass {
             // Season: shift the blade colour toward the season's, keeping root-to-tip shading.
             float bl = dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722));
             vColor.rgb = mix(vColor.rgb, uGrassTarget * (bl / 0.26), uGrassAmt);
+            vColor.rgb = balanceTint(vColor.rgb, 1.0);
           #else
             float pick = r2.x * 4.0;
             vec3 petal = pick < 1.0 ? vec3(1.0, 0.95, 0.92) : pick < 2.0 ? vec3(1.0, 0.72, 0.8) : pick < 3.0 ? vec3(1.0, 0.85, 0.3) : vec3(0.72, 0.62, 1.0);
@@ -170,7 +174,7 @@ export class Grass {
             float isCenter = step(vColor.g + 0.1, vColor.r) * (1.0 - isPetal);
             vec3 c = vColor.rgb * tint;
             c = mix(c, petal, isPetal);
-            vColor.rgb = mix(c, vec3(0.95, 0.7, 0.15), isCenter);
+            vColor.rgb = balanceTint(mix(c, vec3(0.95, 0.7, 0.15), isCenter), 0.9);
           #endif`,
         )
         .replace(

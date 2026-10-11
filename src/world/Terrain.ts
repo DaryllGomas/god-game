@@ -3,6 +3,7 @@ import { Noise2D } from '../util/noise';
 import { clamp, lerp, smoothstep } from '../util/math';
 import { SEA_LEVEL, TERRAIN_RES, WORLD_SIZE, type VillageSite } from '../config';
 import { GROUND_NOISE_GLSL } from './groundNoise';
+import { BALANCE_TINT, BALANCE_TINT_GLSL } from './balanceTint';
 
 const MAX_INFLUENCE = 8;
 const MAX_RIVAL = 4;
@@ -37,6 +38,8 @@ export class Terrain {
     uGrassAmt: { value: 0 },
     uSnow: { value: 0 },
     uWet: { value: 0 },
+    // The world's balance (see src/balance): drained or rich colour.
+    ...BALANCE_TINT,
   };
 
   constructor(seed: number, sites: VillageSite[]) {
@@ -211,6 +214,7 @@ export class Terrain {
           float gWet = 0.0;
           float gSnow = 0.0;
           ${GROUND_NOISE_GLSL}
+          ${BALANCE_TINT_GLSL}
           uniform vec3 uInfluence[${MAX_INFLUENCE}];
           uniform int uInfluenceCount;
           uniform vec3 uRival[${MAX_RIVAL}];
@@ -427,6 +431,8 @@ const GROUND_DETAIL_GLSL = /* glsl */ `
   vec3 seasonal = uGrassTarget * (gl / 0.28);
   grassPart = mix(grassPart, seasonal, uGrassAmt);
   diffuseColor.rgb = grassPart * bw.x + diffuseColor.rgb * (sm * bw.y + rm * bw.z + snm * bw.w);
+  // The world's balance: meadows drain to grey-olive when it tips (sand and rock a little less).
+  diffuseColor.rgb = balanceTint(diffuseColor.rgb, 0.5 + 0.5 * bw.x);
 
   float tide = 0.55 + 0.25 * sin(uTime * 0.35 + gp.x * 0.02);
   gWet = (1.0 - smoothstep(0.0, tide + n3 * 0.25, vWorldPos.y)) * step(-0.8, vWorldPos.y);

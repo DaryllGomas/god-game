@@ -29,6 +29,9 @@ const GradeShader = {
     uShadow: { value: SHADOW_TINT },
     uSaturation: { value: SATURATION },
     uVignette: { value: VIGNETTE },
+    // The world's balance (see src/balance), on top of the seasonal grade: saturation scale and a colour cast.
+    uBalSat: { value: 1 },
+    uBalTint: { value: new THREE.Vector3(1, 1, 1) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -40,12 +43,14 @@ const GradeShader = {
     uniform vec3 uShadow;
     uniform float uSaturation;
     uniform float uVignette;
+    uniform float uBalSat;
+    uniform vec3 uBalTint;
     varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
-      vec3 col = c.rgb * uWarmth;
+      vec3 col = c.rgb * uWarmth * uBalTint;
       float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
-      col = mix(vec3(l), col, uSaturation);
+      col = mix(vec3(l), col, uSaturation * uBalSat);
       col += uShadow * (1.0 - smoothstep(0.0, 0.5, l)); // cool lift in the darks
       vec2 d = vUv - 0.5;
       float v = smoothstep(0.85, 0.2, length(d * vec2(1.0, 1.15)));
@@ -134,6 +139,13 @@ export class PostFX {
     (u.uWarmth.value as THREE.Vector3).copy(warm);
     u.uSaturation.value = saturation;
     u.uVignette.value = vignette;
+  }
+
+  /** The world's balance: saturation scale (1 = unchanged) and colour cast (linear rgb multiplier), on top of the season's grade. */
+  setBalanceGrade(saturation: number, tint: THREE.Vector3) {
+    const u = this.grade.uniforms;
+    u.uBalSat.value = saturation;
+    (u.uBalTint.value as THREE.Vector3).copy(tint);
   }
 
   resize(w: number, h: number) {
