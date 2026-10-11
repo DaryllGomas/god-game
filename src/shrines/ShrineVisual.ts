@@ -287,5 +287,5 @@ export class ShrineVisual {
 export function shrineGlow(night: number, t: number) {
   SHRINE_GOLD.emissiveIntensity = 0.22 + night * 0.95 + Math.sin(t * 1.3) * 0.03;
   SHRINE_SUN.emissiveIntensity = 1.8 + night * 1.6 + Math.sin(t * 2.1) * 0.25;
-  SHRINE_BEAM.opacity = night * 0.05 * (0.85 + Math.sin(t * 0.7) * 0.15);
+  SHRINE_BEAM.uniforms.uOpacity.value = night * 0.42 * (0.85 + Math.sin(t * 0.7) * 0.15);
 }

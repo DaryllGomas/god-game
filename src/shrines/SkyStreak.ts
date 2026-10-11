@@ -12,7 +12,7 @@ const TAIL = 0.34;
 /** Thickness of the bright thread and of its soft glow, and the size of the star at its head (metres, at 300 m away; scaled with distance). */
 const CORE = 0.45;
 const HALO = 2.6;
-const HEAD = 16;
+const HEAD = 22;
 /** The whole path stays at least this high over the land (metres). */
 const CLEARANCE = 18;
 /** Gold tail, white-hot head (linear HDR, so the bloom picks it up). */
@@ -70,21 +70,23 @@ export class SkyStreaks {
     const pitchDown = Math.asin(clamp(-fwd.y, -1, 1));
     // Where the horizon sits on screen (NDC y); above 1 means the camera only sees land.
     const horizon = Math.tan(pitchDown) / tanHalf;
-    const ndcY = horizon < 0.85 ? clamp((Math.max(horizon, -0.6) + 1) / 2 + 0.08, 0.3, 0.86) : 0.42;
-    const ray = new THREE.Vector3(0, ndcY, 0.5).unproject(camera).sub(camera.position).normalize();
-    // Far beyond the village when it is up in the sky; over the land, stay well above the ground.
-    let depth = clamp(camera.position.distanceTo(at) * 1.5, 140, 700);
-    if (ray.y < -0.02) {
-      const above = camera.position.y - ground(camera.position.x, camera.position.z);
-      depth = Math.min(depth, (above / -ray.y) * 0.55);
-    }
+    const sky = horizon < 0.85;
+    let ndcY = sky ? clamp((Math.max(horizon, -0.6) + 1) / 2 + 0.08, 0.3, 0.86) : 0.22;
     const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
     const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).normalize();
     const dir = Math.random() < 0.5 ? 1 : -1;
     const tmp = new THREE.Vector3();
     let curve: THREE.QuadraticBezierCurve3 | null = null;
-    // Never behind a hill: bring it nearer until the whole path clears the land, then lift what still doesn't.
-    for (let tries = 0; tries < 6; tries++) {
+    let depth = 0;
+    // Never behind a hill: looking out, climb higher up the sky until the path clears the land; looking
+    // down, come nearer the camera. Whatever still doesn't clear is lifted.
+    for (let tries = 0; tries < 7; tries++) {
+      const ray = new THREE.Vector3(0, ndcY, 0.5).unproject(camera).sub(camera.position).normalize();
+      depth = clamp(camera.position.distanceTo(at) * 1.5, 140, 700) * (sky ? 1 : 0.7 ** tries);
+      if (ray.y < -0.02) {
+        const above = camera.position.y - ground(camera.position.x, camera.position.z);
+        depth = Math.min(depth, (above / -ray.y) * 0.55);
+      }
       const mid = camera.position.clone().addScaledVector(ray, depth);
       const span = depth * tanHalf * camera.aspect * 0.95;
       const drop = span * 0.22;
@@ -98,8 +100,8 @@ export class SkyStreaks {
         short = Math.max(short, ground(tmp.x, tmp.z) + CLEARANCE - tmp.y);
       }
       if (short <= 0) break;
-      if (tries === 5) for (const v of [curve.v0, curve.v1, curve.v2]) v.y += short;
-      depth *= 0.7;
+      if (tries === 6) for (const v of [curve.v0, curve.v1, curve.v2]) v.y += short;
+      if (sky) ndcY = Math.min(0.94, ndcY + 0.07);
     }
     if (!curve) throw new Error('unreachable');
     const scale = depth / 300;

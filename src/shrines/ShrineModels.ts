@@ -53,15 +53,38 @@ export const SHRINE_GOLD = new THREE.MeshStandardMaterial({
 });
 /** The little sun at the temple's crown. */
 export const SHRINE_SUN = new THREE.MeshStandardMaterial({ color: 0xfff6dc, emissive: 0xfff0c8, emissiveIntensity: 2.2, roughness: 0.3 });
-/** A tall, faint column of light over a temple at night. */
-export const SHRINE_BEAM = new THREE.MeshBasicMaterial({
-  color: 0xffe3a8,
+/**
+ * A tall, faint column of light over a temple at night: soft at its edges and fading as it rises, so it
+ * reads as light, not a pole. `uniforms.uOpacity` is driven by the night (see shrineGlow).
+ */
+export const SHRINE_BEAM = new THREE.ShaderMaterial({
+  uniforms: { uOpacity: { value: 0 }, uColor: { value: new THREE.Color(1.3, 1.05, 0.62) } },
   transparent: true,
-  opacity: 0,
-  blending: THREE.AdditiveBlending,
   depthWrite: false,
+  blending: THREE.AdditiveBlending,
   side: THREE.DoubleSide,
   fog: false,
+  vertexShader: /* glsl */ `
+    varying float vH;
+    varying float vFace;
+    void main() {
+      vH = uv.y;
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vec3 n = normalize(mat3(modelMatrix) * normal);
+      vFace = abs(dot(n, normalize(cameraPosition - wp.xyz)));
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform float uOpacity;
+    uniform vec3 uColor;
+    varying float vH;
+    varying float vFace;
+    void main() {
+      float a = uOpacity * pow(vFace, 3.0) * pow(1.0 - vH, 2.2) * smoothstep(0.0, 0.04, vH);
+      gl_FragColor = vec4(uColor * a, 1.0);
+    }
+  `,
 });
 
 // ------------------------------------------------------------------ helpers
@@ -387,6 +410,9 @@ export function templeGoldGeometry(): THREE.BufferGeometry {
   const { outer, y, h } = SHRINE.ring;
   parts.push(ring(outer - 0.02, outer + 0.07, y + 0.02, y + 0.1, 72, 0xffffff));
   parts.push(ring(outer - 0.02, outer + 0.07, y + h - 0.1, y + h - 0.02, 72, 0xffffff));
+  // A thin inlay along the top of the cornice, so from above it reads as a crown, not a plain band.
+  const mid = (SHRINE.ring.inner + outer) / 2;
+  parts.push(ring(mid - 0.07, mid + 0.07, y + h + 0.14, y + h + 0.17, 96, 0xffffff));
   return merge(parts);
 }
 
@@ -684,30 +710,46 @@ export function friezeGeometry(): THREE.BufferGeometry {
 
 // ---------------------------------------------------------------- the visitor
 
-/** A soft round glow with four long points: the head of the streak of light (and nothing else uses it). */
+/**
+ * The head of the streak of light: a soft round glow with four long points inside two thin orbit rings,
+ * the visitor as the storyboard draws it (the TEND mark's orb and orbit arcs).
+ */
 export function starSpriteTexture(): THREE.CanvasTexture {
   const hit = textures.get('star');
   if (hit) return hit;
-  const { c, g } = canvas(128, 128);
-  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  const S = 256;
+  const C = S / 2;
+  const { c, g } = canvas(S, S);
+  const grd = g.createRadialGradient(C, C, 0, C, C, C);
   grd.addColorStop(0, 'rgba(255,255,255,1)');
-  grd.addColorStop(0.12, 'rgba(255,250,235,0.9)');
-  grd.addColorStop(0.35, 'rgba(255,225,170,0.25)');
+  grd.addColorStop(0.08, 'rgba(255,250,235,0.95)');
+  grd.addColorStop(0.25, 'rgba(255,225,170,0.3)');
   grd.addColorStop(1, 'rgba(255,200,120,0)');
   g.fillStyle = grd;
-  g.fillRect(0, 0, 128, 128);
+  g.fillRect(0, 0, S, S);
   g.globalCompositeOperation = 'lighter';
   for (const [w, hh] of [
-    [3, 60],
-    [60, 3],
+    [5, 122],
+    [122, 5],
   ]) {
-    const lg = g.createRadialGradient(64, 64, 0, 64, 64, 62);
+    const lg = g.createRadialGradient(C, C, 0, C, C, 124);
     lg.addColorStop(0, 'rgba(255,255,255,0.9)');
     lg.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = lg;
     g.beginPath();
-    g.ellipse(64, 64, w, hh, 0, 0, Math.PI * 2);
+    g.ellipse(C, C, w, hh, 0, 0, Math.PI * 2);
     g.fill();
+  }
+  // Two orbit rings, crossing.
+  g.lineWidth = 2.2;
+  for (const [rot, alpha] of [
+    [0.42, 0.75],
+    [-0.5, 0.6],
+  ]) {
+    g.strokeStyle = `rgba(255,222,160,${alpha})`;
+    g.beginPath();
+    g.ellipse(C, C, S * 0.3, S * 0.11, rot, 0, Math.PI * 2);
+    g.stroke();
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
