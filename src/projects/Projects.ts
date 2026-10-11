@@ -22,13 +22,13 @@ import {
   TEMPLE_POWER,
   WELL_CROP_BOOST,
   WELL_FIRE_EXTRA,
-  WONDER_UNLOCK_DELAY,
   type ProjectDef,
   type ProjectId,
   type Res,
 } from './defs';
 import { Site } from './Site';
 import { CRYSTAL, GLOW, RUNE_ON } from './ProjectModels';
+import { BUILT_AT_SHRINE, STAGE_OF_PROJECT, stageIndex, type ShrineStage } from '../shrines/stages';
 
 /** One village's journey through the project chain. */
 export interface VillageProjects {
@@ -41,7 +41,8 @@ export interface VillageProjects {
   readonly done: Set<ProjectId>;
   /** Game time at which a running festival ends (0 when none). */
   festivalUntil: number;
-  festivalSite: Site | null;
+  /** Where the festival is (the new temple), while one runs. */
+  festivalAt: THREE.Vector3 | null;
   quarry: number;
 }
 
@@ -67,23 +68,25 @@ const START_LINES: Record<ProjectId, Line[][]> = {
       { who: 'imp', text: 'Rocks. You throw rocks at things. Finally, a use for your hobby.' },
     ],
   ],
-  temple: [[{ who: 'spirit', text: 'A temple! For you. They are already arguing about the roof.' }]],
-  festival: [[{ who: 'imp', text: 'A festival? Count me in. I hear there will be fireworks. (There will not be fireworks.)' }]],
+  temple: [[{ who: 'spirit', text: 'A pyramid! Right where they pray. They are already arguing about the angle.' }, { who: 'imp', text: 'Pointy. I approve.' }]],
+  festival: [[{ who: 'spirit', text: 'A temple of white stone, round their pyramid. And a feast to open it!' }, { who: 'imp', text: 'A feast? Count me in. I hear there will be fireworks. (There will not be fireworks.)' }]],
   wonder: [],
 };
 
 const DONE_LINES: Record<ProjectId, Line[][]> = {
   well: [[{ who: 'spirit', text: 'Hear that trickle? Cooler air, greener fields, and fires will think twice.' }]],
-  temple: [[{ who: 'spirit', text: 'Every prayer rings a little louder now.' }, { who: 'imp', text: 'Echo! Echo! ...Sorry.' }]],
-  festival: [[{ who: 'spirit', text: 'Lanterns and ribbons and dancing. I could watch this all night.' }, { who: 'imp', text: 'I am not crying. The ribbons are in my eye.' }]],
+  temple: [[{ who: 'spirit', text: 'Look at it catch the light. Every prayer rings a little louder now.' }, { who: 'imp', text: 'Echo! Echo! ...Sorry.' }]],
+  festival: [[{ who: 'spirit', text: 'Columns and lanterns and dancing. I could watch this all night.' }, { who: 'imp', text: 'I am not crying. There is temple dust in my eye.' }]],
   wonder: [],
 };
 
 /**
- * Village projects and the Wonder. Each village works through a chain (well, temple, harvest
- * festival), one dream at a time, announced as a prayer. Builders carry timber and food from the
- * store; you provide stone by dropping or throwing boulders onto the site. Finishing one gives a
- * lasting effect; once all three villages worship you the whole island raises the Wonder.
+ * Village projects. Each village works through a chain, one dream at a time, announced as a prayer:
+ * a well, then a pyramid and a temple at its prayer place (src/shrines: the Well also raises the stone
+ * circle). Builders carry timber and food from the store; you provide stone by dropping or throwing
+ * boulders onto the site. Finishing one gives a lasting effect and raises the prayer place an age.
+ * Every village's temple standing is the island's end goal (it replaced v0.4's Wonder, which is no
+ * longer unlocked; a finished one in an old save still stands).
  */
 export class Projects {
   readonly states = new Map<Village, VillageProjects>();
@@ -91,7 +94,6 @@ export class Projects {
   wonderPrayer: Prayer | null = null;
   wonderUnlocked = false;
   wonderDone = false;
-  private unlockAt = -1;
   private readonly motes: Mote[] = [];
   private tick = 0;
   private celebrate = 0;
@@ -113,7 +115,7 @@ export class Projects {
         nextAt: rng.range(first[0], first[1]),
         done: new Set(),
         festivalUntil: 0,
-        festivalSite: null,
+        festivalAt: null,
         quarry: 0,
       });
     }
@@ -206,25 +208,39 @@ export class Projects {
     return best && best.range < maxRange * 2 ? best : null;
   }
 
+  /** A site on its own plot (the well). */
+  private plotSite(v: Village, def: ProjectDef): Site | null {
+    const plot = this.findPlot(v, def);
+    if (!plot) return null;
+    const rot = Math.atan2(v.center.x - plot.x, v.center.z - plot.z);
+    const site = new Site(v, def, plot.x, plot.y, plot.z, rot);
+    v.obstacles.push({ pos: site.pos, radius: def.radius + 3 });
+    return site;
+  }
+
+  /** The next age of the prayer place goes up on the prayer place itself, facing the same way. */
+  private shrineSite(v: Village, def: ProjectDef): Site {
+    const w = v.worship;
+    v.worship.shrine.building = STAGE_OF_PROJECT[def.id] ?? null;
+    return new Site(v, def, w.pos.x, w.pos.y, w.pos.z, w.facing);
+  }
+
   /** Announce the village's next dream and mark out its site. */
   start(vs: VillageProjects, id: ProjectId): Site | null {
     const g = this.game;
     const v = vs.village;
     const def = DEFS[id];
-    const plot = this.findPlot(v, def);
-    if (!plot) {
+    const site = BUILT_AT_SHRINE.has(id) ? this.shrineSite(v, def) : this.plotSite(v, def);
+    if (!site) {
       vs.nextAt = g.time + 15;
       return null;
     }
-    const rot = Math.atan2(v.center.x - plot.x, v.center.z - plot.z);
-    const site = new Site(v, def, plot.x, plot.y, plot.z, rot);
     g.add(site);
-    v.obstacles.push({ pos: site.pos, radius: def.radius + 3 });
     v.projectSite = site;
     vs.site = site;
     vs.prayer = this.prayers.spawnProject(v, def.icon, pick(def.prayer), def.thanks);
     g.events.emit('projectStarted', { village: v, project: id });
-    const hint = def.needs.stone > 0 ? ' Drop boulders on the marked ground for stone.' : '';
+    const hint = def.needs.stone > 0 && !BUILT_AT_SHRINE.has(id) ? ' Drop boulders on the marked ground for stone.' : '';
     g.message(
       v.owner === 'player'
         ? `${v.name} dreams of a ${def.name.toLowerCase()}.${hint}`
@@ -245,6 +261,7 @@ export class Projects {
     const v = vs.village;
     const site = vs.site!;
     const def = site.def;
+    const atShrine = BUILT_AT_SHRINE.has(def.id);
     site.complete = true;
     vs.site = null;
     v.projectSite = null;
@@ -255,9 +272,15 @@ export class Projects {
     g.audio.projectDone();
     g.fx.sparkle(site.pos.x, site.pos.y + def.height * 0.6, site.pos.z, 120, 0xfff0b0, def.radius * 1.4);
     g.fx.sparkle(site.pos.x, site.pos.y + def.height + 2, site.pos.z, 40, 0xbfe6ff, 4);
-    g.floatText(site.pos.x, site.pos.y + def.height + 6, site.pos.z, `${def.name} complete!`, '#ffe9a8');
-    g.hud.showBanner(`${v.name}: ${def.name} complete!`, def.effect);
-    g.message(`${v.name} finished their ${def.name.toLowerCase()}. ${def.effect}`, 'good', `done-${v.name}-${def.id}`);
+    if (atShrine) {
+      // The prayer place itself takes over (src/shrines raises the new age on projectCompleted): no label, the building is the moment.
+      v.worship.shrine.building = null;
+      g.remove(site);
+    } else {
+      g.floatText(site.pos.x, site.pos.y + def.height + 6, site.pos.z, `${def.name} complete!`, '#ffe9a8');
+      g.hud.showBanner(`${v.name}: ${def.name} complete!`, def.effect);
+      g.message(`${v.name} finished their ${def.name.toLowerCase()}. ${def.effect}`, 'good', `done-${v.name}-${def.id}`);
+    }
     g.events.emit('projectCompleted', { village: v, project: def.id });
     const lines = DONE_LINES[def.id];
     if (lines.length && v.owner === 'player') this.advisors.say(pick(lines), { pri: 'important', topic: `done-${def.id}`, cooldown: 0 });
@@ -273,7 +296,7 @@ export class Projects {
       else this.prayers.drop(prayer);
     } else if (v.owner !== 'player' && v.belief >= VILLAGE.convertAt) v.convert(g);
 
-    if (def.id === 'festival') this.startFestival(vs, site);
+    if (def.id === 'festival') this.startFestival(vs);
   }
 
   // ------------------------------------------------------------- effects
@@ -310,12 +333,15 @@ export class Projects {
 
   // ------------------------------------------------------------- festival
 
-  private startFestival(vs: VillageProjects, site: Site) {
+  /** The new temple's opening night: everyone dances round it under lanterns. */
+  private startFestival(vs: VillageProjects, remaining = FESTIVAL_TIME) {
     const g = this.game;
     const v = vs.village;
-    vs.festivalSite = site;
-    vs.festivalUntil = g.time + FESTIVAL_TIME;
+    const site = v.worship;
+    vs.festivalAt = site.pos;
+    vs.festivalUntil = g.time + remaining;
     v.festival = site;
+    if (remaining < FESTIVAL_TIME) return; // resumed from a save: the boosts were already given
     for (const vl of v.villagers) {
       vl.wake();
       vl.hunger = Math.min(vl.hunger, 0.3);
@@ -331,12 +357,13 @@ export class Projects {
   private updateFestivals(dt: number) {
     const g = this.game;
     for (const vs of this.states.values()) {
-      const site = vs.festivalSite;
-      if (!site || !vs.festivalUntil) continue;
+      const at = vs.festivalAt;
+      if (!at || !vs.festivalUntil) continue;
+      const site = { pos: at };
       const v = vs.village;
       if (g.time >= vs.festivalUntil) {
         vs.festivalUntil = 0;
-        vs.festivalSite = null;
+        vs.festivalAt = null;
         v.festival = null;
         g.message(`The festival in ${v.name} winds down. What a night.`, 'info', `festend-${v.name}`);
         continue;
@@ -347,12 +374,13 @@ export class Projects {
       }
       if (Math.random() < dt * 14) {
         const a = Math.random() * Math.PI * 2;
-        const r = 1 + Math.random() * 8;
-        g.fx.sparkle(site.pos.x + Math.cos(a) * r, site.pos.y + 1.5 + Math.random() * 4, site.pos.z + Math.sin(a) * r, 1, [0xffd27a, 0xf08aa8, 0x9fe8ff][Math.floor(Math.random() * 3)], 0.5);
+        const r = 7 + Math.random() * 4;
+        g.fx.sparkle(site.pos.x + Math.cos(a) * r, site.pos.y + 1.5 + Math.random() * 6, site.pos.z + Math.sin(a) * r, 1, [0xffd27a, 0xf08aa8, 0x9fe8ff][Math.floor(Math.random() * 3)], 0.5);
       }
       if (Math.random() < dt * 1.2) {
         // A floating lantern drifts up into the sky.
-        g.fx.prayer(site.pos.x + (Math.random() - 0.5) * 12, site.pos.y + 3, site.pos.z + (Math.random() - 0.5) * 12, 0xffc060);
+        const a = Math.random() * Math.PI * 2;
+        g.fx.prayer(site.pos.x + Math.cos(a) * 9.5, site.pos.y + 3, site.pos.z + Math.sin(a) * 9.5, 0xffc060);
       }
       g.audio.festivalChimes(site.pos);
       if (v.owner === 'player') g.player.addPower(v.prayerRate * dt);
@@ -364,13 +392,8 @@ export class Projects {
   private updateWonder(step: number) {
     const g = this.game;
     void step;
-    if (!this.wonderUnlocked) {
-      const all = g.villages.every((v) => v.owner === 'player');
-      if (!all) this.unlockAt = -1;
-      else if (this.unlockAt < 0) this.unlockAt = g.time + WONDER_UNLOCK_DELAY;
-      else if (g.time >= this.unlockAt) this.unlock();
-      return;
-    }
+    // The Wonder is retired (every village's temple is the goal now): only one from an old save is kept.
+    if (!this.wonderUnlocked) return;
     const w = this.wonder;
     if (!w) return;
     for (const v of g.villages) v.wonderSite = !w.complete && v.owner === 'player' ? w : null;
@@ -430,15 +453,12 @@ export class Projects {
     return best;
   }
 
-  /** Every village worships you: raise the Wonder. */
+  /** Debug only since v0.5 (the Wonder is no longer unlocked in play): raise the Wonder. */
   unlock(): Site | null {
     const g = this.game;
     if (this.wonderUnlocked) return this.wonder;
     const spot = this.findWonderSpot();
-    if (!spot) {
-      this.unlockAt = g.time + 20;
-      return null;
-    }
+    if (!spot) return null;
     const home = g.villages.find((v) => v.isHome)!;
     this.wonderUnlocked = true;
     // Clear the footprint of trees and boulders.
@@ -545,7 +565,7 @@ export class Projects {
     const g = this.game;
     const r = (n: number) => Math.round(n * 100) / 100;
     const sites = g.entities
-      .filter((e): e is Site => e instanceof Site && e.alive)
+      .filter((e): e is Site => e instanceof Site && e.alive && !(e.complete && BUILT_AT_SHRINE.has(e.def.id)))
       .map((s) => ({
         v: g.villages.indexOf(s.village),
         id: s.def.id,
@@ -565,7 +585,7 @@ export class Projects {
         nextAt: r(vs.nextAt),
         done: [...vs.done],
         quarry: r(vs.quarry),
-        festival: vs.festivalSite && vs.festivalUntil ? r(Math.max(0, vs.festivalUntil - g.time)) : 0,
+        festival: vs.festivalAt && vs.festivalUntil ? r(Math.max(0, vs.festivalUntil - g.time)) : 0,
       };
     });
     return { sites, villages, wonderUnlocked: this.wonderUnlocked, wonderDone: this.wonderDone };
@@ -590,14 +610,25 @@ export class Projects {
       const v = g.villages[s.v];
       const def = DEFS[s.id];
       if (!v || !def) continue;
-      const site = new Site(v, def, s.x, s.y, s.z, s.rot);
+      const atShrine = BUILT_AT_SHRINE.has(def.id);
+      // v0.4's temples and festival greens stood on their own plots: a finished one is now an age of the
+      // prayer place (src/shrines derives it), and one still being built moves there with what it had.
+      if (atShrine && s.complete) continue;
+      // The Wonder is retired: an unfinished one from an old save is let go (a finished one still stands).
+      if (def.id === 'wonder' && !s.complete) {
+        this.wonderUnlocked = false;
+        continue;
+      }
+      const w = v.worship;
+      const site = atShrine ? new Site(v, def, w.pos.x, w.pos.y, w.pos.z, w.facing) : new Site(v, def, s.x, s.y, s.z, s.rot);
+      if (atShrine) w.shrine.building = STAGE_OF_PROJECT[def.id] ?? null;
       (['wood', 'stone', 'food'] as Res[]).forEach((k, i) => (site.have[k] = s.have[i] ?? 0));
       site.given = s.given ?? 0;
       site.complete = s.complete;
       site.shown = s.complete ? 1 : site.fraction;
       g.add(site);
       const isWonder = def.id === 'wonder';
-      v.obstacles.push({ pos: site.pos, radius: def.radius + (isWonder ? 4 : 3) });
+      if (!atShrine) v.obstacles.push({ pos: site.pos, radius: def.radius + (isWonder ? 4 : 3) });
       const vs = this.states.get(v)!;
       if (isWonder) {
         site.onRemote = (from, res, amount) => this.launchMote(from, site, res, amount);
@@ -610,15 +641,10 @@ export class Projects {
       }
     }
 
-    // A festival still in full swing carries on for the time it had left.
+    // A festival still in full swing carries on, round the new temple, for the time it had left.
     d.villages.forEach((s, i) => {
-      const v = g.villages[i];
-      const vs = this.states.get(v);
-      const site = g.entities.find((e): e is Site => e instanceof Site && e.alive && e.village === v && e.def.id === 'festival' && e.complete);
-      if (!vs || !site || s.festival <= 0) return;
-      vs.festivalSite = site;
-      vs.festivalUntil = g.time + s.festival;
-      v.festival = site;
+      const vs = this.states.get(g.villages[i]);
+      if (vs && s.festival > 0 && vs.done.has('festival')) this.startFestival(vs, Math.min(FESTIVAL_TIME - 0.01, s.festival));
     });
   }
 
@@ -627,6 +653,33 @@ export class Projects {
   /** Debug: fill a site's materials completely (the system finishes it on the next tick). */
   cheatFill(site: Site) {
     for (const r of ['wood', 'stone', 'food'] as Res[]) site.have[r] = site.def.needs[r];
+  }
+
+  /**
+   * Debug (game.shrines.setStage): line a village's project chain up with its prayer place's age, as if
+   * it had built everything up to `stage` and nothing after. Drops a project in progress.
+   */
+  syncToStage(v: Village, stage: ShrineStage) {
+    const g = this.game;
+    const vs = this.states.get(v);
+    if (!vs) return;
+    if (vs.site) {
+      if (vs.prayer) this.prayers.drop(vs.prayer);
+      vs.prayer = null;
+      const i = v.obstacles.findIndex((o) => o.pos === vs.site!.pos);
+      if (i >= 0) v.obstacles.splice(i, 1);
+      g.remove(vs.site);
+      vs.site = null;
+      v.projectSite = null;
+      v.worship.shrine.building = null;
+    }
+    vs.done.clear();
+    for (const id of CHAIN) {
+      const s = STAGE_OF_PROJECT[id];
+      if (s && stageIndex(s) <= stageIndex(stage)) vs.done.add(id);
+    }
+    vs.index = vs.done.size;
+    vs.nextAt = g.time + rng.range(NEXT_PROJECT_GAP[0], NEXT_PROJECT_GAP[1]);
   }
 
   /** Debug: start a village's next project right now. */
@@ -641,7 +694,7 @@ export class Projects {
     const g = this.game;
     const night = 1 - Math.min(1, Math.max(0, g.sky.daylight * 1.5));
     let fest = 0;
-    for (const vs of this.states.values()) if (vs.festivalSite) fest = 1;
+    for (const vs of this.states.values()) if (vs.festivalAt) fest = 1;
     GLOW.emissiveIntensity = Math.max(0.35 + night * 1.9, fest * 1.8) * (0.92 + Math.sin(t * 3.1) * 0.08);
     RUNE_ON.emissiveIntensity = 1.2 + night * 1.2 + Math.sin(t * 1.7) * 0.25;
     CRYSTAL.emissiveIntensity = 1.4 + night * 1.0 + Math.sin(t * 2.3) * 0.3;

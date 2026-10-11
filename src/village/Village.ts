@@ -6,6 +6,13 @@ import type { Pile, Tree } from '../entities/Nature';
 import { INFLUENCE, PLAYER, VILLAGE, type Owner, type VillageSite } from '../config';
 import { Rng, rng } from '../util/rng';
 import type { Site } from '../projects/Site';
+import { SHRINE_CLEARANCE, type ShrineStage } from '../shrines/stages';
+
+/** Anywhere a village dances: its prayer place, or a festival floor. */
+export interface DanceFloor {
+  pos: THREE.Vector3;
+  slotPosition(i: number, n: number, time: number, out: THREE.Vector3): THREE.Vector3;
+}
 
 /** One village in a save file (positions rounded; see systems/Save.ts). */
 export interface VillageSave {
@@ -49,8 +56,11 @@ export class Village {
   /** Village project in progress, and the island Wonder when this village may help build it (set by the projects plugin). */
   projectSite: Site | null = null;
   wonderSite: Site | null = null;
-  /** A festival green: while set, everyone dances there instead of at the totem. */
-  festival: Site | null = null;
+  /** A festival: while set, everyone dances there (the new temple's opening night) instead of only the worshippers. */
+  festival: DanceFloor | null = null;
+  /** The age its prayer place has reached, and every age it has stood at (see src/shrines; the legacy record lists them). */
+  shrineStage: ShrineStage = 'totem';
+  readonly shrineStagesReached: ShrineStage[] = ['totem'];
   /** Places the project plugin has built on (so houses and fields keep clear). */
   readonly obstacles: { pos: THREE.Vector3; radius: number }[] = [];
 
@@ -170,7 +180,7 @@ export class Village {
   private clearOf(x: number, z: number, clearance: number): boolean {
     const near = (px: number, pz: number, r: number) => Math.hypot(px - x, pz - z) < r + clearance;
     if (near(this.store.pos.x, this.store.pos.z, 5)) return false;
-    if (near(this.worship.pos.x, this.worship.pos.z, 10)) return false;
+    if (near(this.worship.pos.x, this.worship.pos.z, SHRINE_CLEARANCE)) return false;
     for (const h of this.houses) if (near(h.pos.x, h.pos.z, 2.5)) return false;
     for (const f of this.fields) if (near(f.pos.x, f.pos.z, 5)) return false;
     for (const o of this.obstacles) if (near(o.pos.x, o.pos.z, o.radius)) return false;
@@ -178,7 +188,7 @@ export class Village {
   }
 
   /** Where dancers gather: the festival green during a festival, else the totem. */
-  get danceFloor(): { pos: THREE.Vector3; slotPosition(i: number, n: number, time: number, out: THREE.Vector3): THREE.Vector3 } {
+  get danceFloor(): DanceFloor {
     return this.festival ?? this.worship;
   }
 

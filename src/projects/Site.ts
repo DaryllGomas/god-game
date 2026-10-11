@@ -17,6 +17,8 @@ import {
 } from './defs';
 import { GLOW, festivalModel, scaffoldModel, stoneHeapGeometry, templeModel, wellModel, type LayeredModel } from './ProjectModels';
 import { WonderVisual } from './Wonder';
+import { ShrineBuildVisual } from '../shrines/ShrineBuild';
+import { BUILT_AT_SHRINE, STAGE_OF_PROJECT } from '../shrines/stages';
 
 const logsGeo = logStackGeometry();
 const foodGeo = foodHeapGeometry();
@@ -134,7 +136,8 @@ class WonderWrapper implements Visual {
 export type GiftSource = 'gift' | 'builder' | 'quarry';
 
 /**
- * A construction site for a village project (well, temple, festival green) or the Wonder.
+ * A construction site for a village project (the well, or the next age of the prayer place: see
+ * src/shrines) or, in old saves, the Wonder.
  * It collects wood and food from builders and stone from you: boulders you drop or throw on it,
  * or that the golem throws there, are absorbed as stone. It grows from stakes and scaffold into
  * the finished building as the materials arrive.
@@ -165,7 +168,12 @@ export class Site extends Entity {
     this.village = village;
     this.def = def;
     this.rotY = rotY;
-    this.visual = def.id === 'wonder' ? new WonderWrapper() : new BuildingVisual(def);
+    this.visual =
+      def.id === 'wonder'
+        ? new WonderWrapper()
+        : BUILT_AT_SHRINE.has(def.id)
+          ? new ShrineBuildVisual(STAGE_OF_PROJECT[def.id]!, def.radius, def.height)
+          : new BuildingVisual(def);
     this.object.add(this.visual.group);
     this.object.rotation.y = rotY;
     this.pos.set(x, y, z);

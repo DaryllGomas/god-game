@@ -13,8 +13,9 @@ import {
   ruinsGeometry,
   scaffoldGeometry,
   storeGeometry,
-  worshipGeometry,
 } from '../art/Models';
+import { ShrineVisual } from '../shrines/ShrineVisual';
+import type { ShrineStage } from '../shrines/stages';
 import { VILLAGE } from '../config';
 import { clamp } from '../util/math';
 
@@ -212,41 +213,79 @@ export class Store extends Entity {
 
 // -------------------------------------------------------------- worship site
 
-const worshipGeo = worshipGeometry();
-
+/**
+ * A village's prayer place: a totem at first, growing through the ages (see src/shrines). Its people
+ * dance round it to pray; it faces its village, the way in toward the houses.
+ */
 export class WorshipSite extends Entity {
   readonly kind = 'worship' as const;
   village: Village;
-  readonly ringRadius = 6.2;
+  readonly shrine = new ShrineVisual();
+  private readonly rotY: number;
 
   constructor(village: Village, x: number, y: number, z: number) {
     super();
     this.village = village;
-    this.object.add(sharedMesh(worshipGeo.site, MAT.base), sharedMesh(worshipGeo.fire, MAT.base));
-    this.object.children[1].position.set(0, 0, 4.2);
+    this.object.add(this.shrine.group);
+    this.rotY = Math.atan2(village.center.x - x, village.center.z - z);
+    this.object.rotation.y = this.rotY;
     this.pos.set(x, y, z);
-    this.radius = 8;
+    this.radius = this.shrine.pickRadius;
+  }
+
+  /** Dancers circle at this radius (wider once a pyramid stands in the middle). */
+  get ringRadius(): number {
+    return this.shrine.ringRadius;
+  }
+
+  /** The solid middle that walkers keep out of (the totem pole, later the pyramid). */
+  get solidRadius(): number {
+    return this.shrine.solidRadius;
+  }
+
+  get facing(): number {
+    return this.rotY;
   }
 
   get topHeight() {
-    return 9;
+    return this.shrine.topHeight;
   }
 
-  /** Dancers circle the totem; slot i of n at the current time. */
+  /** The prayer place grows into another age (`animate`: it is happening now, not a load). */
+  setStage(stage: ShrineStage, animate: boolean) {
+    this.shrine.setStage(stage, animate);
+    this.radius = this.shrine.pickRadius;
+  }
+
+  /** Dancers circle the prayer place; slot i of n at the current time. */
   slotPosition(i: number, n: number, time: number, out: THREE.Vector3): THREE.Vector3 {
     const a = (i / Math.max(1, n)) * Math.PI * 2 + time * 0.35;
-    return out.set(this.pos.x + Math.cos(a) * this.ringRadius, this.pos.y, this.pos.z + Math.sin(a) * this.ringRadius);
+    const r = this.ringRadius;
+    return out.set(this.pos.x + Math.cos(a) * r, this.pos.y, this.pos.z + Math.sin(a) * r);
+  }
+
+  /** Local point of the shrine model to world space. */
+  toWorld(lx: number, ly: number, lz: number, out: THREE.Vector3): THREE.Vector3 {
+    const c = Math.cos(this.rotY);
+    const s = Math.sin(this.rotY);
+    return out.set(this.pos.x + lx * c + lz * s, this.pos.y + ly, this.pos.z - lx * s + lz * c);
   }
 
   update(game: Game, dt: number) {
-    const fx = this.pos.x;
-    const fz = this.pos.z + 4.2;
-    if (Math.random() < dt * 20) game.fx.fire(fx, this.pos.y + 0.8, fz, 0.8);
+    const fires = this.shrine.firePoints();
+    for (const [lx, ly, lz] of fires) {
+      if (Math.random() < (dt * 20) / fires.length) {
+        this.toWorld(lx, ly, lz, fireAt);
+        game.fx.fire(fireAt.x, fireAt.y, fireAt.z, fires.length > 1 ? 0.55 : 0.8);
+      }
+    }
     if (this.village.owner === 'player' && this.village.dancers > 0 && Math.random() < dt * (2 + this.village.dancers)) {
-      game.fx.prayer(this.pos.x, this.pos.y + 2, this.pos.z);
+      game.fx.prayer(this.pos.x, this.pos.y + this.shrine.motesHeight, this.pos.z);
     }
   }
 }
+
+const fireAt = new THREE.Vector3();
 
 // --------------------------------------------------------------------- field
 

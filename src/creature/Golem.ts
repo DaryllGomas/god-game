@@ -3,7 +3,7 @@ import type { Game } from '../Game';
 import type { Village } from '../village/Village';
 import { Entity } from '../entities/Entity';
 import { Pile, Rock } from '../entities/Nature';
-import { Field } from '../entities/Buildings';
+import { Field, type WorshipSite } from '../entities/Buildings';
 import { Villager } from '../entities/Villager';
 import { GolemModel, REST_POSE, type GolemPose } from './GolemModel';
 import { angleLerp, clamp, damp, smoothstep } from '../util/math';
@@ -735,8 +735,8 @@ export class Golem extends Entity {
   }
 
   private blockRadius(e: Entity): number {
-    // The worship site is walkable; only keep clear of the totem pole in its middle.
-    return e.kind === 'worship' ? 1.5 + this.radius * 0.5 : e.radius + this.radius * 0.75;
+    // The worship site is walkable; only keep clear of its solid middle (the totem pole, later the pyramid).
+    return e.kind === 'worship' ? (e as WorshipSite).solidRadius + 0.3 + this.radius * 0.5 : e.radius + this.radius * 0.75;
   }
 
   private avoidBuildings(game: Game) {

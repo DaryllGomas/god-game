@@ -62,8 +62,10 @@ Your hand only works inside the golden ring of influence around villages that wo
 - **Faith.** Your own villages lose faith if they starve or you hurt them. A converted village whose faith hits zero leaves you.
 - **Your golem** eats, sleeps, plays and grows. It chooses what to do by itself, and your strokes and slaps teach it which habits you approve of. Its looks follow its own good or evil nature.
 - **Prayers.** Villages ask for things: timber, food, rain, a sign, a lost child brought home, a fire put out, help with a project. Each shows as a picture with a ring, never a sentence. Answering one gives power and faith (or belief, for neutral villages); ignored prayers just fade. Two advisors, Lumi (kind) and Fizz (cheeky), react to what you do (they never explain the controls; the 💬 button mutes them), and Ora, the voice of balance, speaks rarely at the big moments.
-- **Projects.** Each village works through a Well, then a Temple, then a Harvest Festival, with its builders hauling wood, stone and food. Drop materials on a site to help. A neutral village is only won over by projects **you** helped with.
-- **The Wonder.** Once all three villages worship you, they raise the Wonder together. Finishing it ends the first island.
+- **Projects and the shrine track** (v0.5). Each village works through a Well, then a pyramid, then a temple, with its builders hauling wood, stone and food. Drop materials on a site to help. A neutral village is only won over by projects **you** helped with. Every project raises the village's prayer place an age: **totem → stone circle** (when the Well is finished) **→ pyramid → temple** (both built at the prayer place itself; the temple opens with a night of dancing). The dance goes on at whatever stands. See `src/shrines/`.
+- **The island's goal** is every village worshipping you with its temple standing (`game.allTemplesStand()`). The Wonder of v0.4 is retired (one already finished in an old save still stands).
+- **Signs in the sky.** From the stone circle on, answering a village's prayers sometimes sends a soft streak of light across its sky, and the pyramid and temple carry gold murals of that visitor. No words.
+- **Names and the chronicle.** Every villager has a name made from its seed (never shown as a label). The chronicle (`src/chronicle/`) quietly records the notable moments (a lost child carried home, saved from a fire, fed in a famine, born, passing away old, each age raised, the worst thing you did...) for the endings and the legacy record. Villagers age, and the eldest pass away peacefully after a long life.
 - **Seasons.** A year is four seasons of 2.5 days each, and each changes the look, the crops and hunger. Each season brings one announced nature event: a spring bloom, a summer dry spell, an autumn storm with lightning, or a winter cold snap.
 - **The balance of the world** (v0.5): tending (forests, fed villages, faith, answered prayers) lifts it, ruin and cruelty pull it down. It is never shown as a number: the land's colour, two rings of light in the sky, the sea on Vexahl's side and the music show it. See `src/balance/`.
 - **Vexahl, the rival god**: his spire stands far out at sea from the first day, drawing nearer as the balance falls. Below a threshold he stirs and schemes before the Wonder, harder the lower it goes; after the Wonder he schemes regardless. His schemes are always announced with a countdown, and each can be countered:
@@ -98,7 +100,10 @@ src/
   prayers/              prayer system, prayer bubbles and tiles (icons.ts), the advisors Lumi and Fizz
   ora/                  Ora, the voice of balance (rare lines at the big moments)
   intro/                the intro film before the title on a first visit
-  projects/             Well/Temple/Festival chain, building sites, the Wonder
+  projects/             the project chain (Well, then the pyramid and temple at the prayer place), building sites, the retired Wonder
+  shrines/              the shrine track: stages and models of the prayer place (totem, stone circle, pyramid, temple), murals, the sky streak
+  chronicle/            the saved log of notable moments, and one-line stories of the people (people(n))
+  people/               villager names (from the seed) and ages
   seasons/              calendar, seasonal looks, nature events, the storm, falling leaves/snow/petals
   rival/                Vexahl: his spire (distance follows the balance), stirring, schemes, visuals, panel
   balance/              the world's balance (Balance.ts: terms and weights) and how the island shows it (BalanceLook, SkyRings)
@@ -120,6 +125,8 @@ docs/                   vision.md (design north star), agents.md (how to add fea
 - `game.prayerSystem.spawnNow(village, 'food')`
 - `game.saves.save()`
 - `game.ora.raise('kind', true)` and `game.ora.state()`
+- `game.shrines.setStage(0, 'pyramid', true)` (village index or name; `true` plays the arrival), `game.shrines.streak(0)`, `game.shrines.state()`, `game.allTemplesStand()`
+- `game.chronicle.people(5)`, `game.chronicle.entries`, `game.chronicle.add({ kind, villagerSeed, village, note })`
 
 ## Not built yet
 

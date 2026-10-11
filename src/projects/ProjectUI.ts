@@ -38,7 +38,7 @@ export class ProjectUI {
     root.appendChild(this.panel);
     this.wonderPanel.className = 'panel pj-wonder hidden';
     root.appendChild(this.wonderPanel);
-    for (const v of game.villages) this.chips.set(v, this.makeChip(() => this.fly(this.sys.states.get(v)?.site ?? this.sys.states.get(v)?.festivalSite ?? null, v)));
+    for (const v of game.villages) this.chips.set(v, this.makeChip(() => this.fly(this.sys.states.get(v)?.site ?? null, v)));
   }
 
   private makeChip(onClick: () => void, wonder = false): HTMLDivElement {
@@ -53,7 +53,10 @@ export class ProjectUI {
 
   private fly(site: Site | null, v?: Village) {
     const g = this.game;
-    if (site) {
+    if (!site && v?.festival) {
+      g.godCam.flyTo(v.worship.pos.x, v.worship.pos.z);
+      g.godCam.setDistance(70);
+    } else if (site) {
       g.godCam.flyTo(site.pos.x, site.pos.z);
       g.godCam.setDistance(site.def.id === 'wonder' ? 150 : 70);
     } else if (v) g.godCam.flyTo(v.center.x, v.center.z);
@@ -72,7 +75,7 @@ export class ProjectUI {
     for (const [v, chip] of this.chips) {
       const vs = this.sys.states.get(v)!;
       const site = vs.site;
-      const festive = !!vs.festivalSite && vs.festivalUntil > 0;
+      const festive = !!vs.festivalAt && vs.festivalUntil > 0;
       if ((!site && !festive) || hidden) {
         chip.style.display = 'none';
         continue;
@@ -83,7 +86,7 @@ export class ProjectUI {
         const def = site ? site.def : DEFS.festival;
         const f = site ? site.fraction : Math.max(0, (vs.festivalUntil - g.time) / FESTIVAL_TIME);
         chip.children[0].textContent = def.icon;
-        chip.children[1].textContent = festive ? 'Festival!' : def.name;
+        chip.children[1].textContent = festive ? '🏮' : def.name;
         chip.children[2].textContent = festive ? '' : pct(f);
         (chip.children[3].firstElementChild as HTMLElement).style.width = pct(f);
         chip.title = site ? `${def.name}: ${site.progressText()}` : 'The village is celebrating';
@@ -161,8 +164,8 @@ export class ProjectUI {
         <div class="pj-title"><span>${d.icon}</span>${d.name}<button class="pj-btn pj-go">Show</button></div>
         <div class="pj-effect">${d.effect}</div>${this.resRows(site)}
         <div class="pj-note">${d.needs.stone > 0 ? 'Builders carry the timber. <b>Drop or throw boulders onto the site</b> for stone.' : 'Builders carry timber and food from the store. Gifts of food and wood help.'}${v.owner !== 'player' ? ' Helping them builds belief.' : ''}</div>`;
-    } else if (vs.festivalSite && vs.festivalUntil > 0) {
-      html += `<div class="stat-label">Project</div><div class="pj-title"><span>🏮</span>Harvest Festival<button class="pj-btn pj-go">Show</button></div><div class="pj-effect">The whole village is dancing under the lanterns.</div>`;
+    } else if (vs.festivalAt && vs.festivalUntil > 0) {
+      html += `<div class="stat-label">Project</div><div class="pj-title"><span>🏮</span>The temple's first night<button class="pj-btn pj-go">Show</button></div><div class="pj-effect">The whole village is dancing round it under the lanterns.</div>`;
     } else if (vs.index < 3) {
       html += `<div class="stat-label">Project</div><div class="pj-note" style="margin-top:0">${v.population < 3 ? 'Too few people to dream big yet.' : 'The village is thinking about what to build next...'}</div>`;
     } else {
@@ -180,14 +183,15 @@ export class ProjectUI {
       this.panelKey = key;
       this.panel.innerHTML = html;
       const btn = this.panel.querySelector<HTMLButtonElement>('.pj-go');
-      if (btn) btn.onclick = () => this.fly(vs.site ?? vs.festivalSite, v);
+      if (btn) btn.onclick = () => this.fly(vs.site, v);
     }
     this.panel.classList.remove('hidden');
   }
 
   private updateWonderPanel(hidden: boolean) {
     const w = this.sys.wonder;
-    if (!w || hidden) {
+    // The Wonder is retired (v0.5): one finished in an old save just stands there, no panel.
+    if (!w || hidden || w.complete) {
       this.wonderPanel.classList.add('hidden');
       return;
     }
