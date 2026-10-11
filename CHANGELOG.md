@@ -2,6 +2,21 @@
 
 Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates are when each change landed.
 
+## [Unreleased]
+
+### Added
+- **The intro.** On your first visit the intro film plays full screen before the title: it starts on black, ends on black, and the island fades up from black into the title screen. Click or press a key and a small "skip" appears; a second click or key skips (Esc skips at once). Returning players (anyone with a saved island or an island code) never see it again, and "▶ Watch the intro" on the `?` screen plays it any time. The web copy is `public/intro/intro.mp4` (H.264, 1280×720, 5.6 MB, silent for now).
+- **Ora, the voice of balance.** A third voice beside Lumi and Fizz, and a rare one: a perfectly round sphere of light and one soft line of italic text, no box, at a few big moments only (your first answered prayer, the first sign of the world falling out of balance, a turn toward either extreme, very kind or very cruel, and a long quiet stretch of good tending). It never tells you what to do; it asks, warns once, or notices. At most five lines a sitting, never over Lumi or Fizz.
+- **Arriving from THE PATH.** A link from THE PATH's ending (`?from=thepath&initials=AVR`) fills the title screen's god-name box with your initials (one to three letters). It's only a suggestion: change it, clear it, or play without a name. Ignored once an island code is linked.
+
+### Changed
+- **No more words to read while you play.** The game teaches through play:
+  - The hover tooltips are gone ("Boulder: Heavy. Throw it for a spectacle…"). The gold ring under whatever you point at is the cue; it now also shows under buildings and the golem, and turns reddish when the thing is outside your influence.
+  - Prayers are pictures: logs for timber, a loaf for food, a rain cloud, a lost child with a question mark, a flame, a sparkle for a sign, and stone-and-log for a project, each in a medallion with a ring (filling as you deliver wood or food, otherwise the time left) and the village's colour. The Prayers list is a grid of these tiles, and a lost child is marked with a bobbing "!".
+  - An answered prayer thanks you with sparkles, bells and the power it brought, not a sentence.
+  - Lumi and Fizz stay (the kind spirit and the cheeky imp) but no longer explain the controls. They react, praise, grumble and tempt ("You know, from up here they look very... throwable."), and they speak less often.
+  - The `?` screen keeps the full controls list.
+
 ## [0.4.0] - 2026-10-10: THE FIRST WORLD
 
 ### Changed
