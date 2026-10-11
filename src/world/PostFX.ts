@@ -60,6 +60,28 @@ const GradeShader = {
   `,
 };
 
+/**
+ * Replaces any NaN/Inf pixel with black before the effects run. One bad pixel from any shader would otherwise be
+ * smeared by the bloom blur into a large black block (it happened once: a belief ring's light column).
+ */
+const SanitizeShader = {
+  name: 'SanitizeShader',
+  uniforms: { tDiffuse: { value: null as THREE.Texture | null } },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      if (any(isnan(c)) || any(isinf(c))) c = vec4(0.0, 0.0, 0.0, 1.0);
+      gl_FragColor = vec4(min(c.rgb, vec3(60000.0)), c.a);
+    }
+  `,
+};
+
 interface GtaoInternals {
   _overrideVisibility(): void;
   _restoreVisibility(): void;
@@ -93,6 +115,7 @@ export class PostFX {
     this.composer.setSize(size.x, size.y);
 
     this.composer.addPass(new RenderPass(scene, camera));
+    this.composer.addPass(new ShaderPass(SanitizeShader));
 
     this.ao = new GTAOPass(scene, camera, size.x, size.y);
     this.ao.output = GTAOPass.OUTPUT.Default;

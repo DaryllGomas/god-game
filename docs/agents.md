@@ -123,3 +123,6 @@ Keep it short:
 - How to try it in-game.
 - Test results.
 - Known issues or tuning knobs.
+
+## Shaders: never let a NaN out (2026-10-10)
+One NaN pixel is smeared by the bloom blur into a large black block. It happened in v0.5: the belief ring's light column used `normalize()` on a vector that can be zero and `pow()` on a value that can go negative, and two thirds of Daryll's screen went black. Rules: guard every `normalize`, division and `pow` (clamp the base to ≥ 0, divide by `max(x, 1e-4)`). `PostFX` now scrubs NaN/Inf right after the scene render, but don't rely on it. And check new visuals on Daryll's real GPU and window size (a tab in his Chrome), not only in headless SwiftShader: the headless runs at 1600–1920 px never showed this.

@@ -64,7 +64,7 @@ const ringFrag = /* glsl */ `
     float bead = 1.0 - smoothstep(uLine * 1.5, uLine * 2.3, length(vec2(q, vSide)));
     // The leading edge carries a small glint while it is filling.
     float dh = (vS - uFill) * uCirc;
-    float head = exp(-dh * dh / (uLine * uLine * 40.0)) * step(0.004, uFill) * step(uFill, 0.996);
+    float head = exp(-dh * dh / max(uLine * uLine * 40.0, 1e-6)) * step(0.004, uFill) * step(uFill, 0.996);
     // Belief just won glows white-gold while the pulse lasts.
     float fresh = filled * step(uGain, vS) * uPulse;
   #if MODE == 0
@@ -74,7 +74,7 @@ const ringFrag = /* glsl */ `
     gl_FragColor = vec4(col, clamp(a, 0.0, 1.0) * uAlpha);
   #elif MODE == 1
     float glow = exp(-x * x * 9.0);
-    float core = exp(-x * x / (uLine * uLine * 2.0));
+    float core = exp(-x * x / max(uLine * uLine * 2.0, 1e-6));
     float swell = 0.85 + 0.15 * sin(vS * 6.2831853 * 3.0 - uTime * 0.6);
     float k = glow * filled * (0.1 + 0.45 * uPulse) * swell + core * filled * (0.4 + 0.4 * uPulse)
             + core * head * 1.4 + glow * head * 0.5 + core * fresh * 1.2 + bead * filled * 0.5 + core * 0.02;
@@ -94,7 +94,11 @@ const columnVert = /* glsl */ `
     vec4 wp = modelMatrix * vec4(position, 1.0);
     vec3 n = normalize(mat3(modelMatrix) * normal);
     vec3 v = normalize(cameraPosition - wp.xyz);
-    vFace = abs(dot(normalize(vec3(n.x, 0.0, n.z)), normalize(vec3(v.x, 0.0, v.z))));
+    // Horizontal facing, guarded: straight above the column the horizontal view vector is zero length,
+    // and a NaN here gets smeared across the whole screen by the bloom pass.
+    vec3 nh = vec3(n.x, 0.0, n.z);
+    vec3 vh = vec3(v.x, 0.0, v.z);
+    vFace = abs(dot(nh, vh)) / max(length(nh) * length(vh), 1e-4);
     gl_Position = projectionMatrix * viewMatrix * wp;
   }
 `;
@@ -106,8 +110,8 @@ const columnFrag = /* glsl */ `
   varying float vY;
   varying float vFace;
   void main() {
-    float core = pow(vFace, 2.2);
-    float rise = smoothstep(0.0, 0.05, vY) * pow(1.0 - vY, 1.8);
+    float core = pow(clamp(vFace, 0.0, 1.0), 2.2);
+    float rise = smoothstep(0.0, 0.05, vY) * pow(clamp(1.0 - vY, 0.0, 1.0), 1.8);
     float shimmer = 0.78 + 0.22 * sin(vY * 16.0 - uTime * 1.4);
     gl_FragColor = vec4(uGold * core * rise * shimmer * uStrength, 1.0);
   }
