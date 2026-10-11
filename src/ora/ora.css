@@ -1,0 +1,123 @@
+/* Ora, the voice of balance: a round sphere of light and one soft line of italic text. No box. */
+
+.ora {
+  --ora-in: 1.6s;
+  --ora-out: 2s;
+  position: absolute;
+  left: 50%;
+  top: 14vh;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(760px, calc(100vw - 48px));
+  transform: translate(-50%, 6px);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity var(--ora-out) ease,
+    transform var(--ora-out) ease;
+  z-index: 7;
+}
+/* A soft dark breath behind the words so they read over bright grass or sea; it has no edges. */
+.ora::before {
+  content: '';
+  position: absolute;
+  inset: -40px -70px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(5, 12, 28, 0.66), rgba(5, 12, 28, 0.4) 55%, transparent);
+  filter: blur(8px);
+}
+.ora.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-duration: var(--ora-in);
+}
+.ora.away {
+  visibility: hidden;
+}
+
+.ora-orb {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 14px 4px rgba(159, 220, 255, 0.55),
+    0 0 40px 12px rgba(95, 184, 255, 0.22);
+  animation: ora-float 6s ease-in-out infinite;
+  transform: scale(0.7);
+  transition: transform var(--ora-out) ease;
+}
+.ora.show .ora-orb {
+  transform: scale(1);
+  transition-duration: var(--ora-in);
+}
+.ora-orb svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+/* The rings turn slowly on the sphere, always inside its circle (Ora is perfectly round). */
+.ora-rings {
+  transform-origin: 20px 20px;
+  animation: ora-turn 26s linear infinite;
+}
+.ora-rings-b {
+  animation-duration: 40s;
+  animation-direction: reverse;
+}
+@keyframes ora-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ora-float {
+  50% {
+    translate: 0 -3px;
+    box-shadow:
+      0 0 18px 6px rgba(159, 220, 255, 0.62),
+      0 0 46px 14px rgba(95, 184, 255, 0.26);
+  }
+}
+
+.ora-line {
+  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 27px;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  color: #eaf7ff;
+  text-shadow:
+    0 0 2px rgba(4, 10, 24, 0.95),
+    0 1px 8px rgba(4, 10, 24, 0.75),
+    0 0 18px rgba(159, 220, 255, 0.6);
+  filter: blur(5px);
+  transition: filter var(--ora-out) ease;
+}
+.ora.show .ora-line {
+  filter: blur(0);
+  transition-duration: var(--ora-in);
+}
+
+@media (max-width: 720px) {
+  .ora {
+    top: 11vh;
+    gap: 10px;
+  }
+  .ora-line {
+    font-size: 19px;
+  }
+  .ora-orb {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ora-orb,
+  .ora-rings {
+    animation: none;
+  }
+}
