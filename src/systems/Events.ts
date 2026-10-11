@@ -4,6 +4,8 @@ import type { Field, House } from '../entities/Buildings';
 import type { Village } from '../village/Village';
 import type { MiracleId } from '../miracles/Miracles';
 import type { ProjectId } from '../projects/defs';
+import type { ShrineStage } from '../shrines/stages';
+import type { PrayerKind } from '../prayers/Prayers';
 
 /**
  * Everything notable that happens in the world. Systems and plugins subscribe with
@@ -62,6 +64,10 @@ export interface GameEvents {
   villageTurned: { village: Village };
   /** He gave up and left (the next island awaits). */
   rivalRetreated: Record<string, never>;
+  /** A village's prayer place grew into a new age (see src/shrines): stone circle, pyramid, temple. */
+  shrineRaised: { village: Village; stage: ShrineStage };
+  /** You answered a prayer (any kind, including a finished project's). */
+  prayerAnswered: { kind: PrayerKind; village: Village; villager?: Villager; house?: House };
   /** The world's balance crossed into another band (see src/balance): in tune, tipping, or falling. */
   balanceBand: { band: 'tune' | 'tipping' | 'falling'; from: 'tune' | 'tipping' | 'falling'; value: number };
 }

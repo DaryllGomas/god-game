@@ -9,6 +9,8 @@ import { MAT, villagerParts } from '../art/Models';
 import { SEA_LEVEL, VILLAGE, VILLAGER } from '../config';
 import { angleLerp, damp } from '../util/math';
 import { rng } from '../util/rng';
+import { villagerName } from '../people/names';
+import { firstBornAt } from '../people/age';
 
 type Task =
   | { type: 'idle'; t: number }
@@ -26,7 +28,7 @@ type Task =
   | { type: 'stunned'; t: number }
   | { type: 'travel'; target: THREE.Vector3 };
 
-export type DeathCause = 'starved' | 'thrown' | 'crushed' | 'burned' | 'eaten';
+export type DeathCause = 'starved' | 'thrown' | 'crushed' | 'burned' | 'eaten' | 'old';
 
 type Anim = 'idle' | 'walk' | 'run' | 'work' | 'dance' | 'eat' | 'held' | 'fly' | 'lie' | 'swim' | 'flail';
 
@@ -51,6 +53,10 @@ export class Villager extends Entity {
   private yaw = rng.range(0, Math.PI * 2);
   private deathT = 0;
   readonly seed: number;
+  /** Made from the seed (see people/names.ts). Never shown as a label; the chronicle and the legacy use it. */
+  readonly name: string;
+  /** Game time they were born (negative: before the island's first day). Set by src/people. */
+  bornAt = 0;
   private readonly root = new THREE.Group();
   private body!: THREE.Mesh;
   private armL!: THREE.Mesh;
@@ -63,6 +69,8 @@ export class Villager extends Entity {
     super();
     this.village = village;
     this.seed = seed;
+    this.name = villagerName(seed);
+    this.bornAt = firstBornAt(seed);
     this.grabbable = true;
     this.flammable = true;
     this.fuel = 7;
@@ -601,6 +609,7 @@ export class Villager extends Entity {
     };
     for (const h of v.houses) if (!h.destroyed) check(h.pos.x, h.pos.z, 3.1);
     check(v.store.pos.x, v.store.pos.z, 4.3);
+    check(v.worship.pos.x, v.worship.pos.z, v.worship.solidRadius);
   }
 
   // ------------------------------------------------------------ animation

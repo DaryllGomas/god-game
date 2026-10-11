@@ -27,6 +27,7 @@ import { DAY_LENGTH, PLAYER, SEA_LEVEL, START_TIME_OF_DAY, VILLAGE, VILLAGE_SITE
 import { Rng } from './util/rng';
 import { Noise2D } from './util/noise';
 import { SaveSystem, loadPlugins, quarantine, readSave, restoreWorld } from './systems/Save';
+import type { Chronicle } from './chronicle/Chronicle';
 
 const MAX_TREES = 520;
 
@@ -74,6 +75,8 @@ export class Game {
   readonly villages: Village[] = [];
   readonly entities: Entity[] = [];
   creature!: Golem;
+  /** Notable moments, saved (installed by plugins/chronicle.ts). */
+  chronicle!: Chronicle;
   private creaturePanel!: CreaturePanel;
 
   /** Simulation seconds (scaled by game speed, frozen when paused). */
@@ -515,8 +518,9 @@ export class Game {
         crushed: 'was crushed',
         burned: 'burned to death',
         eaten: 'was eaten by your golem',
+        old: 'passed away, old and well loved',
       }[cause];
-      this.message(`A villager of ${village.name} ${why}.`, 'bad', `death-${cause}`);
+      this.message(`A villager of ${village.name} ${why}.`, cause === 'old' ? 'info' : 'bad', `death-${cause}`);
     }
     if (mine && village.population === 0) this.checkDefeat();
   }
@@ -557,6 +561,11 @@ export class Game {
       const mins = Math.floor(this.time / 60);
       this.hud.showWin({ time: `${mins} min`, alignment: this.player.alignmentLabel, followers });
     }, 6000);
+  }
+
+  /** The island's end goal (it replaced the Wonder): every village worships you and its temple stands (see src/shrines). */
+  allTemplesStand(): boolean {
+    return this.villages.length > 0 && this.villages.every((v) => v.owner === 'player' && v.shrineStage === 'temple');
   }
 
   onVillageLost(v: Village) {

@@ -47,7 +47,8 @@ Put supporting modules in your own folder, e.g. `src/prayers/`.
   - `creatureAte`, `creatureTaught`
   - `newDay`
   - `seasonChanged`, `weather`
-  - `projectStarted`, `projectCompleted`, `wonderUnlocked`, `wonderCompleted`
+  - `projectStarted`, `projectCompleted`, `wonderUnlocked`, `wonderCompleted` (the Wonder is retired in v0.5; these no longer fire in play)
+  - `shrineRaised` (a prayer place grew an age), `prayerAnswered` (any prayer, with its villager or house)
   - `rivalArrived`, `schemeStarted`, `schemeFoiled`, `villageTurned`, `rivalRetreated`
   - If you need a new event, add it to `GameEvents` and emit it at the source with a one-line edit.
 - **`game.modifiers`**: `{ cropGrowth, treeGrowth, villagerHunger, fireSpread }` multipliers (1 = normal), already applied by fields, trees, villagers and fire.
@@ -58,6 +59,8 @@ Put supporting modules in your own folder, e.g. `src/prayers/`.
   - `game.seasons`: `jumpTo`, `trigger`, `state`.
   - `game.rival`: `arriveNow`, `stir`, `trigger`, `state`.
   - `game.balance`: `value` (0..1), `target`, `band`, `breakdown()`, `force(v | null)`, `deed(points, what, x, z)`; event `balanceBand`.
+  - `game.shrines`: `setStage(village, stage, animate?)`, `streak(village)`, `allTemplesStand()`, `state()`; each village has `shrineStage` and `shrineStagesReached`.
+  - `game.chronicle`: `entries`, `add(entry)`, `people(n)`, `of(seed)`; each villager has a `name` (from its seed) and a `bornAt`.
   - `game.saves`: `save()`.
 - **Save and load:** a plugin with state that must survive a reload returns `save(): unknown` and `load(data)` from `install()`. The data goes into the versioned save (`src/systems/Save.ts`). Keep it small and JSON-safe.
 - **`game.renderOverride = (scene, camera) => ...`**: take over the final render (post-processing).

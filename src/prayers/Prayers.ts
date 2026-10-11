@@ -102,8 +102,6 @@ const TEXT: Record<PrayerKind, string[]> = {
 
 const THANKS = ['Thank you, great one!', 'You heard us!', 'Bless you!', 'Oh, thank you!', 'We knew you would come!'];
 
-const CHILD_NAMES = ['Pip', 'Wren', 'Moss', 'Tilly', 'Bram', 'Nettle', 'Posy', 'Fennel', 'Dot', 'Barley'];
-
 // ----------------------------------------------------------------- the logic
 
 export class Prayers {
@@ -344,7 +342,7 @@ export class Prayers {
     villager.pos.set(spot.x, g.terrain.heightAt(spot.x, spot.z), spot.z);
     villager.object.position.copy(villager.pos);
     villager.object.scale.setScalar(0.82); // a small one
-    return { villager, name: rng.pick(CHILD_NAMES) };
+    return { villager, name: villager.name };
   }
 
   private findLostSpot(v: Village): { x: number; z: number } | null {
@@ -425,6 +423,7 @@ export class Prayers {
     g.floatText(s.x, s.y + 11, s.z, `+${power}`, '#ffe9a8');
     g.audio.prayerFulfilled();
     this.listener?.fulfilled(p);
+    g.events.emit('prayerAnswered', { kind: p.kind, village: v, villager: p.villager, house: p.house });
     if (v.owner !== 'player' && v.belief >= VILLAGE.convertAt) v.convert(g);
   }
 }

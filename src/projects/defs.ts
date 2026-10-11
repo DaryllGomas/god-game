@@ -22,7 +22,11 @@ export interface ProjectDef {
 
 // ------------------------------------------------------------- tuning knobs
 
-/** The chain every village works through, one project at a time. */
+/**
+ * The chain every village works through, one project at a time. The ids are kept from v0.4 (saves use
+ * them), but each now raises an age of the prayer place (see src/shrines/stages.ts): the Well also
+ * raises the stone circle, 'temple' is the pyramid and 'festival' is the temple.
+ */
 export const CHAIN: ProjectId[] = ['well', 'temple', 'festival'];
 
 /** Game seconds before the first project is announced: home village / the other villages. */
@@ -61,7 +65,10 @@ export const NEUTRAL_FINISH_BELIEF = 40;
 /** Belief a neutral village gains per unit of material you give its project. */
 export const NEUTRAL_GIFT_BELIEF = 0.25;
 
-/** The Wonder's footprint and appetite. All three villages must worship you before it unlocks. */
+/**
+ * The Wonder (v0.4's end goal). Retired in v0.5: every village's temple standing is the goal now. It is
+ * no longer unlocked in play; a finished one in an old save still stands.
+ */
 export const WONDER_UNLOCK_DELAY = 6;
 
 export const DEFS: Record<ProjectId, ProjectDef> = {
@@ -76,27 +83,29 @@ export const DEFS: Record<ProjectId, ProjectDef> = {
     radius: 3.4,
     height: 5,
   },
+  // The pyramid: the old Temple project, now built at the prayer place (it keeps the temple's effect).
   temple: {
     id: 'temple',
-    name: 'Temple',
-    icon: '🏛️',
-    prayer: ['We dream of a temple to honour you! Stone and timber, great one?', 'A temple, if you will. We would build it with our own hands.'],
-    thanks: 'A home for our prayers!',
+    name: 'Pyramid',
+    icon: '🔺',
+    prayer: ['We dream of a pyramid at our prayer place, pointing at the stars! Stone and timber, great one?', 'A pyramid, if you will. We would raise it with our own hands.'],
+    thanks: 'It points at the stars!',
     effect: 'More prayer power from every worshipper, and faith holds steadier.',
-    needs: { wood: 80, stone: 56, food: 0 },
-    radius: 7,
+    needs: { wood: 70, stone: 64, food: 0 },
+    radius: 8,
     height: 9,
   },
+  // The temple: the old Harvest Festival, now a temple of white stone round the pyramid, opened with the festival's night of dancing.
   festival: {
     id: 'festival',
-    name: 'Harvest Festival',
-    icon: '🏮',
-    prayer: ['We dream of a harvest festival! Timber for the lanterns and food for the feast.', 'Let us hold a feast! Lanterns, ribbons and a full table.'],
+    name: 'Temple',
+    icon: '🏛️',
+    prayer: ['We dream of a temple of white stone round our pyramid, and a feast to open it!', 'A temple! Columns, a crown of light, and a feast for everyone.'],
     thanks: 'Let the dancing begin!',
-    effect: 'A night of dancing under lanterns: a big boost to faith and prayer power.',
-    needs: { wood: 40, stone: 0, food: 70 },
-    radius: 9,
-    height: 8.5,
+    effect: 'A temple of white stone, opened with a night of dancing: a big boost to faith and prayer power.',
+    needs: { wood: 50, stone: 32, food: 60 },
+    radius: 11.5,
+    height: 14,
   },
   wonder: {
     id: 'wonder',

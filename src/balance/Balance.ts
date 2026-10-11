@@ -143,6 +143,7 @@ export class Balance {
     ev.on('gift', ({ village, amount }) => this.deed(DEED.gift * Math.min(2, amount / 30), 'gift', village.center.x, village.center.z));
     ev.on('schemeFoiled', ({ village }) => this.deed(DEED.schemeFoiled, 'foiled', village.center.x, village.center.z));
     ev.on('villagerDied', ({ villager, cause, byPlayer }) => {
+      if (cause === 'old' && !byPlayer) return; // a long life, ending: neither tending nor ruin
       const pts = byPlayer ? DEED.killed : cause === 'eaten' ? DEED.eaten : cause === 'starved' ? DEED.starved : DEED.died;
       this.deed(pts, byPlayer ? `killed (${cause})` : cause, villager.pos.x, villager.pos.z);
       if (cause === 'starved') this.echo.neglect += 1;
