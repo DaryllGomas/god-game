@@ -305,8 +305,7 @@ export class Field extends Entity {
   private soil: THREE.Mesh;
   private mesh: FieldMesh | null = null;
   private cropScale = 0.2;
-  private conformSig = NaN;
-  private conformTimer = 0;
+  private landVersion = -1;
   private readonly cropMat: THREE.MeshStandardMaterial;
   scorched = 0;
 
@@ -327,6 +326,11 @@ export class Field extends Entity {
     this.flammable = true;
     this.fuel = 7;
     this.refresh();
+  }
+
+  /** The draped soil geometry (for the ground-contact check). */
+  soilGeometry(): THREE.BufferGeometry {
+    return this.soil.geometry;
   }
 
   get ripe(): boolean {
@@ -382,14 +386,32 @@ export class Field extends Entity {
     return game.terrain.heightAt(this.pos.x + lx * c + lz * s, this.pos.z - lx * s + lz * c) - this.pos.y;
   }
 
-  /** Re-drape the soil and crops over the terrain (when first seen, and if the land changes). */
+  /** Re-fit to the land now (the terrain under it changed). */
+  refit(game: Game) {
+    this.conform(game);
+  }
+
+  onAdded(game: Game) {
+    this.conform(game);
+  }
+
+  /** Re-drape if the ground under the field was edited since it last fitted (a pad was levelled nearby). */
+  syncLand(game: Game) {
+    const t = game.terrain;
+    if (this.landVersion === t.version) return;
+    if (t.changedNear(this.landVersion, this.pos.x, this.pos.z, Math.hypot(this.width, this.depth) / 2 + 1)) this.conform(game);
+    else this.landVersion = t.version;
+  }
+
+  /** Re-drape the soil and crops over the terrain. */
   private conform(game: Game) {
-    const hw = this.width / 2;
-    const hd = this.depth / 2;
-    const sig = this.groundAt(game, 0, 0) + this.groundAt(game, hw, hd) * 2 + this.groundAt(game, -hw, hd) * 3 + this.groundAt(game, hw, -hd) * 5 + this.groundAt(game, -hw, -hd) * 7;
-    if (Math.abs(sig - this.conformSig) < 0.02) return;
-    this.conformSig = sig;
-    const g = buildFieldMesh(this.width, this.depth, (lx, lz) => this.groundAt(game, lx, lz));
+    this.landVersion = game.terrain.version;
+    // The soil is a grid of straight facets over a land of creases: take the highest ground within a few
+    // centimetres of each vertex, so a facet never dips under the surface at a ridge (it floats a hair in a hollow).
+    const H = 0.14;
+    const g = buildFieldMesh(this.width, this.depth, (lx, lz) =>
+      Math.max(this.groundAt(game, lx, lz), this.groundAt(game, lx + H, lz), this.groundAt(game, lx - H, lz), this.groundAt(game, lx, lz + H), this.groundAt(game, lx, lz - H)),
+    );
     this.crops.geometry.dispose();
     this.soil.geometry.dispose();
     this.crops.geometry = g.crops;
@@ -399,11 +421,7 @@ export class Field extends Entity {
   }
 
   update(game: Game, dt: number) {
-    this.conformTimer -= dt;
-    if (this.conformTimer <= 0) {
-      this.conformTimer = Number.isNaN(this.conformSig) ? 0.5 : 4;
-      this.conform(game);
-    }
+    this.syncLand(game);
     if (this.burning) return;
     if (this.scorched > 0) {
       this.scorched -= dt;

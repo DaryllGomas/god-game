@@ -33,6 +33,17 @@ export class InstanceSet {
     this.n++;
   }
 
+  /** Like push, but also pitched about the instance's local z axis (a fence rail climbing a slope). */
+  pushTilted(x: number, y: number, z: number, yaw: number, pitch: number, scale: number) {
+    if (this.n >= this.capacity) return;
+    this.e.set(0, yaw, pitch, 'YXZ');
+    this.q.setFromEuler(this.e);
+    this.e.order = 'XYZ';
+    this.m.compose(this.p.set(x, y, z), this.q, this.s.setScalar(scale));
+    this.mesh.setMatrixAt(this.n, this.m);
+    this.n++;
+  }
+
   flush() {
     this.mesh.count = this.n;
     this.mesh.instanceMatrix.needsUpdate = true;
