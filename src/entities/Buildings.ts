@@ -20,6 +20,8 @@ import { VILLAGE } from '../config';
 import { clamp } from '../util/math';
 
 const WINDOW_LIT = MAT.window;
+/** A lived-in home's windows glow softly even by day (v0.6 polish 3). */
+const WINDOW_WARM = new THREE.MeshStandardMaterial({ color: 0x4a3418, emissive: 0xffa640, emissiveIntensity: 0.55, roughness: 0.6 });
 const WINDOW_DARK = new THREE.MeshStandardMaterial({ color: 0x2a2218, roughness: 0.8 });
 const scaffoldGeo = scaffoldGeometry();
 
@@ -141,7 +143,7 @@ export class House extends Entity {
     }
     // A lived-in home keeps its windows warm from late afternoon on (even with everyone out at work).
     const lit = game.sky.daylight < 0.7 && this.complete && this.residents.length > 0;
-    this.windows.material = lit ? WINDOW_LIT : WINDOW_DARK;
+    this.windows.material = lit ? WINDOW_LIT : this.complete && this.residents.length > 0 ? WINDOW_WARM : WINDOW_DARK;
     if (this.complete && !this.burning && this.health < 1 && !game.sky.isNight) {
       this.health = Math.min(1, this.health + dt * 0.01);
     }

@@ -64,8 +64,8 @@ export function jitterVerts(geo: THREE.BufferGeometry, amount: number, rng: Rng)
 
 // ------------------------------------------------------------------- nature
 
-const LEAF_COLORS = [0x4f8a2f, 0x5c9a34, 0x3f7a2a, 0x6aa33c, 0x76a83a];
-const PINE_COLORS = [0x2f5f3a, 0x2a5534, 0x356b3f];
+const LEAF_COLORS = [0x3f7a2c, 0x4a8a30, 0x2f6a2a, 0x4f8f36, 0x5a9638];
+const PINE_COLORS = [0x24503a, 0x1f4a38, 0x2b5e44];
 
 export function treeGeometry(seed: number): { geo: THREE.BufferGeometry; height: number } {
   const rng = new Rng(seed);

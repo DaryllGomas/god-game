@@ -468,7 +468,7 @@ export class VillageDecor {
         if (!Number.isFinite(x + y + z + heading)) continue;
         this.e.set(0, heading, Math.sin(time * 6 + w.speed * 9) * 0.04);
         this.q.setFromEuler(this.e);
-        this.m.compose(this.p.set(x, y, z), this.q, this.s.set(1, 1, 1));
+        this.m.compose(this.p.set(x, y, z), this.q, this.s.set(1.28, 1.28, 1.28));
         vr.mesh.setMatrixAt(n++, this.m);
       }
       vr.mesh.count = n;

@@ -51,11 +51,11 @@ export const LOOK = {
 
   // ---- tilt-shift depth of field ----
   /** Max blur radius in px at 1080p when the camera is as close as it goes (scaled with frame height). */
-  dofMaxRadius: 15,
+  dofMaxRadius: 9,
   /** Camera distance (world units) where the effect is full strength and where it fades to dofFar. */
   dofNearDist: 40, dofFarDist: 620, dofFarStrength: 0.1,
   /** Sharp band half-height (screen fraction) and where the blur reaches full. Above the focus the sky side blurs a bit less. */
-  dofBand: 0.1, dofFull: 0.5, dofUpperScale: 0.7,
+  dofBand: 0.3, dofFull: 0.8, dofUpperScale: 0.7,
 } as const;
 
 /** DoF strength 0..1 from the camera distance: strong when close (the storyboard), gentle when zoomed out. */

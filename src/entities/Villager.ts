@@ -77,7 +77,7 @@ export class Villager extends Entity {
     this.radius = 0.9;
     this.mass = 0.8;
     this.object.add(this.root);
-    this.root.scale.setScalar(rng.range(0.92, 1.06));
+    this.root.scale.setScalar(rng.range(1.14, 1.3));
     this.buildBody(village.color);
     this.carryMesh = sharedMesh(carriedFood, MAT.base);
     this.carryMesh.position.set(0, 2.25, 0);
