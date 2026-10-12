@@ -120,7 +120,7 @@ export class Endings {
     const followers = g.villages.reduce((n, v) => n + (v.owner === 'player' ? v.population : 0), 0);
     this.goneFor = followers === 0 ? this.goneFor + dt : 0;
     if (this.lowFor >= COLLAPSE_AFTER || this.goneFor >= PEOPLE_GONE_AFTER) this.startCollapse();
-    else if (b.highFor >= WHOLE_AFTER && g.allTemplesStand()) this.startAscension(false);
+    else if (b.highFor >= WHOLE_AFTER && g.allTemplesStand() && ((g as unknown as { pace?: { autoEnd(): boolean } }).pace?.autoEnd() ?? true)) this.startAscension(false);
   }
 
   // ------------------------------------------------------------- sequences

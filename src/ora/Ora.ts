@@ -39,7 +39,7 @@ const BINARY_AFTER = 300;
 
 // ------------------------------------------------------------------ the words
 
-export type OraMoment = 'firstAnswer' | 'imbalance' | 'recovered' | 'cruel' | 'kind' | 'tending' | 'binary';
+export type OraMoment = 'firstAnswer' | 'imbalance' | 'recovered' | 'cruel' | 'kind' | 'tending' | 'binary' | 'pace' | 'paceCheck';
 
 /**
  * Ora never instructs. It notices, asks, warns once, or offers a flash of insight, then leaves you to choose
@@ -60,11 +60,13 @@ export const ORA_LINES: Record<OraMoment, readonly string[]> = {
     'Even light needs a little shadow to be seen.',
   ],
   tending: ['Listen. It is in tune.', 'Nothing happened just now. That is the hardest thing to make.', 'They look up at the sky a little less. I think that is a good sign.'],
+  pace: ['Walk on, or stay a while?'],
+  paceCheck: ['Walk on, or stay a little longer?', 'Still the same pace for you? Walk on, or stay?', 'Would you walk on now, or stay a while more?'],
   binary: ['Hmm. Those two only ever see one side each, don\'t they?', 'One pulls up, one pulls down. Where would you stand, without either?'],
 };
 
 /** Which moment wins when two are waiting. */
-const RANK: Record<OraMoment, number> = { imbalance: 6, cruel: 5, kind: 5, firstAnswer: 4, recovered: 3, tending: 2, binary: 1 };
+const RANK: Record<OraMoment, number> = { imbalance: 6, cruel: 5, kind: 5, firstAnswer: 4, recovered: 3, tending: 2, binary: 1, pace: 4, paceCheck: 1 };
 
 const ORB = `<svg viewBox="0 0 40 40" aria-hidden="true">
   <defs><radialGradient id="ora-core" cx="50%" cy="50%" r="50%">

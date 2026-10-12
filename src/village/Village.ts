@@ -6,7 +6,7 @@ import type { Pile, Tree } from '../entities/Nature';
 import { INFLUENCE, PLAYER, VILLAGE, type Owner, type VillageSite } from '../config';
 import { Rng, rng } from '../util/rng';
 import type { Site } from '../projects/Site';
-import { SHRINE_CLEARANCE, type ShrineStage } from '../shrines/stages';
+import { SHRINE_CLEARANCE, SHRINE_STAGES, type ShrineStage } from '../shrines/stages';
 
 /** Anywhere a village dances: its prayer place, or a festival floor. */
 export interface DanceFloor {
@@ -213,7 +213,7 @@ export class Village {
   }
 
   get influenceRadius(): number {
-    return Math.min(INFLUENCE.max, INFLUENCE.base + INFLUENCE.perHouse * this.completedHouses);
+    return Math.min(INFLUENCE.max, INFLUENCE.base + INFLUENCE.perHouse * this.completedHouses + INFLUENCE.perStage * Math.max(0, SHRINE_STAGES.indexOf(this.shrineStage)));
   }
 
   contains(x: number, z: number, scale = 1.25): boolean {

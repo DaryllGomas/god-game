@@ -39,7 +39,10 @@ export const PLAYER = {
 export const INFLUENCE = {
   base: 70,
   perHouse: 5,
-  max: 130,
+  /** Each shrine stage past the totem pushes the ring out this much (v0.6: reach you can see, src/reach). */
+  perStage: 10,
+  /** The hand reaches 150 m, so the ring never grows past it. */
+  max: 150,
 };
 
 export const VILLAGER = {
