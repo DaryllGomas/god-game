@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { SEA_LEVEL, WORLD_SIZE } from '../config';
+import { LOOK } from './lookKit';
 
 /** Stylised sea: depth-tinted, foamy shoreline, gentle animated ripples. */
 export class Water {
@@ -19,8 +20,11 @@ export class Water {
           uTime: { value: 0 },
           uHeight: { value: null },
           uWorldSize: { value: WORLD_SIZE },
-          uShallow: { value: new THREE.Color(0x3fc1c9) },
-          uDeep: { value: new THREE.Color(0x0e3f73) },
+          // Storyboard sea: turquoise shallows, a teal mid, a deep teal-navy far out (never royal blue).
+          uShallow: { value: new THREE.Color(0x62dccb) },
+          uMid: { value: new THREE.Color(0x1b8a9c) },
+          uDeep: { value: new THREE.Color(0x0a3550) },
+          uHorizon: { value: LOOK.horizonGold.clone() },
           uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.3) },
           uSunColor: { value: new THREE.Color(0xffffff) },
           uLight: { value: 1 },
@@ -47,6 +51,8 @@ export class Water {
         uniform float uWorldSize;
         uniform vec3 uShallow;
         uniform vec3 uDeep;
+        uniform vec3 uMid;
+        uniform vec3 uHorizon;
         uniform vec3 uSunDir;
         uniform vec3 uSunColor;
         uniform float uLight;
@@ -75,7 +81,15 @@ export class Water {
           float n2 = vnoise(p * 2.3 - vec2(t * 0.25, -t * 0.3));
           vec3 nrm = normalize(vec3((n1 - 0.5) * 0.35 + (n2 - 0.5) * 0.2, 1.0, (n2 - 0.5) * 0.35));
 
-          vec3 col = mix(uShallow, uDeep, smoothstep(0.0, 14.0, depth));
+          // Depth gradient: a turquoise ribbon hugging the shore, easing through teal into deep teal-navy.
+          float dd = clamp(depth, 0.0, 40.0);
+          vec3 col = mix(uShallow, uMid, smoothstep(0.3, 7.0, dd));
+          col = mix(col, uDeep, smoothstep(5.0, 30.0, dd));
+          // Slow broad patches of lighter and darker water so the open sea is never one flat tone.
+          mat2 rot = mat2(0.8, -0.6, 0.6, 0.8);
+          vec2 sq = rot * vWorld.xz;
+          float swell = vnoise(sq * 0.016 + vec2(t * 0.012, 0.0)) * 0.45 + vnoise(rot * sq * 0.041 - vec2(0.0, t * 0.02)) * 0.35 + vnoise(sq * 0.11 + vec2(t * 0.05)) * 0.2;
+          col *= 0.9 + 0.2 * swell;
           // Out of balance, the open sea on the rival's side turns dark and inky (never the shallows).
           if (uShade.z > 0.001) {
             float side = dot(normalize(vWorld.xz + 0.001), uShade.xy);
@@ -84,11 +98,12 @@ export class Water {
             col = mix(col, vec3(0.03, 0.025, 0.08), k * 0.85);
           }
 
-          // Shoreline foam bands.
-          float band = sin(depth * 2.2 - t * 1.6 + n1 * 3.0) * 0.5 + 0.5;
-          float foam = (1.0 - smoothstep(0.0, 2.6, depth)) * smoothstep(0.42, 1.0, band + n2 * 0.3) * 0.8;
-          foam += (1.0 - smoothstep(0.0, 0.9, depth)) * 0.9;
-          col = mix(col, vec3(0.95, 0.98, 1.0), clamp(foam, 0.0, 1.0) * 0.7);
+          // Soft white foam where water meets sand and rock: a thin lapping line plus faint trailing bands.
+          float lap = sin(depth * 2.6 - t * 1.3 + n1 * 3.5) * 0.5 + 0.5;
+          float breakup = vnoise(vWorld.xz * 0.45 + vec2(t * 0.1, -t * 0.07));
+          float foam = (1.0 - smoothstep(0.0, 2.4, depth)) * smoothstep(0.5, 1.0, lap + (breakup - 0.5) * 0.7) * 0.55;
+          foam += (1.0 - smoothstep(0.0, 0.55 + 0.35 * breakup, depth)) * 0.95;
+          col = mix(col, vec3(1.0, 0.98, 0.93), clamp(foam, 0.0, 1.0) * 0.8);
 
           // Lighting: diffuse-ish + sun glint.
           vec3 viewDir = normalize(cameraPosition - vWorld);
@@ -97,14 +112,22 @@ export class Water {
           float fres = pow(1.0 - max(dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0), 3.0);
           col *= (0.12 + 0.88 * uLight);
           col += uSunColor * spec * (0.25 + 0.75 * uLight);
-          // Gentle sparkle: small drifting glints, strongest where the sky's sun reflects toward the eye.
-          float sp = vnoise(vWorld.xz * 1.7 + vec2(t * 0.6, -t * 0.4)) * 0.5 + vnoise(vWorld.xz * 2.9 - vec2(t * 0.5, t * 0.7)) * 0.5;
-          float toward = pow(max(dot(reflect(-viewDir, nrm), uSunDir), 0.0), 6.0);
-          col += uSunColor * smoothstep(0.62, 0.88, sp) * toward * 0.55 * uLight * smoothstep(0.5, 4.0, depth);
-          col = mix(col, col + vec3(0.15, 0.2, 0.25) * uLight, fres * 0.5);
+          // Golden-hour glints: tiny cells that twinkle slowly (well under 3 Hz), strongest toward the sun.
+          vec2 gp = vWorld.xz * 0.55 + vec2(t * 0.12, -t * 0.08);
+          vec2 gi = floor(gp); vec2 gf = fract(gp) - 0.5;
+          float gh = hash(gi);
+          float twinkle = pow(max(0.0, sin(t * (0.9 + gh * 1.1) + gh * 40.0)), 6.0);
+          float gdot = smoothstep(0.26, 0.0, length(gf - (vec2(hash(gi + 7.3), hash(gi + 3.1)) - 0.5) * 0.5));
+          float sp = gdot * twinkle * step(0.82, gh);
+          float toward = pow(max(dot(reflect(-viewDir, nrm), uSunDir), 0.0), 3.0);
+          col += uSunColor * (sp * (0.25 + 2.2 * toward) + 0.4 * toward * smoothstep(0.55, 0.9, n1)) * uLight * smoothstep(0.4, 3.0, depth);
+          // Grazing angles pick up the warm peach of the sky.
+          col = mix(col, uHorizon * (0.5 + 0.5 * uLight), fres * 0.38);
 
           // Clear in the shallows, fully opaque when deep so the sea floor's edge never shows.
           float alpha = mix(0.72, 1.0, smoothstep(0.0, 10.0, depth));
+          if (!(col.r == col.r && col.g == col.g && col.b == col.b)) col = uMid;
+          col = clamp(col, 0.0, 8.0);
           gl_FragColor = vec4(col, alpha);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
