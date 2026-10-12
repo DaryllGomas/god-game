@@ -52,10 +52,49 @@ tilt-shift pass, water colour, the warm/cool split itself.
 - The fog colour is the horizon colour (warm peach), so distance fades to warm haze instead of cool blue, which
   flattens depth (warm near, cool far is the classic cue). Left to the COAST + HORIZON lane, which owns Sky.ts now.
 
-## What I changed
+## What I changed (item 1: foliage)
 
-(in progress, see commits on v06-opus)
+Commits on `v06-opus`: `58f4492` (this review), the foliage WIP commit, and `c0fe421`.
+- `src/art/softCanopy.ts` (new): at load, each tree geometry gets soft crown normals (an ellipsoid fitted to the leaf
+  vertices, 22% of the facet normal kept for broadleaf and 40% for pines) and rebuilt leaf colours: the crown's mean green ×
+  a smooth volumetric AO (dark belly and core, bright crown) + 25% of the welded original. The baked per-facet
+  jitter and the hard black AO were what made crowns read as shards.
+- `src/entities/Forest.ts` `seasonalMaterial`: `flatShading = false`; leaves get backlit translucency (rim glow when you
+  look toward the sun) and a wrapped terminator; a small crown sway (~0.15 m at the top of a full tree, its own phase per tree). The leaf test
+  is now a ratio (`g >= r*1.08`), so dark leaves are recoloured too. Every new term is NaN-guarded.
+- `src/entities/Nature.ts`: applies `softenCanopy` to the Blender set and the procedural fallback.
+- `src/plugins/foliage.ts` (new): advances the wind clock.
+- Covers every tree on the island (Forest, Flora decor trees, VillageDecor clumps and rim): they all share
+  `treeVariant(...).geo` and `seasonalMaterial`. Shrubs and flowers share the material but keep their own (faceted) geometry.
+- Cost: no extra draw calls; a few ALU ops per leaf fragment; one CPU pass over ~20k vertices at load.
+- Side-by-side: `Boards/2026-10-11 v0.6 build side-by-sides/OPUS pass - storyboard vs now vs opus.jpg`
+  (storyboard panel 2 | v0.6 now | OPUS, close and default shots).
+- `npm run build` passes (tsc + vite). The repo has no other test script (`scripts/ground-test.mjs` was not run).
+  Atlas renders: no console errors.
+
+**Not done (out of time):** an FPS measurement on Atlas (the change adds no draw calls, so I expect no measurable cost),
+a check of autumn, winter and the blossom trees, and a check in Daryll's own Chrome.
 
 ## Next, in order
 
-(to be filled in)
+1. **Lens (diagnosis 2).** Add `LOOK.fov` (~30) and split `godCam.distance` into framing distance (what the 15
+   consumers read) and physical distance (`distance * tan(25deg)/tan(fov/2)`, used only in `GodCamera.apply` and for the
+   fog/shadow extents). Fix `Cine.ts:184` to convert back. Play-test the feel of the zoom and the hand's size. Likely the next biggest
+   jump toward "miniature".
+2. **Grade (4).** `tintHigh` → about (1.10, 1.02, 0.90); re-check against panel 2; mirror to the RPG kit.
+3. **Scale (3).** Cottages/store/shrines ×1.3–1.5 and villagers ×1.5 visually (keep gameplay radii); bigger lit windows.
+4. **Foliage, part 2.** Soften the shrub and hedge geometries the same way (index them, then `softenCanopy`-style normals);
+   break up crown silhouettes (alpha-tested leaf-card fringe or a noise-displaced shell) so the edge isn't a polygon; give the
+   shadow and AO passes the sway (customDepthMaterial) if it ever gets bigger.
+5. **Land (5).** Terraced inland heights (quantise and re-smooth the hills into 2–3 m ledges), a stylised rock material
+   for the range (strata bands + a top lip of grass), after the coast lane lands so they match.
+6. Smells: dirty-flag `Forest.sync()`; a startup assert that every `onBeforeCompile` replace found its anchor.
+
+## For bigpic-30 before merging
+
+- Files touched: `src/entities/Forest.ts`, `src/entities/Nature.ts`, plus two new files. No overlap with the coast lane
+  (Sky.ts, lookKit.ts, groundLook.ts, coast/), so it should merge cleanly in either order.
+- The leaf test in `seasonalMaterial` changed from absolute to ratio. Seasonal recolouring (autumn, winter, blossom)
+  now reaches more of each crown, so autumn will look more complete; give autumn and winter one look before publishing.
+- The sway uses `FOLIAGE_WIND.uWindT` (real seconds, slower while paused). Shot mode renders stay repeatable within ~0.1 m.
+- Revert: `git revert c0fe421` and the foliage WIP commit (or drop the `softenCanopy` calls and set `mat.flatShading` back).
