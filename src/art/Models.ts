@@ -1,3 +1,4 @@
+import { STORE_SKIRT } from '../world/groundRules';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Rng } from '../util/rng';
@@ -167,6 +168,8 @@ export function ruinsGeometry(seed: number): THREE.BufferGeometry {
 export function storeGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   parts.push(paint(new THREE.CylinderGeometry(3.4, 3.7, 3.6, 10).translate(0, 1.8, 0), 0xd8c49a, 0.06));
+  // A hidden foot under the wall so the store never shows daylight on a slope.
+  parts.push(paint(new THREE.CylinderGeometry(3.7, 3.7, STORE_SKIRT, 10).translate(0, -STORE_SKIRT / 2, 0), 0xb8a47a, 0.06));
   parts.push(paint(new THREE.CylinderGeometry(3.8, 3.8, 0.35, 10).translate(0, 3.6, 0), 0x6a4a2a));
   parts.push(paint(new THREE.ConeGeometry(4.4, 3.4, 10).translate(0, 5.4, 0), 0xb0452f, 0.1));
   parts.push(paint(new THREE.BoxGeometry(1.4, 2.2, 0.3).translate(0, 1.1, 3.55), 0x4a3020));

@@ -4,13 +4,16 @@ import { House } from '../entities/Buildings';
 import type { Tree } from '../entities/Nature';
 import { MAT } from '../art/Models';
 import { Rng } from '../util/rng';
+import { PROP_MAX_RANGE, STUMP_SKIRT } from '../world/groundRules';
 import { SEA_LEVEL } from '../config';
+import type { GroundProp } from '../world/groundCheck';
 import { InstanceSet } from '../things/Instanced';
 import { Birds } from '../things/Birds';
 import {
   barrelGeometry,
   crateGeometry,
-  fenceGeometry,
+  fencePostGeometry,
+  fenceRailGeometry,
   lanternGlowGeometry,
   lanternPostGeometry,
   stumpGeometry,
@@ -41,15 +44,40 @@ export function install(game: Game): GamePlugin {
   // ---- props
   const barrels = new InstanceSet(scene, barrelGeometry(), MAT.base, 160);
   const crates = new InstanceSet(scene, crateGeometry(), MAT.base, 160);
-  const fences = new InstanceSet(scene, fenceGeometry(), MAT.base, 260);
+  const fencePosts = new InstanceSet(scene, fencePostGeometry(), MAT.base, 520);
+  const fenceRails = new InstanceSet(scene, fenceRailGeometry(), MAT.base, 260);
   const posts = new InstanceSet(scene, lanternPostGeometry(), MAT.base, 100);
   const lanternMat = new THREE.MeshStandardMaterial({ color: 0x3a2c18, emissive: 0xffa84a, emissiveIntensity: 0, roughness: 0.6 });
   const lanterns = new InstanceSet(scene, lanternGlowGeometry(), lanternMat, 100, false);
   let propSig = '';
+  /** What the ground check needs to know about every prop placed (see world/groundCheck.ts). */
+  let propRecs: GroundProp[] = [];
+  /** Lowest ground under a small round base, so the prop touches the ground on its low side and never floats. */
+  const lowest = (x: number, z: number, r: number) => {
+    let m = game.terrain.heightAt(x, z);
+    for (let k = 0; k < 8; k++) m = Math.min(m, game.terrain.heightAt(x + Math.cos(k * 0.785) * r, z + Math.sin(k * 0.785) * r));
+    return m;
+  };
+  const range = (x: number, z: number, r: number) => {
+    let lo = game.terrain.heightAt(x, z);
+    let hi = lo;
+    for (let k = 0; k < 8; k++) {
+      const h = game.terrain.heightAt(x + Math.cos(k * 0.785) * r, z + Math.sin(k * 0.785) * r);
+      lo = Math.min(lo, h);
+      hi = Math.max(hi, h);
+    }
+    return hi - lo;
+  };
+  const rec = (what: string, x: number, z: number, y: number, r: number, bury = 0.15) => {
+    const pts: [number, number, number][] = [[x, z, y]];
+    for (let k = 0; k < 8; k++) pts.push([x + Math.cos(k * 0.785) * r, z + Math.sin(k * 0.785) * r, y]);
+    propRecs.push({ what, pts, allowBury: bury });
+  };
   let propTimer = 0;
 
   const placeProps = (houses: House[]) => {
-    for (const s of [barrels, crates, fences, posts, lanterns]) s.clear();
+    for (const s of [barrels, crates, fencePosts, fenceRails, posts, lanterns]) s.clear();
+    propRecs = [];
     for (const h of houses) {
       const rng = new Rng(h.seed ^ 0x5bd1);
       const a = h.object.rotation.y;
@@ -60,48 +88,67 @@ export function install(game: Game): GamePlugin {
       // local (lx, lz) -> world
       const wx = (lx: number, lz: number) => h.pos.x + lx * c + lz * sn;
       const wz = (lx: number, lz: number) => h.pos.z - lx * sn + lz * c;
-      const gy = (lx: number, lz: number) => game.terrain.heightAt(wx(lx, lz), wz(lx, lz));
+      // Each prop sits on the lowest ground under its base (nothing floats; at most a sliver sinks on the high side).
+      const put = (set: InstanceSet, what: string, x: number, z: number, yaw: number, scale: number, r: number, lift = 0) => {
+        const X = wx(x, z);
+        const Z = wz(x, z);
+        // Only where the ground under its base is nearly flat: not on a steep bank.
+        if (range(X, Z, r) > PROP_MAX_RANGE) return null;
+        const y = lowest(X, Z, r) + lift;
+        set.push(X, y, Z, yaw, scale);
+        rec(what, X, Z, y, r);
+        return y;
+      };
       const side = rng.next() < 0.5 ? -1 : 1;
       // Barrels by the door.
       if (rng.next() < 0.8) {
         const x = side * (W / 2 - 0.35);
         const z = D / 2 + 0.75;
-        barrels.push(wx(x, z), gy(x, z), wz(x, z), rng.range(0, 6), 1);
-        if (rng.next() < 0.6) {
-          const x2 = x - side * 0.85;
-          barrels.push(wx(x2, z + 0.15), gy(x2, z + 0.15), wz(x2, z + 0.15), rng.range(0, 6), 0.85);
-        }
+        put(barrels, 'barrel', x, z, rng.range(0, 6), 1, 0.4);
+        if (rng.next() < 0.6) put(barrels, 'barrel', x - side * 0.85, z + 0.15, rng.range(0, 6), 0.85, 0.34);
       }
       // Crates, sometimes stacked, on the other side.
       if (rng.next() < 0.75) {
         const x = -side * (W / 2 - 0.5);
         const z = D / 2 + 0.7;
-        const y = gy(x, z);
         const yaw = a + rng.range(-0.3, 0.3);
-        crates.push(wx(x, z), y, wz(x, z), yaw, 1);
-        if (rng.next() < 0.5) crates.push(wx(x, z), y + 0.7, wz(x, z), yaw + 0.5, 0.78);
+        const y = put(crates, 'crate', x, z, yaw, 1, 0.45);
+        if (y !== null && rng.next() < 0.5) crates.push(wx(x, z), y + 0.7, wz(x, z), yaw + 0.5, 0.78);
       }
       // A lantern post at the door.
       if (rng.next() < 0.85) {
         const x = 1.15;
         const z = D / 2 + 0.55;
-        posts.push(wx(x, z), gy(x, z), wz(x, z), a, 1);
-        lanterns.push(wx(x, z), gy(x, z), wz(x, z), a, 1);
+        const y = put(posts, 'lantern-post', x, z, a, 1, 0.1);
+        if (y !== null) lanterns.push(wx(x, z), y, wz(x, z), a, 1);
       }
-      // A short fence run along the side of the house.
+      // A short fence run along the side of the house. Posts stand on the ground at each end, and the rails
+      // tilt to join them, so a fence on a slope follows it.
       const n = rng.int(1, 3);
       for (let k = 0; k < n; k++) {
         const z = D / 2 + 1.2 - k * 2.1;
-        const x = (-side) * (W / 2 + 1.3);
-        fences.push(wx(x, z), gy(x, z), wz(x, z), a + Math.PI / 2, 1);
+        const x = -side * (W / 2 + 1.3);
+        const yaw = a + Math.PI / 2;
+        const ux = Math.cos(yaw);
+        const uz = -Math.sin(yaw);
+        const mx = wx(x, z);
+        const mz = wz(x, z);
+        const p0 = [mx - ux, mz - uz];
+        const p1 = [mx + ux, mz + uz];
+        const g0 = game.terrain.heightAt(p0[0], p0[1]) - 0.05;
+        const g1 = game.terrain.heightAt(p1[0], p1[1]) - 0.05;
+        fencePosts.push(p0[0], g0, p0[1], yaw, 1);
+        fencePosts.push(p1[0], g1, p1[1], yaw, 1);
+        fenceRails.pushTilted(mx, (g0 + g1) / 2, mz, yaw, Math.atan2(g1 - g0, 2), Math.hypot(2, g1 - g0) / 2);
+        propRecs.push({ what: 'fence-post', pts: [[p0[0], p0[1], g0], [p1[0], p1[1], g1]], allowBury: 0.15 });
       }
     }
-    for (const s of [barrels, crates, fences, posts, lanterns]) s.flush();
+    for (const s of [barrels, crates, fencePosts, fenceRails, posts, lanterns]) s.flush();
   };
 
   const syncProps = () => {
     const hs = game.entities.filter((e): e is House => e instanceof House && e.complete);
-    const sig = hs.map((h) => h.id).join(',');
+    const sig = hs.map((h) => h.id).join(',') + '@' + game.terrain.version;
     if (sig === propSig) return;
     propSig = sig;
     placeProps(hs);
@@ -115,9 +162,12 @@ export function install(game: Game): GamePlugin {
   let stumpTimer = 0;
   let primed = false;
 
+  /** A stump stands at the ground height under its middle; its trunk runs on below (STUMP_SKIRT), so the downhill side stands taller. */
+  const stumpY = (s: Stump) => game.terrain.heightAt(s.x, s.z) - 0.05;
+
   const flushStumps = () => {
     stumpSet.clear();
-    for (const s of stumps) stumpSet.push(s.x, game.terrain.heightAt(s.x, s.z) - 0.05, s.z, s.yaw, s.s, s.charred ? charred : white);
+    for (const s of stumps) stumpSet.push(s.x, stumpY(s), s.z, s.yaw, s.s, s.charred ? charred : white);
     stumpSet.flush();
   };
 
@@ -221,6 +271,17 @@ export function install(game: Game): GamePlugin {
   };
 
   flushStumps();
+  (game as unknown as { groundProps: () => GroundProp[] }).groundProps = () => [
+    ...propRecs,
+    ...stumps.map((s): GroundProp => {
+      const y = stumpY(s);
+      const r = 0.7 * s.s;
+      const pts: [number, number, number][] = [[s.x, s.z, y]];
+      for (let k = 0; k < 8; k++) pts.push([s.x + Math.cos(k * 0.785) * r, s.z + Math.sin(k * 0.785) * r, y]);
+      // The uphill side of a stump on a slope sinks into the hill (its cut top stays above ground): up to about 60% of its scale.
+      return { what: 'stump', pts, allowBury: 0.15 + 0.6 * s.s, skirt: STUMP_SKIRT * s.s };
+    }),
+  ];
   return {
     name: 'things',
     update(dt) {

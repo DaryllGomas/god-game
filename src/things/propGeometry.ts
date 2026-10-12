@@ -1,3 +1,4 @@
+import { STUMP_SKIRT } from '../world/groundRules';
 import * as THREE from 'three';
 import { merge, paint } from '../art/Models';
 import { Rng } from '../util/rng';
@@ -33,6 +34,18 @@ export function fenceGeometry(): THREE.BufferGeometry {
   return merge(parts);
 }
 
+/** One fence post (bottom at y = 0). */
+export function fencePostGeometry(): THREE.BufferGeometry {
+  return merge([paint(new THREE.BoxGeometry(0.16, 1.05, 0.16).translate(0, 0.52, 0), 0x6a4a2c, 0.12, R)]);
+}
+
+/** The two rails of a 2 m fence segment along x (tilted per instance to follow the ground between its posts). */
+export function fenceRailGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const y of [0.4, 0.8]) parts.push(paint(new THREE.BoxGeometry(2.1, 0.11, 0.09).translate(0, y, 0), 0x8a6a42, 0.12, R));
+  return merge(parts);
+}
+
 /** Lantern post: pole with a bracket; the glowing cage is a separate geometry. */
 export function lanternPostGeometry(): THREE.BufferGeometry {
   return merge([
@@ -56,6 +69,8 @@ export function stumpGeometry(): THREE.BufferGeometry {
   }
   return merge([
     paint(body, 0x5e4228, 0.14, R),
+    // The trunk runs on below the ground line, so on a slope the downhill side stands taller instead of floating.
+    paint(new THREE.CylinderGeometry(0.78, 0.82, STUMP_SKIRT, 9).translate(0, -STUMP_SKIRT / 2, 0), 0x4e3722, 0.1, R),
     paint(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 9).translate(0, 0.72, 0), 0xcfa66c),
     paint(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 9).translate(0, 0.745, 0), 0xe2c28a),
     paint(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 7).translate(0, 0.765, 0), 0xb98a52),

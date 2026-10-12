@@ -1,3 +1,4 @@
+import { spotOk } from '../world/Pads';
 import * as THREE from 'three';
 import type { Game } from '../Game';
 import { Field, House, Store, WorshipSite } from '../entities/Buildings';
@@ -7,6 +8,10 @@ import { INFLUENCE, PLAYER, VILLAGE, type Owner, type VillageSite } from '../con
 import { Rng, rng } from '../util/rng';
 import type { Site } from '../projects/Site';
 import { SHRINE_CLEARANCE, SHRINE_STAGES, type ShrineStage } from '../shrines/stages';
+
+/** Half-size of the pad a house gets (a cottage is up to 5.4 x 4.6, plus its margin). */
+const HOUSE_PAD = { hx: 3.4, hz: 3.1 };
+
 
 /** Anywhere a village dances: its prayer place, or a festival floor. */
 export interface DanceFloor {
@@ -138,7 +143,7 @@ export class Village {
     game.add(this.worship);
 
     for (let i = 0; i < site.houses; i++) {
-      const spot = this.findSpot(game, 0.4, 0.9, 6.5);
+      const spot = this.findSpot(game, 0.4, 0.9, 6.5, HOUSE_PAD);
       if (!spot) break;
       const h = new House(this, spot.x, spot.y, spot.z, Math.atan2(c.x - spot.x, c.z - spot.z), r.int(0, 1e6), true);
       this.houses.push(h);
@@ -165,7 +170,7 @@ export class Village {
   }
 
   /** Find open, flat, dry ground in a ring around the centre. */
-  findSpot(game: Game, minR: number, maxR: number, clearance: number): THREE.Vector3 | null {
+  findSpot(game: Game, minR: number, maxR: number, clearance: number, pad?: { hx: number; hz: number }): THREE.Vector3 | null {
     const r = this.layoutRng;
     const n = new THREE.Vector3();
     for (let attempt = 0; attempt < 80; attempt++) {
@@ -176,6 +181,8 @@ export class Village {
       if (!game.terrain.isLand(x, z, 1.5)) continue;
       if (game.terrain.normalAt(x, z, n).y < 0.9) continue;
       if (!this.clearOf(x, z, clearance)) continue;
+      // Things that stand on a levelled pad (houses) need ground a pad can be made on (see world/Pads.ts).
+      if (pad && !spotOk(game, { x, z, rot: Math.atan2(this.center.x - x, this.center.z - z), hx: pad.hx, hz: pad.hz })) continue;
       return new THREE.Vector3(x, game.terrain.heightAt(x, z), z);
     }
     return null;
@@ -389,7 +396,7 @@ export class Village {
       this.houses.length < VILLAGE.maxHouses &&
       this.store.wood >= 10
     ) {
-      const spot = this.findSpot(game, 0.4, 1.0, 6.5);
+      const spot = this.findSpot(game, 0.4, 1.0, 6.5, HOUSE_PAD);
       if (spot) {
         const h = new House(this, spot.x, spot.y, spot.z, Math.atan2(this.center.x - spot.x, this.center.z - spot.z), rng.int(0, 1e6), false);
         this.houses.push(h);

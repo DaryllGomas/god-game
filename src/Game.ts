@@ -1,3 +1,4 @@
+import { settleOnGround } from './world/Pads';
 import * as THREE from 'three';
 import { Terrain } from './world/Terrain';
 import { Water } from './world/Water';
@@ -322,10 +323,12 @@ export class Game {
   // ----------------------------------------------------- entity registry
 
   add(e: Entity) {
+    settleOnGround(this, e);
     this.entities.push(e);
     this.scene.add(e.object);
     e.syncObject();
     if (e instanceof Tree) this.forest.add(e);
+    e.onAdded(this);
   }
 
   remove(e: Entity) {

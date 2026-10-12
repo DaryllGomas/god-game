@@ -49,6 +49,9 @@ export abstract class Entity {
 
   update(_game: Game, _dt: number): void {}
 
+  /** Joined the world (after its pad was levelled, if it has one). */
+  onAdded(_game: Game): void {}
+
   /** Airborne body touched the ground at `speed`. Physics settles/bounces afterwards unless airborne is cleared. */
   onImpact(_game: Game, _speed: number): void {}
 

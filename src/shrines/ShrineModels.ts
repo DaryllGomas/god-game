@@ -1,3 +1,4 @@
+import { SHRINE_FLOOR } from '../world/groundRules';
 import * as THREE from 'three';
 import { merge, paint, jitterVerts } from '../art/Models';
 import { Rng } from '../util/rng';
@@ -179,7 +180,7 @@ const faceIn = (a: number) => Math.PI / 2 - a;
 /** Earth dance circle with its ring of little stones (the first age). */
 export function totemFloorGeometry(): THREE.BufferGeometry {
   const rng = new Rng(11);
-  const parts: THREE.BufferGeometry[] = [cyl(8, 8.4, 0.2, 20, 0, 0.1, 0, EARTH, 0.05, rng)];
+  const parts: THREE.BufferGeometry[] = [cyl(8, 8.4, SHRINE_FLOOR.top + SHRINE_FLOOR.skirt, 20, 0, (SHRINE_FLOOR.top - SHRINE_FLOOR.skirt) / 2, 0, EARTH, 0.05, rng)];
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
     const h = rng.range(1.4, 2.4);

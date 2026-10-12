@@ -1,3 +1,4 @@
+import { HOUSE_SKIRT } from '../world/groundRules';
 import * as THREE from 'three';
 import { Rng } from '../util/rng';
 import { merge, paint } from './Models';
@@ -59,7 +60,8 @@ export function cottageGeometry(seed: number): Cottage {
     parts.push(paint(new THREE.BoxGeometry(bw, bh, bd).translate(x, y + bh / 2, z), col, jit, rng));
 
   // Stone footing (rubble blocks along it) and plaster walls above.
-  box(w + 0.3, baseH, d + 0.3, 0, 0, 0, rng.pick(STONE), 0.1);
+  // The footing runs down below the floor line (HOUSE_SKIRT) so a house on a slope never shows daylight under it.
+  box(w + 0.3, baseH + HOUSE_SKIRT, d + 0.3, 0, -HOUSE_SKIRT, 0, rng.pick(STONE), 0.1);
   for (let i = 0; i < 7; i++) {
     const side = rng.next() < 0.5 ? 1 : -1;
     box(rng.range(0.5, 0.9), rng.range(0.18, 0.3), 0.3, rng.range(-w / 2, w / 2), baseH - 0.05, side * (d / 2 + 0.15), rng.pick(STONE), 0.22);

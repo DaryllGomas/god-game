@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { paint, merge } from './Models';
+import { SOIL_LIFT, SOIL_STEP } from '../world/groundRules';
 
 /**
  * A crop field that follows the ground. `sample(lx, lz)` gives the terrain height at a point in the
@@ -14,13 +15,15 @@ export interface FieldMesh {
   top: Uint8Array;
 }
 
-const SOIL_LIFT = 0.1;
 const CROP_BURY = 0.35;
+
+/** Soil grid cells along a side of length `len`. */
+export const soilCells = (len: number) => Math.max(2, Math.ceil(len / SOIL_STEP));
 
 export function buildFieldMesh(w: number, d: number, sample: (lx: number, lz: number) => number): FieldMesh {
   // --- soil: a grid draped on the terrain, plus a skirt so no gap shows on slopes.
-  const nx = Math.max(2, Math.ceil(w));
-  const nz = Math.max(2, Math.ceil(d));
+  const nx = soilCells(w);
+  const nz = soilCells(d);
   const pos: number[] = [];
   const idx: number[] = [];
   const vi = (i: number, j: number) => j * (nx + 1) + i;
