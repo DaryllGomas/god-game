@@ -49,6 +49,8 @@ const FIELD_R = 6.2;
 const STORE_R = 5;
 
 const CLUMP_COUNT = 15;
+/** Extra villagers gathered round each prayer place, facing the heart. */
+const GATHER = 9;
 const WOOD_CELL = 6.2;
 
 const LEAF = TREE_TINTS;
@@ -321,7 +323,7 @@ export class VillageDecor {
 
       // ---- walkers (routes get filled in by the land plugin on every repaint)
       const geo = walkerGeometry(40 + this.villages.length, VILLAGE_SITES.find((s) => s.name === v.name)?.tunic ?? 0x3f6fc4);
-      const count = 7 + v.houses.length;
+      const count = 14 + v.houses.length * 2 + GATHER;
       const mesh = new THREE.InstancedMesh(geo, MAT.base, count);
       mesh.count = 0;
       mesh.frustumCulled = false;
@@ -329,7 +331,7 @@ export class VillageDecor {
       mesh.name = `walkers-${v.name}`;
       game.scene.add(mesh);
       const walkers: Walker[] = [];
-      for (let i = 0; i < count; i++) walkers.push({ route: i, t: rng.range(0, 60), speed: rng.range(1.1, 1.7), dir: rng.next() < 0.5 ? 1 : -1 });
+      for (let i = 0; i < count - GATHER; i++) walkers.push({ route: i, t: rng.range(0, 60), speed: rng.range(1.1, 1.7), dir: rng.next() < 0.5 ? 1 : -1 });
       this.villages.push({ v, routes: [], walkers, mesh });
       this.count.walkers += count;
     }
@@ -441,10 +443,11 @@ export class VillageDecor {
     const near = camDist < 480;
     const time = this.game.time;
     for (const vr of this.villages) {
-      vr.mesh.visible = near && vr.routes.length > 0;
+      vr.mesh.visible = near;
       if (!vr.mesh.visible) continue;
       let n = 0;
       for (const w of vr.walkers) {
+        if (!vr.routes.length) break;
         const route = vr.routes[w.route % vr.routes.length];
         w.t += w.dir * w.speed * dt;
         if (w.t > route.len) {
@@ -469,6 +472,21 @@ export class VillageDecor {
         this.e.set(0, heading, Math.sin(time * 6 + w.speed * 9) * 0.04);
         this.q.setFromEuler(this.e);
         this.m.compose(this.p.set(x, y, z), this.q, this.s.set(1.28, 1.28, 1.28));
+        vr.mesh.setMatrixAt(n++, this.m);
+      }
+      // Gatherers: a loose ring round the heart, swaying a little, facing the centre.
+      const wp = vr.v.worship.pos;
+      for (let i = 0; i < GATHER; i++) {
+        const ang = (i / GATHER) * Math.PI * 2 + 0.4 + Math.sin(i * 7.3) * 0.15;
+        const rad = 9.5 + (i % 3) * 1.6;
+        const gx = wp.x + Math.cos(ang) * rad;
+        const gz = wp.z + Math.sin(ang) * rad;
+        const gy = this.game.terrain.heightAt(gx, gz) + 0.05 * Math.abs(Math.sin(time * 1.6 + i * 2.1));
+        const heading = Math.atan2(wp.x - gx, wp.z - gz);
+        if (!Number.isFinite(gx + gy + gz + heading)) continue;
+        this.e.set(0, heading, Math.sin(time * 1.1 + i) * 0.03);
+        this.q.setFromEuler(this.e);
+        this.m.compose(this.p.set(gx, gy, gz), this.q, this.s.set(1.28, 1.28, 1.28));
         vr.mesh.setMatrixAt(n++, this.m);
       }
       vr.mesh.count = n;

@@ -10,14 +10,9 @@ const RING_R = 16;
 const STONES = 9;
 const STONE_R = 7.7;
 
-const ringMat = new THREE.ShaderMaterial({
-  transparent: true,
-  depthWrite: false,
-  blending: THREE.AdditiveBlending,
-  polygonOffset: true,
-  polygonOffsetFactor: -2,
-  polygonOffsetUnits: -2,
-  uniforms: { uTime: { value: 0 }, uGlow: { value: 0.5 } },
+const SHAFT_H = 20;
+
+const ringShader = {
   vertexShader: /* glsl */ `
     varying vec2 vP;
     void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
@@ -25,24 +20,76 @@ const ringMat = new THREE.ShaderMaterial({
   fragmentShader: /* glsl */ `
     uniform float uTime, uGlow;
     varying vec2 vP;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     void main() {
       float r = length(vP);
       float ang = atan(vP.y, vP.x + 1e-4);
-      float pulse = 0.82 + 0.18 * sin(uTime * 1.2); // ~5 s per breath
+      float pulse = 0.8 + 0.2 * sin(uTime * 0.9); // ~7 s per breath
       float a = 0.0;
-      for (int i = 0; i < 3; i++) {
-        float rr = 7.2 + float(i) * 3.4;
-        float line = exp(-pow((r - rr) / 0.2, 2.0));
-        float dash = 0.6 + 0.4 * sin(ang * (30.0 + float(i) * 14.0) + uTime * 0.4 * (1.0 - float(i)));
-        a += line * dash * (1.0 - 0.18 * float(i));
+      float sparkle = 0.0;
+      for (int i = 0; i < 4; i++) {
+        float rr = 6.4 + float(i) * 2.9;
+        float d = (r - rr);
+        float line = exp(-pow(d / 0.26, 2.0)) + 0.35 * exp(-pow(d / 0.9, 2.0)); // bright core + soft halo
+        float dash = 0.8 + 0.2 * sin(ang * (24.0 + float(i) * 12.0) + uTime * 0.35 * (1.0 - 0.5 * float(i)));
+        a += line * dash * (1.0 - 0.12 * float(i));
+        // motes: a few cells round each ring, each twinkling slowly
+        float cells = 26.0 + float(i) * 12.0;
+        float u = ang / 6.2831853 * cells + uTime * (0.25 + 0.1 * float(i)) * (mod(float(i), 2.0) * 2.0 - 1.0);
+        float id = floor(u);
+        float h = hash(vec2(id, float(i) + 3.0));
+        vec2 f = vec2(fract(u) - 0.5, d / 0.45);
+        float tw = 0.5 + 0.5 * sin(uTime * (0.8 + h * 1.4) + h * 40.0);
+        sparkle += step(0.55, h) * exp(-dot(f, f) * 22.0) * tw;
       }
-      a += 0.12 * exp(-pow((r - 6.0) / 3.5, 2.0));
-      a *= smoothstep(15.5, 12.0, r) * pulse * uGlow;
-      if (!(a > 0.0)) discard;
-      gl_FragColor = vec4(vec3(1.0, 0.72, 0.28) * a * 1.5, a);
+      // warm pool of light on the ground at the centre
+      float pool = exp(-pow(r / 5.0, 2.0)) * 0.75 + 0.25 * exp(-pow(r / 9.0, 2.0));
+      float v = (a * 1.1 + pool * 0.8) * pulse + sparkle * 1.3;
+      v *= smoothstep(15.5, 11.0, r) * uGlow;
+      if (!(v > 0.0)) discard;
+      v = min(v, 1.6);
+      vec3 col = mix(vec3(1.0, 0.68, 0.22), vec3(1.0, 0.92, 0.62), clamp(sparkle * 0.8 + pool * 0.3, 0.0, 1.0));
+      gl_FragColor = vec4(col * v, min(v, 1.0));
     }
   `,
-});
+};
+
+const shaftShader = {
+  vertexShader: /* glsl */ `
+    varying vec3 vL;
+    void main() { vL = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform float uTime, uGlow;
+    varying vec3 vL;
+    void main() {
+      float h = clamp(vL.y / ${SHAFT_H.toFixed(1)}, 0.0, 1.0);
+      float r = length(vL.xz);
+      float w = mix(1.5, 3.4, h);
+      float core = exp(-pow(r / (w * 0.5), 2.0));
+      float streak = 0.85 + 0.15 * sin(atan(vL.z, vL.x + 1e-4) * 5.0 + vL.y * 0.4 - uTime * 0.6);
+      float fade = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.35, 1.0, h));
+      float breath = 0.85 + 0.15 * sin(uTime * 0.8 + 1.0);
+      float v = core * streak * fade * breath * uGlow * 0.55;
+      if (!(v > 0.002)) discard;
+      gl_FragColor = vec4(vec3(1.0, 0.8, 0.45) * v, v);
+    }
+  `,
+};
+
+function glowMat(shader: { vertexShader: string; fragmentShader: string }, side: THREE.Side = THREE.FrontSide) {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: { uTime: { value: 0 }, uGlow: { value: 0.5 } },
+    ...shader,
+  });
+}
 
 export function install(game: Game): GamePlugin {
   const scene = game.scene;
@@ -52,12 +99,13 @@ export function install(game: Game): GamePlugin {
   scene.add(group);
   aoIgnore.push(group);
 
+  const moteMat = new THREE.PointsMaterial({ color: 0xffd98a, size: 0.55, sizeAttenuation: true, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
   const stoneGeo = new THREE.CylinderGeometry(0.34, 0.5, 1.5, 5).translate(0, 0.75, 0);
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x8c8678, roughness: 0.95, flatShading: true });
   const capGeo = new THREE.SphereGeometry(0.2, 8, 6);
   const capMat = new THREE.MeshBasicMaterial({ color: 0xffc766 });
 
-  interface Heart { v: Game['villages'][number]; ring: THREE.Mesh; stones: THREE.InstancedMesh; caps: THREE.InstancedMesh; drapedAt: number }
+  interface Heart { v: Game['villages'][number]; ring: THREE.Mesh; ringMat: THREE.ShaderMaterial; shaftMat: THREE.ShaderMaterial; motes: THREE.Points; moteSeed: Float32Array; stones: THREE.InstancedMesh; caps: THREE.InstancedMesh; drapedAt: number }
   const hearts: Heart[] = [];
   let t = 0;
   let built = false;
@@ -79,12 +127,29 @@ export function install(game: Game): GamePlugin {
       const p = v.worship.pos;
       // Ring mesh: built flat in XY (shader reads xy), then draped in z and rotated flat so z is up.
       const geo = new THREE.RingGeometry(0.5, RING_R, 72, 20);
-      const ring = new THREE.Mesh(geo, ringMat);
+      const rMat = glowMat(ringShader);
+      const ring = new THREE.Mesh(geo, rMat);
       ring.rotation.x = -Math.PI / 2;
       ring.position.copy(p);
       ring.renderOrder = 2;
       ring.frustumCulled = false;
       group.add(ring);
+
+      const sMat = glowMat(shaftShader, THREE.DoubleSide);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 1.5, SHAFT_H, 20, 1, true).translate(0, SHAFT_H / 2, 0), sMat);
+      shaft.position.copy(p);
+      shaft.renderOrder = 3;
+      shaft.frustumCulled = false;
+      group.add(shaft);
+      const NM = 28;
+      const moteSeed = new Float32Array(NM * 3);
+      for (let i = 0; i < NM * 3; i++) moteSeed[i] = Math.random();
+      const mGeo = new THREE.BufferGeometry();
+      mGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NM * 3), 3));
+      const motes = new THREE.Points(mGeo, moteMat);
+      motes.frustumCulled = false;
+      motes.renderOrder = 4;
+      group.add(motes);
 
       const stones = new THREE.InstancedMesh(stoneGeo, stoneMat, STONES);
       const caps = new THREE.InstancedMesh(capGeo, capMat, STONES);
@@ -104,7 +169,7 @@ export function install(game: Game): GamePlugin {
         caps.setMatrixAt(i, m);
       }
       group.add(stones, caps);
-      const h: Heart = { v, ring, stones, caps, drapedAt: -99 };
+      const h: Heart = { v, ring, ringMat: rMat, shaftMat: sMat, motes, moteSeed, stones, caps, drapedAt: -99 };
       drape(h);
       hearts.push(h);
     }
@@ -119,12 +184,27 @@ export function install(game: Game): GamePlugin {
       }
       t += Math.min(dt, 0.1);
       const day = Math.min(1, Math.max(0, game.sky.daylight));
-      ringMat.uniforms.uTime.value = t;
-      ringMat.uniforms.uGlow.value = 0.95 + 0.5 * (1 - day);
+      moteMat.opacity = 0.55 + 0.4 * (1 - day);
       const capOn = 0.35 + 0.65 * (1 - day);
       capMat.color.setRGB(1.0 * capOn, 0.78 * capOn, 0.4 * capOn);
       for (const h of hearts) {
         if (t - h.drapedAt > 8) drape(h); // the land moves (pads, rain-fed hills): keep the rings on it
+        const faith = Number.isFinite(h.v.belief) ? Math.min(1, Math.max(0, h.v.belief / 100)) : 0.5;
+        const glow = (0.5 + 0.9 * faith) * (0.9 + 0.5 * (1 - day));
+        for (const m of [h.ringMat, h.shaftMat]) {
+          m.uniforms.uTime.value = t;
+          m.uniforms.uGlow.value = glow;
+        }
+        const pp = h.v.worship.pos;
+        const arr = h.motes.geometry.getAttribute('position') as THREE.BufferAttribute;
+        for (let i = 0; i < arr.count; i++) {
+          const k = (t * (0.05 + h.moteSeed[i * 3] * 0.05) + h.moteSeed[i * 3 + 1]) % 1; // rise 0..1, slow
+          const ang = h.moteSeed[i * 3 + 2] * 6.283 + t * 0.2;
+          const rad = 1.2 + k * 2.4 + h.moteSeed[i * 3] * 1.5;
+          arr.setXYZ(i, pp.x + Math.cos(ang) * rad, pp.y + 0.5 + k * SHAFT_H * 0.8, pp.z + Math.sin(ang) * rad);
+        }
+        arr.needsUpdate = true;
+        h.motes.visible = glow > 0.3;
         const totem = h.v.shrineStage === 'totem';
         h.stones.visible = h.caps.visible = totem;
       }

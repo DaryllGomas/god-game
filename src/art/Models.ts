@@ -276,9 +276,16 @@ export function villagerParts(seed: number, tunic: number): VillagerParts {
   const rng = new Rng(seed);
   const skin = rng.pick(SKIN);
   const hair = rng.pick(HAIR);
-  const tunicCol = new THREE.Color(tunic).multiplyScalar(rng.range(0.85, 1.15));
+  // Robes read clearly from the default view: keep the village's hue, push it deep and saturated, add a lighter trim.
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color(tunic).getHSL(hsl);
+  const tunicCol = new THREE.Color().setHSL(hsl.h, Math.max(hsl.s, 0.7), Math.min(0.46, Math.max(0.34, hsl.l)));
+  tunicCol.multiplyScalar(rng.range(0.9, 1.1));
+  const trimCol = new THREE.Color().setHSL(hsl.h, Math.max(0.55, hsl.s * 0.8), 0.74);
   const body = merge([
     paint(new THREE.CylinderGeometry(0.28, 0.42, 0.95, 7).translate(0, 1.05, 0), tunicCol),
+    paint(new THREE.CylinderGeometry(0.425, 0.435, 0.13, 7).translate(0, 0.62, 0), trimCol),
+    paint(new THREE.CylinderGeometry(0.3, 0.3, 0.09, 7).translate(0, 1.5, 0), trimCol),
     paint(new THREE.CylinderGeometry(0.43, 0.43, 0.12, 7).translate(0, 0.82, 0), 0x5a3d22),
     paint(new THREE.IcosahedronGeometry(0.27, 1).translate(0, 1.75, 0), skin),
     paint(new THREE.SphereGeometry(0.29, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2).translate(0, 1.78, -0.02), hair),
