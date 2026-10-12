@@ -54,7 +54,7 @@ tilt-shift pass, water colour, the warm/cool split itself.
 
 ## What I changed (item 1: foliage)
 
-Commits on `v06-opus`: `58f4492` (this review), the foliage WIP commit, and `c0fe421`.
+Commits on `v06-opus`: `58f4492` (this review), `1dcddfd` (foliage) and `c0fe421` (crown colours).
 - `src/art/softCanopy.ts` (new): at load, each tree geometry gets soft crown normals (an ellipsoid fitted to the leaf
   vertices, 22% of the facet normal kept for broadleaf and 40% for pines) and rebuilt leaf colours: the crown's mean green ×
   a smooth volumetric AO (dark belly and core, bright crown) + 25% of the welded original. The baked per-facet
@@ -97,4 +97,4 @@ a check of autumn, winter and the blossom trees, and a check in Daryll's own Chr
 - The leaf test in `seasonalMaterial` changed from absolute to ratio. Seasonal recolouring (autumn, winter, blossom)
   now reaches more of each crown, so autumn will look more complete; give autumn and winter one look before publishing.
 - The sway uses `FOLIAGE_WIND.uWindT` (real seconds, slower while paused). Shot mode renders stay repeatable within ~0.1 m.
-- Revert: `git revert c0fe421` and the foliage WIP commit (or drop the `softenCanopy` calls and set `mat.flatShading` back).
+- Revert: `git revert c0fe421 1dcddfd` (or drop the `softenCanopy` calls and set `mat.flatShading` back).
