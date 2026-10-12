@@ -59,7 +59,7 @@ export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
           vSnowK = 0.7 + 0.3 * h2;
           float luma = dot(base, vec3(0.2126, 0.7152, 0.0722));
           float lf = clamp(luma / 0.32, 0.55, 1.35);
-          float green = step(base.r + 0.04, base.g) * step(base.b, base.g);
+          float green = step(base.r * 1.08, base.g) * step(base.b * 0.95, base.g); // OPUS: ratio test, so dark (AO'd) leaves count too
           float petal = step(base.g + 0.15, base.r) * step(base.g, base.b) * step(2.5, uSpecies);
           float isLeaf = max(green, petal);
           float pine = step(0.5, uSpecies) * step(uSpecies, 1.5);
