@@ -170,8 +170,8 @@ export class Terrain {
     const grass = new THREE.Color(0x5c8f36);
     const lush = new THREE.Color(0x3d7a2c);
     const dry = new THREE.Color(0x93a048);
-    const rock = new THREE.Color(0x857c70);
-    const darkRock = new THREE.Color(0x5e5750);
+    const rock = new THREE.Color(0x7c8290); // cool slate, not straw: the storyboard's hills are grey-blue under green
+    const darkRock = new THREE.Color(0x4a505e);
     const snow = new THREE.Color(0xf2f4f7);
     const c = new THREE.Color();
     const n = new THREE.Vector3();
