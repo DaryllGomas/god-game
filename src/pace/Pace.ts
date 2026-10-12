@@ -23,6 +23,9 @@ const MARK_DIST = 34;
 const MARK_HEIGHT = 12;
 const MARK_HIT = 8.5;
 const MARK_SIZE = 25;
+/** Ora's orb: small, and hung well above the prayer place (never over it). */
+const ORA_SIZE = 7;
+const ORA_HEIGHT = 27;
 /** Camera heading the game starts on (same as BeliefRing). */
 const START_YAW = 0.5;
 
@@ -52,26 +55,15 @@ function emblem(kind: 'road' | 'hearth' | 'ora'): THREE.CanvasTexture {
     x.fill();
   };
   if (kind === 'ora') {
-    glow(124, 'rgba(120,190,255,A)', 0.55);
-    glow(46, 'rgba(255,255,255,A)', 0.95);
-    x.strokeStyle = 'rgba(220,242,255,0.85)';
+    // Ora: a small, perfectly round blue-white orb with one faint ring. No spikes.
+    glow(124, 'rgba(120,190,255,A)', 0.4);
+    glow(52, 'rgba(190,225,255,A)', 0.6);
+    glow(26, 'rgba(255,255,255,A)', 0.95);
+    x.strokeStyle = 'rgba(200,232,255,0.4)';
     x.lineWidth = 2;
-    for (const r of [60, 84, 108]) {
-      x.beginPath();
-      x.arc(0, 0, r, 0, Math.PI * 2);
-      x.stroke();
-    }
-    x.fillStyle = '#fff';
-    for (let i = 0; i < 4; i++) {
-      x.save();
-      x.rotate((i * Math.PI) / 2);
-      x.beginPath();
-      x.moveTo(0, -112);
-      x.lineTo(6, -6);
-      x.lineTo(-6, -6);
-      x.fill();
-      x.restore();
-    }
+    x.beginPath();
+    x.arc(0, 0, 72, 0, Math.PI * 2);
+    x.stroke();
   } else {
     glow(126, 'rgba(255,200,110,A)', 0.4);
     x.fillStyle = 'rgba(14,26,58,0.5)';
@@ -232,7 +224,7 @@ export class Pace {
     }
     this.star = new THREE.Sprite(new THREE.SpriteMaterial({ map: emblem('ora'), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
     this.star.renderOrder = 9;
-    this.star.scale.setScalar(MARK_SIZE * 1.3);
+    this.star.scale.setScalar(ORA_SIZE);
     const cg = new THREE.CylinderGeometry(1, 1, 1, 36, 1, true);
     cg.translate(0, 0.5, 0);
     this.light = new THREE.Mesh(
@@ -484,9 +476,8 @@ export class Pace {
     put(this.road, -1);
     put(this.hearth, 1);
     const mid = home.worship.pos;
-    this.star.position.set(mid.x + fx * 4, g.terrain.surfaceAt(mid.x, mid.z) + MARK_HEIGHT + 2, mid.z + fz * 4);
-    (this.star.material as THREE.SpriteMaterial).rotation = t * 0.07;
-    (this.star.material as THREE.SpriteMaterial).opacity = this.level * 0.9;
+    this.star.position.set(mid.x, g.terrain.surfaceAt(mid.x, mid.z) + ORA_HEIGHT, mid.z);
+        (this.star.material as THREE.SpriteMaterial).opacity = this.level * 0.9;
 
     // The hand over a mark lights it; the current pace stays lit.
     const h = g.hand;
