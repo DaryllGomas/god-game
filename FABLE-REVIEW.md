@@ -105,3 +105,7 @@ read as shapes in haze.
 ## What I'd do next, in order
 Terraces (3) → sea stacks (5) → woods (4) → the first-prayer hook (play 1) → visible golem
 learning (play 2). Then re-shoot all four poses and make the pass-5 side-by-side.
+
+## Touch-up run (8 min, same day)
+- `d3cd0da` Woods: tree value gradient widened (base `0.42,0.52,0.66` → crown `1.1,1.02,0.84`, per-species height) in `src/entities/Forest.ts`. Not re-rendered; check the close shot next pass and pull the base back toward 0.5 if pines go muddy.
+- First prayer hook in `src/pace/Pace.ts`: 20 s after the pace is confirmed a timber prayer spawns at the home village if none is active (`FIRST_PRAYER_DELAY`). Untested in-browser; verify that `spawnNow(home, 'timber')` picks a valid house and that the prayer bubble appears.
