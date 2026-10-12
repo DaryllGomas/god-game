@@ -46,7 +46,7 @@ export const WONDER_BUILDERS = 3;
 /** Stone from one boulder: radius squared times this (min 4). A typical boulder is ~15. */
 export const STONE_PER_ROCK_AREA = 5;
 /** Wood in a thrown tree is its own wood; food/wood piles count in full. */
-/** Neutral villages quarry a trickle of stone themselves (per second) so they never stall for good. */
+/** Every village quarries a trickle of stone itself (per second) so it never stalls for good. */
 export const NEUTRAL_QUARRY = 0.12;
 
 /** Well: field growth multiplier, and extra fuel burned per second by fires inside the village (1 = twice as fast). */

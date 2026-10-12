@@ -7,7 +7,7 @@ export const SEASON_IDS: SeasonId[] = ['spring', 'summer', 'autumn', 'winter'];
 // ------------------------------------------------------------------ tuning knobs
 
 /** Length of each season in game days (a day is DAY_LENGTH seconds, 5 real minutes by default). */
-export const SEASON_DAYS = 2.5;
+export const SEASON_DAYS = 5; // was 2.5: a year in 10 days felt like seasons flipping (Daryll, day 19)
 /** Each season melts into the next over this many game days at its end, so nothing ever pops. */
 export const BLEND_DAYS = 1;
 /** Chance a season brings its nature event (the first year always does, so you meet them all). */

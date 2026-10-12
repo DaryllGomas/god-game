@@ -162,8 +162,9 @@ export class Projects {
     }
     const site = vs.site;
     if (vs.prayer) vs.prayer.progress = site.fraction * 100;
-    // Neutral villagers quarry a little stone themselves so they are never stuck for good.
-    if (v.owner !== 'player' && site.open('stone') > 0 && v.population >= 4) {
+    // Villagers quarry a little stone themselves so they are never stuck for good (yours too: helping a village
+    // must never leave it slower than one you ignore; the hand's boulders are still far faster).
+    if (site.open('stone') > 0 && v.population >= 4) {
       vs.quarry += NEUTRAL_QUARRY * step;
       if (vs.quarry >= 2) {
         vs.quarry = 0;
