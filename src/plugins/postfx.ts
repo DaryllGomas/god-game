@@ -1,6 +1,7 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import type { Game, GamePlugin } from '../Game';
 import { PostFX, type FxQuality } from '../world/PostFX';
+import { LOOK, dofStrength } from '../world/lookKit';
 
 const TIERS: FxQuality[] = ['high', 'medium', 'low'];
 const SLOW_MS = 22; // sustained average frame time (~45 fps) that triggers a quality drop
@@ -20,13 +21,21 @@ export function install(game: Game): GamePlugin {
   const fx = new PostFX(game.renderer, game.scene, game.godCam.camera, ignore);
   (game as unknown as { postfx: PostFX }).postfx = fx;
 
+  game.renderer.toneMappingExposure = LOOK.exposure;
+  const ndc = new THREE.Vector3();
   let on = true;
   let last = performance.now();
   let slowTime = 0;
   let slowCount = 0;
 
   const apply = () => {
-    game.renderOverride = on ? () => fx.render(0.016) : null;
+    game.renderOverride = on ? () => {
+      // Tilt-shift focus follows the camera's focus point; strength follows its distance.
+      const cam = game.godCam;
+      ndc.copy(cam.target).project(cam.camera);
+      fx.setFocus(ndc.y * 0.5 + 0.5, dofStrength(cam.distance));
+      fx.render(0.016);
+    } : null;
   };
   apply();
 

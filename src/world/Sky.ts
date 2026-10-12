@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp, smoothstep } from '../util/math';
+import { LOOK } from './lookKit';
 
 const DAY_ZENITH = new THREE.Color(0x3d86d6);
 const DAY_HORIZON = new THREE.Color(0xc6e6f5);
@@ -96,6 +97,7 @@ export class Sky {
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.6;
+    this.sun.shadow.radius = 3; // soft edges (PCF)
     scene.add(this.sun);
     scene.add(this.sun.target);
 
@@ -113,10 +115,16 @@ export class Sky {
     const elev = Math.sin(ang);
     this.sunDir.set(Math.cos(ang) * 0.8, elev, 0.45).normalize();
     this.daylight = smoothstep(-0.12, 0.22, elev);
+    // Golden hour: a flatter sun (long soft shadows) all day; golden strongest when the sun is low.
+    const golden = clamp(1 - smoothstep(0.2, 0.8, elev), LOOK.goldenAtNoon, 1) * this.daylight;
+    if (elev > 0) this.sunDir.y = elev * LOOK.sunFlatten + LOOK.sunLift * smoothstep(0, 0.15, elev);
+    this.sunDir.normalize();
     const dusk = clamp(1 - Math.abs(elev) / 0.35, 0, 1);
 
     const zenith = new THREE.Color().copy(NIGHT_ZENITH).lerp(DAY_ZENITH, this.daylight);
     const horizon = new THREE.Color().copy(NIGHT_HORIZON).lerp(DAY_HORIZON, this.daylight);
+    zenith.lerp(LOOK.zenithGold, golden * 0.75);
+    horizon.lerp(LOOK.horizonGold, golden * 0.6);
     zenith.lerp(DUSK_ZENITH, dusk * 0.5);
     horizon.lerp(DUSK_HORIZON, dusk * 0.7);
     this.domeMat.uniforms.uZenith.value.copy(zenith);
@@ -132,8 +140,8 @@ export class Sky {
     const lightDir = new THREE.Vector3();
     if (elev > -0.05) {
       lightDir.copy(this.sunDir);
-      this.sunColor.setRGB(1.0, 0.95, 0.88).lerp(new THREE.Color(1.0, 0.62, 0.35), dusk);
-      this.sun.intensity = 2.8 * this.daylight;
+      this.sunColor.copy(LOOK.sunNoon).lerp(LOOK.sunGold, golden).lerp(new THREE.Color(1.0, 0.62, 0.35), dusk);
+      this.sun.intensity = LOOK.sunIntensity * this.daylight;
     } else {
       lightDir.copy(this.sunDir).negate();
       lightDir.y = Math.abs(lightDir.y) + 0.3;
@@ -142,9 +150,9 @@ export class Sky {
       this.sun.intensity = 0.8 * smoothstep(-0.05, -0.3, elev);
     }
     this.sun.color.copy(this.sunColor);
-    this.hemi.intensity = 0.45 + 0.65 * this.daylight;
-    this.hemi.color.copy(horizon).lerp(new THREE.Color(0xbfdfff), 0.5);
-    this.hemi.groundColor.setRGB(0.22, 0.25, 0.14).multiplyScalar(0.4 + 0.6 * this.daylight);
+    this.hemi.intensity = 0.45 + (LOOK.hemiIntensity - 0.45) * this.daylight;
+    this.hemi.color.copy(horizon).lerp(LOOK.hemiSky, 0.65);
+    this.hemi.groundColor.copy(LOOK.hemiGround).multiplyScalar((0.4 + 0.6 * this.daylight) * 0.9);
     if (this.daylight < 0.5) this.hemi.color.lerp(new THREE.Color(0x4a6aa8), 1 - this.daylight * 2);
 
     // Shadow frustum follows what the camera is looking at.
@@ -162,8 +170,8 @@ export class Sky {
     this.sun.target.position.copy(focus);
     this.sun.position.copy(focus).addScaledVector(lightDir, 700);
 
-    this.fog.near = 250 + viewDistance * 0.9;
-    this.fog.far = 1300 + viewDistance * 2.6;
+    this.fog.near = LOOK.fogNear0 + viewDistance * LOOK.fogNearK;
+    this.fog.far = LOOK.fogFar0 + viewDistance * LOOK.fogFarK;
   }
 
   /**
