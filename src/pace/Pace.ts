@@ -14,6 +14,7 @@ export const WALK_TIME = 1.8;
 export const WALK_COST = 0.6;
 /** Ora checks in at most this many times in a game, never closer than this (game seconds), and not while balance is below this. */
 const MAX_CHECKS = 2;
+const FIRST_PRAYER_DELAY = 20; // s after the pace choice: a wood prayer at home, so the first act is see need, carry, thanks
 const CHECK_GAP = 2 * DAY_LENGTH;
 const CHECK_MIN_BALANCE = 0.45;
 /** The marks stay this long (real seconds) at a check-in; at the first question they stay until chosen. */
@@ -315,6 +316,7 @@ export class Pace {
       const b = this.markOf(c).base;
       this.game.fx.sparkle(b.x, b.y + MARK_HEIGHT, b.z, 60, 0xffe6a0, 4);
       this.game.audio.chime(b);
+      if (this.firstPrayerIn < 0) this.firstPrayerIn = FIRST_PRAYER_DELAY;
     }
     this.applyChoice();
   }
@@ -394,7 +396,18 @@ export class Pace {
   // ---------------------------------------------------------------- per frame
 
   /** Game seconds: Walk on makes days pass faster. */
+  /** Seconds until the first prayer after the pace is chosen (Fable pass: the loop shows itself at once). */
+  private firstPrayerIn = -1;
+
   update(dt: number) {
+    if (this.firstPrayerIn > 0) {
+      this.firstPrayerIn -= dt;
+      if (this.firstPrayerIn <= 0) {
+        const g = this.game as unknown as { villages: unknown[]; prayerSystem?: { active: unknown[]; spawnNow: (v: unknown, k: string) => unknown } };
+        const home = g.villages[0];
+        if (home && g.prayerSystem && g.prayerSystem.active.length === 0) g.prayerSystem.spawnNow(home, 'timber');
+      }
+    }
     if (this.choice !== 'walk') return;
     const g = this.game;
     const extra = (dt * (WALK_TIME - 1)) / DAY_LENGTH;
