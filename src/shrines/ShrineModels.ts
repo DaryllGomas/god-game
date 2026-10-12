@@ -88,16 +88,64 @@ export const SHRINE_BEAM = new THREE.ShaderMaterial({
   `,
 });
 
+/** The capstone: gold that glows on its own, day and night (the pyramid's and the temple's lit crown). */
+export const SHRINE_CAP = new THREE.MeshStandardMaterial({
+  color: 0xffd877,
+  emissive: 0xffb23a,
+  emissiveIntensity: 1.1,
+  roughness: 0.3,
+  metalness: 0.2,
+  flatShading: true,
+});
+
+/**
+ * The light shaft rising from the pyramid's capstone: thin and bright at its foot, thinning and fading
+ * as it climbs, visible by day too. Same guarded shader as the temple's beam.
+ */
+export const SHRINE_SHAFT = SHRINE_BEAM.clone();
+SHRINE_SHAFT.uniforms = { uOpacity: { value: 0.5 }, uColor: { value: new THREE.Color(1.5, 1.2, 0.7) } };
+
+/** A soft round gold glow over the capstone: a camera-facing quad shaded analytically (no texture). */
+export const SHRINE_GLOW = new THREE.ShaderMaterial({
+  uniforms: { uOpacity: { value: 0.6 }, uColor: { value: new THREE.Color(1.5, 1.1, 0.5) }, uSize: { value: 7 } },
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  fog: false,
+  vertexShader: /* glsl */ `
+    uniform float uSize;
+    varying vec2 vP;
+    void main() {
+      vP = position.xy;
+      vec4 mv = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+      mv.xy += position.xy * uSize;
+      gl_Position = projectionMatrix * mv;
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform float uOpacity;
+    uniform vec3 uColor;
+    varying vec2 vP;
+    void main() {
+      float r = clamp(length(vP) * 2.0, 0.0, 1.0);
+      float a = uOpacity * pow(1.0 - r, 2.6);
+      gl_FragColor = vec4(uColor * a, 1.0);
+    }
+  `,
+});
+export function glowGeometry(): THREE.BufferGeometry {
+  return new THREE.PlaneGeometry(1, 1);
+}
+
 // ------------------------------------------------------------------ helpers
 
-const STONE = [0xb5a58a, 0xa8977c, 0xbfae92] as const;
 const SAND = 0xdcbd8a;
 const SAND_DARK = 0xc6a676;
 const PAVE = 0xc4ad86;
 const PAVE_LIGHT = 0xd8c6a2;
 const EARTH = 0xa08660;
-const MARBLE = 0xf2eadb;
-const MARBLE_SHADE = 0xe6dac2;
+const MARBLE = 0xe9d9b4;
+const MARBLE_SHADE = 0xd3c096;
 
 function box(w: number, h: number, d: number, x: number, y: number, z: number, color: number, jitter = 0, rng?: Rng) {
   return paint(new THREE.BoxGeometry(w, h, d).translate(x, y, z), color, jitter, rng);
@@ -189,9 +237,9 @@ const TRILITHONS: [number, number][] = [
   [11, 0],
 ];
 function stoneHeight(i: number): number {
-  if (i === 2 || i === 3) return 5.2;
-  if (TRILITHONS.some(([a, b]) => a === i || b === i)) return 5.0;
-  return 4.0 + ((i * 7) % 5) * 0.16;
+  if (i === 2 || i === 3) return 6.2;
+  if (TRILITHONS.some(([a, b]) => a === i || b === i)) return 5.4;
+  return 4.5 + ((i * 7) % 5) * 0.4;
 }
 export const stoneAngle = (i: number) => ((i + 0.5) / SHRINE.stones.count) * Math.PI * 2;
 
@@ -223,7 +271,83 @@ export function danceInlayGeometry(): THREE.BufferGeometry {
   return merge([ring(8.45, 8.7, 0.25, 0.28, 64, 0xffffff)]);
 }
 
-/** Twelve standing stones and three lintels. */
+const GREYS = [0x9c9a92, 0x8e8c86, 0xa6a39a, 0x959088, 0xa09c90] as const;
+const MOSS = new THREE.Color(0x58762f);
+const MOSS_DRY = new THREE.Color(0x7b8a42);
+const _c = new THREE.Color();
+
+/**
+ * Recolour a (non-indexed) part per vertex from its local height: weathered stone that lightens toward the
+ * top, darkens at the foot (a cheap stand-in for ambient occlusion) and goes mossy at the base.
+ */
+function weather(geo: THREE.BufferGeometry, base: number, h: number, rng: Rng, mossAmount = 0.8): THREE.BufferGeometry {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  const col = new Float32Array(pos.count * 3);
+  const baseC = new THREE.Color(base);
+  const noise = new Map<string, number>();
+  for (let i = 0; i < pos.count; i++) {
+    const key = `${pos.getX(i).toFixed(2)},${pos.getY(i).toFixed(2)},${pos.getZ(i).toFixed(2)}`;
+    let n = noise.get(key);
+    if (n === undefined) noise.set(key, (n = rng.next()));
+    const t = clamp01(pos.getY(i) / Math.max(h, 0.01));
+    const shade = 0.78 + 0.3 * t + (n - 0.5) * 0.14;
+    _c.copy(baseC).multiplyScalar(shade);
+    const moss = clamp01(1 - pos.getY(i) / 1.1) * mossAmount * (0.55 + n * 0.6);
+    if (moss > 0) _c.lerp(n > 0.5 ? MOSS : MOSS_DRY, clamp01(moss));
+    col[i * 3] = _c.r;
+    col[i * 3 + 1] = _c.g;
+    col[i * 3 + 2] = _c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/** One weathered menhir, base at y = 0: tapering, chipped, lightly leaning. Faces on x/z. */
+function menhir(w: number, h: number, d: number, rng: Rng, grey: number): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(w, h, d, 2, 6, 2);
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const t = pos.getY(i) / h + 0.5; // 0 at the foot, 1 at the top
+    const k = 1 - 0.2 * t;
+    pos.setXYZ(i, pos.getX(i) * k, pos.getY(i), pos.getZ(i) * k);
+  }
+  jitterVerts(g, 0.075, rng);
+  // Chip the crown: the top ring of vertices drops a little, unevenly.
+  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > h * 0.49) pos.setY(i, pos.getY(i) - rng.range(0, 0.35) * (1 + (pos.getX(i) > 0 ? 0.5 : 0)));
+  g.translate(0, h / 2, 0);
+  const out = weather(g, grey, h, rng);
+  return out;
+}
+
+/** Moss clumps and fallen rubble round a stone's foot, placed in the stone's local frame. */
+function footing(w: number, d: number, rng: Rng, mossy = true): THREE.BufferGeometry[] {
+  const parts: THREE.BufferGeometry[] = [];
+  const n = mossy ? 3 : 2;
+  for (let k = 0; k < n; k++) {
+    const x = rng.range(-w * 0.7, w * 0.7);
+    const z = rng.range(-d * 0.9, d * 0.9);
+    const r = rng.range(0.25, 0.5);
+    const clump = jitterVerts(new THREE.IcosahedronGeometry(r, 0), r * 0.25, rng).scale(1.3, 0.55, 1.1).translate(x, 0.08, z);
+    parts.push(paint(clump, rng.pick([0x5f7d32, 0x6c8a38, 0x4f6d2c]), 0.18, rng));
+  }
+  for (let k = 0; k < 2; k++) {
+    const r = rng.range(0.18, 0.34);
+    const rub = jitterVerts(new THREE.IcosahedronGeometry(r, 0), r * 0.3, rng).scale(1.2, 0.7, 1).translate(rng.range(-w, w), 0.1, rng.range(-d * 1.3, d * 1.3));
+    parts.push(paint(rub, rng.pick(GREYS), 0.15, rng));
+  }
+  return parts;
+}
+
+/**
+ * The inner ring of lower stones round the middle (the second ring in the storyboard's stone circle).
+ * Eleven stones: the way in (+z) stays open.
+ */
+export const INNER_RING = { count: 12, r: 9.4, skip: 3 };
+
+/** Twelve tall standing stones, an inner ring of lower ones, and three lintels. */
 export function stonesGeometry(): THREE.BufferGeometry {
   const { count, r, w, d } = SHRINE.stones;
   const parts: THREE.BufferGeometry[] = [];
@@ -232,11 +356,22 @@ export function stonesGeometry(): THREE.BufferGeometry {
     const a = stoneAngle(i);
     const h = stoneHeight(i);
     const [x, z] = onRing(a, r);
-    const lean = rng.range(-0.025, 0.025);
-    const s = jitterVerts(new THREE.BoxGeometry(w, h, d, 1, 3, 1), 0.07, rng).translate(0, h / 2, 0).rotateZ(lean);
-    parts.push(paint(s.rotateY(faceIn(a)).translate(x, 0, z), rng.pick(STONE), 0.12, rng));
-    // A rough footing block, half sunk.
-    parts.push(paint(new THREE.BoxGeometry(w + 0.5, 0.5, d + 0.4).rotateY(faceIn(a)).translate(x, 0.1, z), 0x8f846f, 0.1, rng));
+    const lean = rng.range(-0.045, 0.045);
+    const lean2 = rng.range(-0.03, 0.03);
+    const s = menhir(w * rng.range(0.86, 1.05), h, d * rng.range(0.9, 1.1), rng, rng.pick(GREYS)).rotateZ(lean).rotateX(lean2);
+    parts.push(s.rotateY(faceIn(a)).translate(x, -0.05, z));
+    for (const f of footing(w, d, rng)) parts.push(f.rotateY(faceIn(a)).translate(x, 0, z));
+  }
+  // Inner ring: shorter, slimmer, between the tall ones' angles.
+  for (let k = 0; k < INNER_RING.count; k++) {
+    if (k === INNER_RING.skip) continue;
+    const rng = new Rng(500 + k);
+    const a = (k / INNER_RING.count) * Math.PI * 2;
+    const h = rng.range(2.1, 3.3);
+    const [x, z] = onRing(a, INNER_RING.r + rng.range(-0.15, 0.15));
+    const s = menhir(0.95, h, 0.65, rng, rng.pick(GREYS)).rotateZ(rng.range(-0.05, 0.05)).rotateX(rng.range(-0.04, 0.04));
+    parts.push(s.rotateY(faceIn(a)).translate(x, -0.05, z));
+    for (const f of footing(0.8, 0.5, rng, false)) parts.push(f.rotateY(faceIn(a)).translate(x, 0, z));
   }
   const step = (Math.PI * 2) / count;
   const chord = 2 * r * Math.sin(step / 2);
@@ -244,8 +379,27 @@ export function stonesGeometry(): THREE.BufferGeometry {
     const rng = new Rng(400 + i);
     const mid = stoneAngle(i) + step / 2;
     const [x, z] = onRing(mid, r * Math.cos(step / 2) + 0.15);
-    const lintel = jitterVerts(new THREE.BoxGeometry(chord + 1.3, 0.7, d + 0.1, 3, 1, 1), 0.06, rng);
-    parts.push(paint(lintel.rotateY(faceIn(mid)).translate(x, stoneHeight(i) + 0.33, z), 0x9e927d, 0.1, rng));
+    const lintel = jitterVerts(new THREE.BoxGeometry(chord + 1.3, 0.75, d + 0.1, 4, 1, 1), 0.06, rng).translate(0, 0.375, 0);
+    parts.push(weather(lintel, 0x8b8981, 0.75, rng, 0.15).rotateY(faceIn(mid)).translate(x, stoneHeight(i) - 0.05, z));
+  }
+  return merge(parts);
+}
+
+/** The raised stepped platform of the stone-circle age: three round tiers (the totem stands on top). */
+export const PLATFORM_TOP = 0.95;
+export function platformGeometry(): THREE.BufferGeometry {
+  const rng = new Rng(61);
+  const parts: THREE.BufferGeometry[] = [];
+  const tiers: [number, number, number][] = [
+    [4.4, 0.45, 0xa09a8c],
+    [3.6, 0.7, 0xaaa496],
+    [2.8, PLATFORM_TOP, 0xb5ae9f],
+  ];
+  let y0 = -0.4;
+  for (const [rad, top, c] of tiers) {
+    const g = new THREE.CylinderGeometry(rad * 0.97, rad, top - y0, 14, 2).translate(0, (y0 + top) / 2, 0);
+    parts.push(weather(jitterVerts(g, 0.05, rng), c, top + 0.4, rng, 0.35).translate(0, 0, 0));
+    y0 = top - 0.02;
   }
   return merge(parts);
 }
@@ -301,9 +455,33 @@ export function plinthGeometry(): THREE.BufferGeometry {
 /** The pyramid's body (without its capstone), its masonry courses, and the pylon gate before it. */
 export function pyramidGeometry(): THREE.BufferGeometry {
   const rng = new Rng(52);
-  const parts: THREE.BufferGeometry[] = [frustum(P.hw, hwAt(CAP_Y), P.y, CAP_Y, SAND, 0.05, rng)];
-  // Courses: thin, slightly proud bands that give the faces their scale.
-  for (const y of [P.y + 1.8, P.y + 3.6, P.y + 5.3]) parts.push(frustum(hwAt(y) + 0.06, hwAt(y + 0.14) + 0.06, y, y + 0.14, SAND_DARK));
+  const parts: THREE.BufferGeometry[] = [];
+  // Stepped tiers of dressed sandstone: each a little battered (wider at the foot), the top of one set
+  // back from the foot of the next, lighter on its ledge and darker where it meets the tier below.
+  const TIERS = 7;
+  const tierH = (CAP_Y - P.y) / TIERS;
+  for (let i = 0; i < TIERS; i++) {
+    const y0 = P.y + i * tierH;
+    const y1 = y0 + tierH;
+    const bot = hwAt(y0) + 0.2;
+    const top = Math.max(hwAt(y1) - 0.1, 0.4);
+    const g = new THREE.CylinderGeometry(top * Math.SQRT2, bot * Math.SQRT2, tierH, 4, 2).rotateY(Math.PI / 4).translate(0, (y0 + y1) / 2, 0);
+    const ng = g.toNonIndexed();
+    const pos = ng.attributes.position as THREE.BufferAttribute;
+    if (!ng.attributes.uv) ng.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(pos.count * 2), 2));
+    const col = new Float32Array(pos.count * 3);
+    const base = new THREE.Color(i % 2 ? SAND : 0xd6b47c);
+    for (let k = 0; k < pos.count; k++) {
+      const t = (pos.getY(k) - y0) / tierH; // 0 foot .. 1 ledge
+      const n = 0.93 + rng.next() * 0.1;
+      _c.copy(base).multiplyScalar((0.8 + 0.28 * t) * n);
+      col[k * 3] = _c.r;
+      col[k * 3 + 1] = _c.g;
+      col[k * 3 + 2] = _c.b;
+    }
+    ng.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    parts.push(ng);
+  }
   // A flat platform where the capstone sits.
   parts.push(frustum(hwAt(CAP_Y) + 0.05, hwAt(CAP_Y) + 0.05, CAP_Y - 0.06, CAP_Y + 0.02, SAND_DARK));
   // The pylon gate: two tapering towers with a cornice, a lower middle with a dark doorway.
@@ -367,6 +545,12 @@ export function columnAngles(): number[] {
   return out;
 }
 
+/** The temple's steps: a stepped stylobate under the columns (stands from the start of the work). */
+export function stylobateGeometry(): THREE.BufferGeometry {
+  const rng = new Rng(73);
+  return merge([ring(9.55, 11.7, 0.1, 0.36, 48, 0xc9b78f, 0.04, rng), ring(9.85, 11.35, 0.36, 0.56, 48, 0xd6c6a0, 0.04, rng)]);
+}
+
 /** Column bases (they stand from the start of the work). */
 export function columnBasesGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
@@ -374,6 +558,7 @@ export function columnBasesGeometry(): THREE.BufferGeometry {
     const [x, z] = onRing(a, SHRINE.col.r);
     parts.push(box(1.15, SHRINE.col.base, 1.15, x, 0.15 + SHRINE.col.base / 2, z, MARBLE_SHADE));
   }
+  parts.push(stylobateGeometry());
   return merge(parts);
 }
 
@@ -397,7 +582,7 @@ export const SHAFT_Y0 = 0.15 + SHRINE.col.base;
 export function templeRingGeometry(): THREE.BufferGeometry {
   const { inner, outer, y, h } = SHRINE.ring;
   const rng = new Rng(72);
-  return merge([ring(inner, outer, y, y + h, 72, 0xefe6d2, 0.03, rng), ring(inner - 0.1, outer + 0.14, y + h, y + h + 0.14, 72, 0xf7f0e2, 0.02, rng)]);
+  return merge([ring(inner, outer, y, y + h, 72, 0xe6d6b0, 0.03, rng), ring(inner - 0.1, outer + 0.14, y + h, y + h + 0.14, 72, 0xf0e2bf, 0.02, rng)]);
 }
 
 /** Gold on the temple: the capitals and two bands round the ring. */
@@ -407,6 +592,8 @@ export function templeGoldGeometry(): THREE.BufferGeometry {
   for (const a of columnAngles()) {
     const [x, z] = onRing(a, SHRINE.col.r);
     parts.push(paint(new THREE.CylinderGeometry(0.72, 0.48, 0.42, 10).translate(x, top + 0.2, z), 0xffffff));
+    parts.push(paint(new THREE.CylinderGeometry(0.58, 0.58, 0.16, 10).translate(x, SHAFT_Y0 + 0.9, z), 0xffffff));
+    parts.push(paint(new THREE.ConeGeometry(0.34, 1.1, 8).translate(x, SHRINE.ring.y + SHRINE.ring.h + 0.72, z), 0xffffff));
   }
   const { outer, y, h } = SHRINE.ring;
   parts.push(ring(outer - 0.02, outer + 0.07, y + 0.02, y + 0.1, 72, 0xffffff));
@@ -423,6 +610,9 @@ export function orbitRingGeometry(r: number): THREE.BufferGeometry {
 }
 
 /** The soft column of light over the temple at night. */
+export function shaftGeometry(): THREE.BufferGeometry {
+  return new THREE.CylinderGeometry(0.1, 0.5, 34, 12, 1, true).translate(0, 17, 0);
+}
 export function beamGeometry(): THREE.BufferGeometry {
   return new THREE.CylinderGeometry(1.0, 0.35, 70, 16, 1, true).translate(0, 35, 0);
 }
@@ -696,7 +886,7 @@ export function muralPlanes(): { id: MuralId; geo: THREE.BufferGeometry }[] {
   return MURAL_PLACES.map(([face, id, y, w, h]) => {
     const geo = new THREE.PlaneGeometry(w, h);
     geo.rotateX(-tilt);
-    const d = hwAt(y) + 0.09;
+    const d = hwAt(y) + 0.3;
     geo.translate(0, y, d);
     geo.rotateY((face * Math.PI) / 2);
     return { id, geo };
