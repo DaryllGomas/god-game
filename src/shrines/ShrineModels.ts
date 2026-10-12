@@ -913,34 +913,35 @@ export function starSpriteTexture(): THREE.CanvasTexture {
   const C = S / 2;
   const { c, g } = canvas(S, S);
   const grd = g.createRadialGradient(C, C, 0, C, C, C);
-  grd.addColorStop(0, 'rgba(255,255,255,1)');
-  grd.addColorStop(0.08, 'rgba(255,250,235,0.95)');
-  grd.addColorStop(0.25, 'rgba(255,225,170,0.3)');
-  grd.addColorStop(1, 'rgba(255,200,120,0)');
+  grd.addColorStop(0, 'rgba(255,236,190,0.95)');
+  grd.addColorStop(0.1, 'rgba(255,214,140,0.6)');
+  grd.addColorStop(0.3, 'rgba(255,190,100,0.16)');
+  grd.addColorStop(1, 'rgba(255,170,80,0)');
   g.fillStyle = grd;
   g.fillRect(0, 0, S, S);
   g.globalCompositeOperation = 'lighter';
+  // Four short, soft points (fading well before the edge so no hard X reaches across the view).
   for (const [w, hh] of [
-    [5, 122],
-    [122, 5],
+    [3, 62],
+    [62, 3],
   ]) {
-    const lg = g.createRadialGradient(C, C, 0, C, C, 124);
-    lg.addColorStop(0, 'rgba(255,255,255,0.9)');
-    lg.addColorStop(1, 'rgba(255,255,255,0)');
+    const lg = g.createRadialGradient(C, C, 0, C, C, 64);
+    lg.addColorStop(0, 'rgba(255,225,160,0.4)');
+    lg.addColorStop(1, 'rgba(255,200,120,0)');
     g.fillStyle = lg;
     g.beginPath();
     g.ellipse(C, C, w, hh, 0, 0, Math.PI * 2);
     g.fill();
   }
-  // Two orbit rings, crossing.
-  g.lineWidth = 2.2;
+  // Two faint orbit rings, crossing, kept well inside the sprite.
+  g.lineWidth = 1.6;
   for (const [rot, alpha] of [
-    [0.42, 0.75],
-    [-0.5, 0.6],
+    [0.42, 0.32],
+    [-0.5, 0.26],
   ]) {
-    g.strokeStyle = `rgba(255,222,160,${alpha})`;
+    g.strokeStyle = `rgba(255,214,150,${alpha})`;
     g.beginPath();
-    g.ellipse(C, C, S * 0.3, S * 0.11, rot, 0, Math.PI * 2);
+    g.ellipse(C, C, S * 0.22, S * 0.08, rot, 0, Math.PI * 2);
     g.stroke();
   }
   const t = new THREE.CanvasTexture(c);

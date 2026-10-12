@@ -10,7 +10,7 @@ const RING_R = 16;
 const STONES = 9;
 const STONE_R = 7.7;
 
-const SHAFT_H = 20;
+const SHAFT_H = 30;
 
 const ringShader = {
   vertexShader: /* glsl */ `
@@ -57,22 +57,32 @@ const ringShader = {
 const shaftShader = {
   vertexShader: /* glsl */ `
     varying vec3 vL;
-    void main() { vL = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    varying float vFace;
+    void main() {
+      vL = position;
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vec3 n = mat3(modelMatrix) * normal;
+      vec3 v = cameraPosition - wp.xyz;
+      // How squarely the wall faces the eye: 1 at the middle of the column, 0 at its silhouette edge (guarded: no NaN).
+      vFace = abs(dot(n, v)) / max(length(n) * length(v), 1e-4);
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
   `,
   fragmentShader: /* glsl */ `
     uniform float uTime, uGlow;
     varying vec3 vL;
+    varying float vFace;
     void main() {
       float h = clamp(vL.y / ${SHAFT_H.toFixed(1)}, 0.0, 1.0);
-      float r = length(vL.xz);
-      float w = mix(1.5, 3.4, h);
-      float core = exp(-pow(r / (w * 0.5), 2.0));
-      float streak = 0.85 + 0.15 * sin(atan(vL.z, vL.x + 1e-4) * 5.0 + vL.y * 0.4 - uTime * 0.6);
-      float fade = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.35, 1.0, h));
-      float breath = 0.85 + 0.15 * sin(uTime * 0.8 + 1.0);
-      float v = core * streak * fade * breath * uGlow * 1.3;
+      // A soft-edged column: bright down the middle, melting away at the sides (the wall itself is never a hard line).
+      float core = pow(clamp(vFace, 0.0, 1.0), 1.5);
+      float streak = 0.88 + 0.12 * sin(atan(vL.z, vL.x + 1e-4) * 5.0 + vL.y * 0.4 - uTime * 0.6);
+      float fade = smoothstep(0.0, 0.08, h) * pow(clamp(1.0 - h, 0.0, 1.0), 1.4);
+      float breath = 0.88 + 0.12 * sin(uTime * 0.8 + 1.0);
+      float v = core * streak * fade * breath * uGlow * 1.7;
       if (!(v > 0.002)) discard;
-      gl_FragColor = vec4(vec3(1.0, 0.8, 0.45) * v, v);
+      v = min(v, 1.7);
+      gl_FragColor = vec4(vec3(1.0, 0.7, 0.26) * v, v);
     }
   `,
 };
@@ -136,7 +146,8 @@ export function install(game: Game): GamePlugin {
       group.add(ring);
 
       const sMat = glowMat(shaftShader, THREE.DoubleSide);
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 1.5, SHAFT_H, 20, 1, true).translate(0, SHAFT_H / 2, 0), sMat);
+      sMat.polygonOffset = false; // a free-standing column: plain depth test, no bias
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 1.6, SHAFT_H, 24, 8, true).translate(0, SHAFT_H / 2, 0), sMat);
       shaft.position.copy(p);
       shaft.renderOrder = 3;
       shaft.frustumCulled = false;
@@ -193,7 +204,7 @@ export function install(game: Game): GamePlugin {
         const glow = (0.5 + 0.9 * faith) * (0.9 + 0.5 * (1 - day));
         for (const m of [h.ringMat, h.shaftMat]) {
           m.uniforms.uTime.value = t;
-          m.uniforms.uGlow.value = glow;
+          m.uniforms.uGlow.value = m === h.shaftMat ? glow * (1 - 0.4 * (1 - day)) : glow; // the column reads strongest by day, calmer at night
         }
         const pp = h.v.worship.pos;
         const arr = h.motes.geometry.getAttribute('position') as THREE.BufferAttribute;

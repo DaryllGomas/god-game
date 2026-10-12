@@ -12,12 +12,12 @@ const TAIL = 0.34;
 /** Thickness of the bright thread and of its soft glow, and the size of the star at its head (metres, at 300 m away; scaled with distance). */
 const CORE = 0.45;
 const HALO = 2.6;
-const HEAD = 22;
+const HEAD = 9;
 /** The whole path stays at least this high over the land (metres). */
 const CLEARANCE = 18;
 /** Gold tail, white-hot head (linear HDR, so the bloom picks it up). */
 const GOLD = new THREE.Color(1.7, 1.05, 0.42);
-const WHITE = new THREE.Color(2.2, 2.1, 1.9);
+const WHITE = new THREE.Color(1.5, 1.1, 0.55);
 
 interface Streak {
   t: number;
