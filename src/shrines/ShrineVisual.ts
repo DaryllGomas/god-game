@@ -5,8 +5,15 @@ import { clamp, smoothstep } from '../util/math';
 import { LAYOUT, stageIndex, type ShrineStage } from './stages';
 import {
   CAPSTONE_Y,
+  PLATFORM_TOP,
   SHRINE,
   SHRINE_BEAM,
+  SHRINE_CAP,
+  SHRINE_GLOW,
+  SHRINE_SHAFT,
+  platformGeometry,
+  glowGeometry,
+  shaftGeometry,
   SHRINE_GOLD,
   SHRINE_SUN,
   beamGeometry,
@@ -72,6 +79,9 @@ function buildGeometry() {
     orbitB: orbitRingGeometry(3.3),
     sun: new THREE.SphereGeometry(0.7, 16, 12),
     beam: beamGeometry(),
+    shaft: shaftGeometry(),
+    glow: glowGeometry(),
+    platform: platformGeometry(),
     murals: muralPlanes(),
   };
 }
@@ -100,6 +110,9 @@ export class ShrineVisual {
   private readonly orbitA: THREE.Mesh;
   private readonly orbitB: THREE.Mesh;
   private readonly beam: THREE.Mesh;
+  private readonly shaft: THREE.Mesh;
+  private readonly glow: THREE.Mesh;
+  private readonly platform: THREE.Mesh;
   private readonly muralMats: THREE.MeshStandardMaterial[] = [];
   private readonly friezeMat: THREE.MeshStandardMaterial;
 
@@ -118,7 +131,8 @@ export class ShrineVisual {
     this.courtPaved = sharedMesh(G.courtPaved, MAT.base);
     this.inlay = sharedMesh(G.inlay, SHRINE_GOLD, false);
     this.stones = new THREE.Group();
-    this.stones.add(sharedMesh(G.stones, MAT.base), sharedMesh(G.stoneGlyphs, SHRINE_GOLD, false));
+    this.platform = sharedMesh(G.platform, MAT.base);
+    this.stones.add(sharedMesh(G.stones, MAT.base), sharedMesh(G.stoneGlyphs, SHRINE_GOLD, false), this.platform);
 
     this.pyramid = new THREE.Group();
     this.pyramid.add(
@@ -135,7 +149,12 @@ export class ShrineVisual {
       mesh.renderOrder = 2;
       this.pyramid.add(mesh);
     }
-    this.capstone = sharedMesh(G.capstone, SHRINE_GOLD);
+    this.capstone = sharedMesh(G.capstone, SHRINE_CAP, false);
+    this.glow = new THREE.Mesh(G.glow, SHRINE_GLOW);
+    this.glow.frustumCulled = false;
+    this.glow.renderOrder = 3;
+    this.shaft = new THREE.Mesh(G.shaft, SHRINE_SHAFT);
+    this.shaft.frustumCulled = false;
 
     this.temple = new THREE.Group();
     this.friezeMat = muralMaterial(friezeTexture());
@@ -160,7 +179,7 @@ export class ShrineVisual {
     this.beam.frustumCulled = false;
     this.temple.add(this.crown, this.beam);
 
-    this.group.add(this.totemFloor, this.totem, this.courtEarth, this.courtPaved, this.inlay, this.stones, this.pyramid, this.capstone, this.temple);
+    this.group.add(this.totemFloor, this.totem, this.courtEarth, this.courtPaved, this.inlay, this.stones, this.pyramid, this.capstone, this.glow, this.shaft, this.temple);
     this.show(false);
   }
 
@@ -215,12 +234,17 @@ export class ShrineVisual {
     const i = stageIndex(this.stage);
     this.totemFloor.visible = i === 0;
     this.totem.visible = i <= 1;
+    // On the stone circle's raised platform; on the bare earth before it.
+    this.totem.position.y = i === 1 ? PLATFORM_TOP : 0;
+    this.platform.visible = i === 1;
     this.courtEarth.visible = i === 1;
     this.courtPaved.visible = i >= 2;
     this.inlay.visible = i >= 2;
     this.stones.visible = i >= 1;
     this.pyramid.visible = i >= 2;
     this.capstone.visible = i >= 2;
+    this.glow.visible = i >= 2;
+    this.shaft.visible = i === 2;
     this.temple.visible = i >= 3;
     if (!animating) {
       this.stones.position.y = 0;
@@ -235,6 +259,8 @@ export class ShrineVisual {
   private placeCapstone(k: number) {
     const y = CAPSTONE_Y + (SHRINE.crown.cap - CAPSTONE_Y) * smoothstep(0, 1, k);
     this.capstone.position.y = y;
+    this.glow.position.y = y + 0.5;
+    this.shaft.position.y = y + SHRINE.pyr.cap;
   }
 
   /** Per rendered frame (real seconds): the arrivals, the crown turning, the beam at night. */
@@ -274,7 +300,7 @@ export class ShrineVisual {
       this.crown.position.y = SHRINE.crown.cap + Math.sin(this.t * 0.8) * 0.12;
       this.orbitA.rotation.set(1.2 + Math.sin(this.t * 0.3) * 0.08, this.t * 0.45, 0.35);
       this.orbitB.rotation.set(1.9, -this.t * 0.32, -0.4 + Math.cos(this.t * 0.27) * 0.08);
-      this.beam.visible = night > 0.05;
+      this.beam.visible = true;
       this.beam.scale.set(1, open, 1);
     }
   }
@@ -287,5 +313,9 @@ export class ShrineVisual {
 export function shrineGlow(night: number, t: number) {
   SHRINE_GOLD.emissiveIntensity = 0.22 + night * 0.95 + Math.sin(t * 1.3) * 0.03;
   SHRINE_SUN.emissiveIntensity = 1.8 + night * 1.6 + Math.sin(t * 2.1) * 0.25;
-  SHRINE_BEAM.uniforms.uOpacity.value = night * 0.42 * (0.85 + Math.sin(t * 0.7) * 0.15);
+  const pulse = 0.85 + Math.sin(t * 0.7) * 0.15;
+  SHRINE_BEAM.uniforms.uOpacity.value = (0.3 + night * 0.4) * pulse;
+  SHRINE_SHAFT.uniforms.uOpacity.value = (0.55 + night * 0.35) * pulse;
+  SHRINE_CAP.emissiveIntensity = 0.45 + night * 1.3 + Math.sin(t * 1.7) * 0.1;
+  SHRINE_GLOW.uniforms.uOpacity.value = 0.3 + night * 0.5 + Math.sin(t * 1.1) * 0.05;
 }
