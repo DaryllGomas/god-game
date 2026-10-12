@@ -3,6 +3,7 @@ import type { Terrain } from './Terrain';
 import { GROUND_NOISE_GLSL } from './groundNoise';
 import { WORLD_SIZE } from '../config';
 import { BALANCE_TINT, BALANCE_TINT_GLSL } from './balanceTint';
+import { LAND_SAMPLE_GLSL, LAND_UNIFORMS } from '../land/groundLook';
 
 // Tuning knobs.
 const CELL = 2.4; // metres per placement cell
@@ -73,6 +74,7 @@ export class Grass {
       uRadius: { value: HALF_CELLS * CELL },
       ...GRASS_SEASON,
       ...BALANCE_TINT,
+      ...LAND_UNIFORMS,
     };
 
     this.meshes.push(this.makeMesh(tuftGeometry(), TUFTS_PER_CELL, false), this.makeMesh(flowerGeometry(), FLOWERS_PER_CELL, true));
@@ -108,6 +110,7 @@ export class Grass {
           uniform float uWind;
           ${GROUND_NOISE_GLSL}
           ${BALANCE_TINT_GLSL}
+          ${LAND_SAMPLE_GLSL}
           vec2 hash22(vec2 p) {
             vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
             q += dot(q, q.yzx + 33.33);
@@ -142,6 +145,9 @@ export class Grass {
           // Keep/discard per tuft: ground type, mask, ring falloff (thinning outward, then gone).
           float keep = step(${BEACH_HEIGHT.toFixed(2)}, gy) * step(gy, ${MAX_HEIGHT.toFixed(1)}) * step(slope, ${MAX_SLOPE.toFixed(2)});
           keep *= step(r2.x, open * open);
+          // Paths and worn ground: no grass on the dirt, thinner where it is trampled.
+          vec4 lmk = landMask(xz);
+          keep *= step(0.72, 1.0 - lmk.r) * step(r2.x * 0.9, 1.0 - lmk.b * 0.85);
           keep *= step(r2.y * 0.85, 1.0 - smoothstep(uRadius * 0.3, uRadius, d));
           #if FLOWERS == 1
             // Meadows: flowers only where a slow noise says so, in drifts.
@@ -161,7 +167,7 @@ export class Grass {
           vec3 cool = vec3(0.78, 1.0, 0.95);
           vec3 tint = mix(cool, warm, smoothstep(0.3, 0.7, tone));
           #if FLOWERS == 0
-            vColor.rgb *= tint * (0.85 + 0.3 * r2.x);
+            vColor.rgb *= tint * (0.85 + 0.3 * r2.x) * (1.0 - 0.42 * lmk.g);
             // Season: shift the blade colour toward the season's, keeping root-to-tip shading.
             float bl = dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722));
             vColor.rgb = mix(vColor.rgb, uGrassTarget * (bl / 0.26), uGrassAmt);
@@ -266,7 +272,7 @@ export class Grass {
 /** Linear-RGB blade colour from root (br 0.5) to tip (br 1): deep green to sunlit yellow-green. */
 const bladeColour = (br: number): [number, number, number] => {
   const t = (br - 0.5) * 2;
-  return [0.07 + 0.2 * t, 0.2 + 0.32 * t, 0.04 + 0.07 * t];
+  return [0.06 + 0.13 * t, 0.14 + 0.19 * t, 0.03 + 0.035 * t];
 };
 
 /** A tuft: a fan of tapered blades, y in [0,1] along each blade. Vertex colour darkens toward the root. */
