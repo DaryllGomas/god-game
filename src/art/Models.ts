@@ -279,7 +279,7 @@ export function villagerParts(seed: number, tunic: number): VillagerParts {
   // Robes read clearly from the default view: keep the village's hue, push it deep and saturated, add a lighter trim.
   const hsl = { h: 0, s: 0, l: 0 };
   new THREE.Color(tunic).getHSL(hsl);
-  const tunicCol = new THREE.Color().setHSL(hsl.h, Math.max(hsl.s, 0.7), Math.min(0.46, Math.max(0.34, hsl.l)));
+  const tunicCol = new THREE.Color().setHSL(hsl.h, Math.max(hsl.s, 0.7), Math.min(0.4, Math.max(0.3, hsl.l)));
   tunicCol.multiplyScalar(rng.range(0.9, 1.1));
   const trimCol = new THREE.Color().setHSL(hsl.h, Math.max(0.55, hsl.s * 0.8), 0.74);
   const body = merge([

@@ -70,7 +70,7 @@ const shaftShader = {
       float streak = 0.85 + 0.15 * sin(atan(vL.z, vL.x + 1e-4) * 5.0 + vL.y * 0.4 - uTime * 0.6);
       float fade = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.35, 1.0, h));
       float breath = 0.85 + 0.15 * sin(uTime * 0.8 + 1.0);
-      float v = core * streak * fade * breath * uGlow * 0.55;
+      float v = core * streak * fade * breath * uGlow * 1.3;
       if (!(v > 0.002)) discard;
       gl_FragColor = vec4(vec3(1.0, 0.8, 0.45) * v, v);
     }
