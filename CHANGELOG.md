@@ -5,6 +5,10 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 ## [Unreleased]
 
 ### Added
+- Cloud shadows drift slowly across the island, over the ground, the woods and the villages alike.
+
+### Changed
+- The hills and mountains are grey-blue slate under the green instead of straw.
 - The land is lived in: worn dirt paths link each village's houses, fields and totem, roads run between the villages, and the ground has darker, warmer and mossy patches, trampled earth around buildings and darker ground under trees. Dense mixed woods, shrubs, flower clumps, boulders and a stony shore fill the island; the villages' own groves are thicker.
 
 
