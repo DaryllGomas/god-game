@@ -2,6 +2,7 @@ import { Game } from './Game';
 import { loadAssets } from './assets';
 import { preload as preloadCloud } from './cloud/Cloud';
 import { filmCamera, isFirstVisit, playIntro } from './intro/Intro';
+import { applyShot } from './shotMode'; // must load before isFirstVisit(): ?shot= skips the intro
 
 // A first visit opens on the intro (on black). The game is built behind it once the film is playing,
 // renders underneath the film, which dissolves into the live island; the camera then glides to the title view.
@@ -33,5 +34,6 @@ Promise.all([loadAssets(), preloadCloud(), started]).then(() => {
   // Handy for debugging from the console.
   (window as unknown as { game: Game }).game = game;
   if (first) cam.land(); // a first visit: the camera waits at the landing pose behind the film
+  applyShot(game); // ?shot=… (render box screenshots only)
   gameReady();
 });
