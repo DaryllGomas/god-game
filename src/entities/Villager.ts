@@ -355,8 +355,8 @@ export class Villager extends Entity {
           this.pose('work');
           t.t -= dt;
           if (t.t <= 0) {
-            this.carry('food', 3);
-            this.setTask({ type: 'deliver' });
+            v.store.deposit('food', 3);
+            t.t = FISH_TIME;
           }
         }
         break;
