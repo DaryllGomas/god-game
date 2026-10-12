@@ -73,6 +73,8 @@ export class SkinnedHand implements HandRig {
   private readonly halo: THREE.Sprite;
   /** Glow sprites: keep them out of the AO depth pre-pass (they'd show up as dark squares). */
   readonly aoIgnore: THREE.Object3D[] = [];
+  private readonly starTime = { value: 0 };
+  private readonly starAmt = { value: 1 };
   private grip = 0;
   private gripTarget = 0;
   private stroke = 0;
@@ -93,6 +95,7 @@ export class SkinnedHand implements HandRig {
       transparent: true,
     });
     this.nailMat = new THREE.MeshStandardMaterial({ color: NAIL, roughness: 0.3, transparent: true, side: THREE.DoubleSide });
+    this.addStarShimmer(this.skinMat);
 
     scene.scale.setScalar(MODEL_SCALE);
     this.tilt.add(scene);
@@ -144,6 +147,63 @@ export class SkinnedHand implements HandRig {
     this.halo.position.set(0, 0.35, 0);
     this.aoIgnore.push(...this.tipGlows, ...this.mists.map((w) => w.s), this.halo);
     this.setAppearance(0, false);
+  }
+
+  /**
+   * The starry shimmer: a sparse field of tiny twinkling points inside the skin (fixed in the hand's own
+   * space, so they travel with it and drift slowly up the fingers) plus a cool fresnel edge glow.
+   * Everything is clamped; twinkles breathe at under 1 Hz so nothing strobes.
+   */
+  private addStarShimmer(m: THREE.MeshPhysicalMaterial) {
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uStarTime = this.starTime;
+      sh.uniforms.uStarAmt = this.starAmt;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vStarPos;')
+        .replace('#include <skinning_vertex>', '#include <skinning_vertex>\nvStarPos = transformed;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+varying vec3 vStarPos;
+uniform float uStarTime; uniform float uStarAmt;
+float sh31(vec3 p){ p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+vec3 starField(vec3 p, float t, float dens){
+  vec3 q = p * dens + vec3(0.0, -t * 0.18, 0.0);
+  vec3 id = floor(q); vec3 f = fract(q);
+  vec3 o = vec3(sh31(id + 1.7), sh31(id + 5.3), sh31(id + 9.1));
+  float d = length(f - (0.2 + 0.6 * o));
+  float tw = 0.55 + 0.45 * sin(t * (0.5 + 0.5 * o.x) + o.y * 40.0);
+  float on = step(0.4, sh31(id + 13.7));
+  float pt = exp(-d * d * 28.0) * on * tw;
+  vec3 col = mix(vec3(0.35, 0.62, 1.0), vec3(1.0, 0.82, 0.4), step(0.72, o.z));
+  return col * pt;
+}`,
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+{
+  float tt = uStarTime;
+  vec3 np = vStarPos;
+  float neb = 0.5 + 0.5 * sin(np.x * 4.0 + tt * 0.25) * sin(np.y * 5.0 - tt * 0.2) * sin(np.z * 3.5 + 1.3);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.2, 0.34, 0.82), clamp(neb * 0.5 * clamp(uStarAmt, 0.0, 1.0), 0.0, 0.5));
+}`,
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+{
+  float amt = clamp(uStarAmt, 0.0, 1.0);
+  vec3 sp = vStarPos;
+  vec3 stars = starField(sp, uStarTime, 3.0) * 3.2 + starField(sp + 7.3, uStarTime * 0.8, 6.0) * 2.0;
+  float fres = pow(1.0 - clamp(abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0), 2.0);
+  vec3 add = stars * 1.15 + vec3(0.3, 0.55, 1.0) * fres * 1.3;
+  totalEmissiveRadiance += clamp(add, 0.0, 3.0) * amt;
+}`,
+        );
+    };
+    m.customProgramCacheKey = () => 'starry-hand-v1';
   }
 
   private registerBone(bone: THREE.Bone) {
@@ -200,6 +260,7 @@ export class SkinnedHand implements HandRig {
     m.opacity = opacity;
     this.nailMat.opacity = opacity;
     m.depthWrite = !blocked;
+    this.starAmt.value = blocked ? 0.35 : 1;
     this.nailMat.depthWrite = !blocked;
     for (const mesh of this.meshes) {
       const i = mesh.morphTargetDictionary?.evil;
@@ -227,6 +288,7 @@ export class SkinnedHand implements HandRig {
   update(dt: number, swayX: number, swayZ: number) {
     this.t += dt;
     const t = this.t;
+    this.starTime.value = Number.isFinite(t) ? t % 600 : 0;
     this.swatT = Math.max(0, this.swatT - dt * 3.5);
     const swat = Math.sin(this.swatT * Math.PI);
     this.grip += (this.gripTarget - this.grip) * damp(14, dt);
