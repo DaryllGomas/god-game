@@ -27,6 +27,9 @@ const SMOKE_RATE = 1.5; // puffs per second per lived-in house
 const STUMP_CAP = 700;
 const STUMP_REGROW_DIST = 1.6;
 const MASS_REMOVAL = 8; // more trees than this vanishing in one scan = a reload, not felling
+/** Stumps rot away: quickly inside a village (it keeps its streets clear), slowly out in the woods (game seconds). */
+const STUMP_LIFE_VILLAGE = 240;
+const STUMP_LIFE_WILD = 1200;
 
 interface Stump {
   x: number;
@@ -34,6 +37,10 @@ interface Stump {
   s: number;
   yaw: number;
   charred: boolean;
+  /** game.time when felled. */
+  t: number;
+  /** The tree was carried or thrown: it was used (a gift, a project), not felled, so it leaves no stump. */
+  moved?: boolean;
 }
 
 export function install(game: Game): GamePlugin {
@@ -177,11 +184,12 @@ export function install(game: Game): GamePlugin {
       if (e.kind !== 'tree') continue;
       const t = e as Tree;
       const prev = seenTrees.get(t);
-      if (prev && !t.airborne && !t.held) {
+      if (prev) {
         prev.charred = t.charred;
+        if (t.airborne || t.held) prev.moved = true;
         now.set(t, prev);
       } else {
-        now.set(t, { x: t.pos.x, z: t.pos.z, s: 0.8 + t.growth * 1.1, yaw: (t.seed % 628) / 100, charred: t.charred });
+        now.set(t, { x: t.pos.x, z: t.pos.z, s: 0.8 + t.growth * 1.1, yaw: (t.seed % 628) / 100, charred: t.charred, t: 0, moved: t.airborne || t.held });
       }
     }
     const gone: Stump[] = [];
@@ -189,7 +197,8 @@ export function install(game: Game): GamePlugin {
     let dirty = false;
     if (primed && gone.length <= MASS_REMOVAL) {
       for (const st of gone) {
-        if (game.terrain.heightAt(st.x, st.z) < SEA_LEVEL + 0.4) continue;
+        if (st.moved || game.terrain.heightAt(st.x, st.z) < SEA_LEVEL + 0.4) continue;
+        st.t = game.time;
         if (stumps.length >= STUMP_CAP) stumps.shift();
         stumps.push(st);
         dirty = true;
@@ -207,6 +216,12 @@ export function install(game: Game): GamePlugin {
         stumps = keep;
         dirty = true;
       }
+    }
+    // Rot.
+    const kept = stumps.filter((st) => game.time - st.t < (game.villageAt(st.x, st.z) ? STUMP_LIFE_VILLAGE : STUMP_LIFE_WILD));
+    if (kept.length !== stumps.length) {
+      stumps = kept;
+      dirty = true;
     }
     seenTrees = now;
     primed = true;
@@ -304,12 +319,12 @@ export function install(game: Game): GamePlugin {
       }
       birds.update(game.realTime, game.sky.daylight, (x, z) => game.terrain.heightAt(x, z));
     },
-    save: () => stumps.slice(-STUMP_CAP).map((s) => [Math.round(s.x * 10) / 10, Math.round(s.z * 10) / 10, Math.round(s.s * 100) / 100, Math.round(s.yaw * 100) / 100, s.charred ? 1 : 0]),
+    save: () => stumps.slice(-STUMP_CAP).map((s) => [Math.round(s.x * 10) / 10, Math.round(s.z * 10) / 10, Math.round(s.s * 100) / 100, Math.round(s.yaw * 100) / 100, s.charred ? 1 : 0, Math.round(s.t)]),
     load: (data) => {
       if (!Array.isArray(data)) return;
       stumps = data
         .filter((r): r is number[] => Array.isArray(r) && r.length >= 5 && r.every((v) => Number.isFinite(v)))
-        .map(([x, z, s, yaw, ch]) => ({ x, z, s, yaw, charred: ch === 1 }));
+        .map(([x, z, s, yaw, ch, t]) => ({ x, z, s, yaw, charred: ch === 1, t: Number.isFinite(t) ? t : game.time }));
       flushStumps();
     },
   };
