@@ -5,10 +5,8 @@ import type { Villager } from './Villager';
 import { Entity, ownedMesh, sharedMesh } from './Entity';
 import {
   MAT,
-  fieldGeometry,
   flagGeometry,
   foodHeapGeometry,
-  houseGeometry,
   logStackGeometry,
   ruinsGeometry,
   scaffoldGeometry,
@@ -16,6 +14,8 @@ import {
 } from '../art/Models';
 import { ShrineVisual } from '../shrines/ShrineVisual';
 import type { ShrineStage } from '../shrines/stages';
+import { cottageGeometry } from '../art/Cottage';
+import { buildFieldMesh, setCropHeight, type FieldMesh } from '../art/FieldMesh';
 import { VILLAGE } from '../config';
 import { clamp } from '../util/math';
 
@@ -37,12 +37,19 @@ export class House extends Entity {
   private readonly scaffold: THREE.Mesh;
   private ruins: THREE.Mesh | null = null;
   readonly seed: number;
+  /** Chimney top in the house's local frame (where the smoke starts) and footprint size. */
+  readonly chimney: THREE.Vector3;
+  readonly footW: number;
+  readonly footD: number;
 
   constructor(village: Village, x: number, y: number, z: number, rotY: number, seed: number, built: boolean) {
     super();
     this.village = village;
     this.seed = seed;
-    const g = houseGeometry(seed);
+    const g = cottageGeometry(seed);
+    this.chimney = g.chimney;
+    this.footW = g.w;
+    this.footD = g.d;
     this.body = ownedMesh(g.body, MAT.base);
     this.windows = ownedMesh(g.windows, WINDOW_DARK, false);
     this.scaffold = sharedMesh(scaffoldGeo, MAT.base);
@@ -132,15 +139,11 @@ export class House extends Entity {
       if (this.ruinTimer > 30) this.village.removeHouse(game, this);
       return;
     }
-    const lit = game.sky.daylight < 0.55 && this.residents.some((r) => r.isInside);
+    // A lived-in home keeps its windows warm from late afternoon on (even with everyone out at work).
+    const lit = game.sky.daylight < 0.7 && this.complete && this.residents.length > 0;
     this.windows.material = lit ? WINDOW_LIT : WINDOW_DARK;
     if (this.complete && !this.burning && this.health < 1 && !game.sky.isNight) {
       this.health = Math.min(1, this.health + dt * 0.01);
-    }
-    if (this.complete && game.sky.daylight < 0.55 && this.residents.length > 0 && Math.random() < dt * 0.6) {
-      // Chimney smoke in the evening.
-      const a = this.object.rotation.y;
-      game.fx.smoke(this.pos.x + Math.cos(a) * 1.3, this.pos.y + 7.2, this.pos.z - Math.sin(a) * 1.3, 0.5, 0.55);
     }
   }
 
@@ -298,17 +301,25 @@ export class Field extends Entity {
   growth: number;
   readonly width = 11;
   readonly depth = 8;
-  private readonly crops: THREE.Mesh;
+  private crops: THREE.Mesh;
+  private soil: THREE.Mesh;
+  private mesh: FieldMesh | null = null;
+  private cropScale = 0.2;
+  private conformSig = NaN;
+  private conformTimer = 0;
   private readonly cropMat: THREE.MeshStandardMaterial;
   scorched = 0;
 
   constructor(village: Village, x: number, y: number, z: number, rotY: number, growth: number) {
     super();
     this.village = village;
-    const g = fieldGeometry(this.width, this.depth);
+    // Flat until the first update, which drapes the soil and rows over the real ground (conform).
+    const g = buildFieldMesh(this.width, this.depth, () => 0);
+    this.mesh = g;
     this.cropMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
     this.crops = ownedMesh(g.crops, this.cropMat);
-    this.object.add(ownedMesh(g.soil, MAT.base, false), this.crops);
+    this.soil = ownedMesh(g.soil, MAT.base, false);
+    this.object.add(this.soil, this.crops);
     this.object.rotation.y = rotY;
     this.pos.set(x, y, z);
     this.growth = growth;
@@ -357,12 +368,42 @@ export class Field extends Entity {
 
   private refresh() {
     const g = this.scorched > 0 ? 0.15 : this.growth;
-    this.crops.scale.set(1, 0.15 + g * 0.95, 1);
+    this.cropScale = 0.15 + g * 0.95;
+    if (this.mesh) setCropHeight(this.mesh, this.cropScale);
     this.cropMat.color.copy(CROP_YOUNG).lerp(CROP_RIPE, this.growth);
     if (this.scorched > 0) this.cropMat.color.setRGB(0.12, 0.1, 0.08);
   }
 
+  /** Terrain height at a local (lx, lz) point of the field, relative to the field origin. */
+  private groundAt(game: Game, lx: number, lz: number): number {
+    const a = this.object.rotation.y;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    return game.terrain.heightAt(this.pos.x + lx * c + lz * s, this.pos.z - lx * s + lz * c) - this.pos.y;
+  }
+
+  /** Re-drape the soil and crops over the terrain (when first seen, and if the land changes). */
+  private conform(game: Game) {
+    const hw = this.width / 2;
+    const hd = this.depth / 2;
+    const sig = this.groundAt(game, 0, 0) + this.groundAt(game, hw, hd) * 2 + this.groundAt(game, -hw, hd) * 3 + this.groundAt(game, hw, -hd) * 5 + this.groundAt(game, -hw, -hd) * 7;
+    if (Math.abs(sig - this.conformSig) < 0.02) return;
+    this.conformSig = sig;
+    const g = buildFieldMesh(this.width, this.depth, (lx, lz) => this.groundAt(game, lx, lz));
+    this.crops.geometry.dispose();
+    this.soil.geometry.dispose();
+    this.crops.geometry = g.crops;
+    this.soil.geometry = g.soil;
+    this.mesh = g;
+    setCropHeight(g, this.cropScale);
+  }
+
   update(game: Game, dt: number) {
+    this.conformTimer -= dt;
+    if (this.conformTimer <= 0) {
+      this.conformTimer = Number.isNaN(this.conformSig) ? 0.5 : 4;
+      this.conform(game);
+    }
     if (this.burning) return;
     if (this.scorched > 0) {
       this.scorched -= dt;
