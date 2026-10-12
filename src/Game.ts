@@ -48,6 +48,7 @@ export interface GamePlugin {
 }
 
 export class Game {
+  disciples!: import('./disciples/Jobs').Disciples;
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly terrain: Terrain;
