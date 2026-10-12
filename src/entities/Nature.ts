@@ -4,6 +4,7 @@ import { Entity, ownedMesh, sharedMesh } from './Entity';
 import { MAT, carriedGeometry, logStackGeometry, foodHeapGeometry, rockGeometry, treeGeometry } from '../art/Models';
 import { clamp } from '../util/math';
 import { assets } from '../assets';
+import { softenCanopy } from '../art/softCanopy';
 
 // ---------------------------------------------------------------------- tree
 
@@ -25,6 +26,7 @@ export function initTrees() {
   treeCache.length = 0;
   const groups = new Map<string, number[]>();
   set.forEach((t, i) => {
+    softenCanopy(t.geo, t.species); // OPUS pass: one soft volume per crown instead of flat facets
     treeCache.push({ geo: t.geo, height: t.height });
     if (!groups.has(t.species)) groups.set(t.species, []);
     groups.get(t.species)!.push(i);
@@ -41,7 +43,10 @@ export function initTrees() {
 
 export function treeVariant(i: number) {
   initTrees();
-  if (!treeCache[i]) treeCache[i] = treeGeometry(1000 + i * 7919);
+  if (!treeCache[i]) {
+    treeCache[i] = treeGeometry(1000 + i * 7919);
+    softenCanopy(treeCache[i].geo, 'oak');
+  }
   return treeCache[i];
 }
 
