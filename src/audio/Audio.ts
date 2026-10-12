@@ -1121,4 +1121,38 @@ export class Audio {
     notes.forEach((m, i) => this.bell(o, m, 4, 0.2, t + 2 + i * 0.55));
     this.duck(0.45, 12);
   }
+
+  private voiceManifest: Promise<Record<string, string>> | null = null;
+  private readonly voiceClips = new Map<string, Promise<AudioBuffer | null>>();
+
+  /** Exact text is the asset key; failed or missing recordings retain the musical chirp. */
+  async advisorClip(text: string): Promise<AudioBuffer | null> {
+    if (!this.ctx) return null;
+    this.voiceManifest ??= fetch(`${import.meta.env.BASE_URL}voice/manifest.json`)
+      .then((r) => r.ok ? r.json() : {}).catch(() => ({}));
+    const name = (await this.voiceManifest)[text];
+    if (!name || !/^(lumi|fizz)-[0-9a-f]{8}$/.test(name)) return null;
+    let clip = this.voiceClips.get(name);
+    if (!clip) {
+      clip = fetch(`${import.meta.env.BASE_URL}voice/${name}.mp3`)
+        .then(async (r) => r.ok ? this.ctx!.decodeAudioData(await r.arrayBuffer()) : null)
+        .catch(() => null);
+      this.voiceClips.set(name, clip);
+    }
+    return clip;
+  }
+
+  /** Dry speech stays clear, through the same SFX/master volume and mute as other effects. */
+  playAdvisorClip(clip: AudioBuffer): (() => void) | null {
+    const out = this.out(null, 1);
+    if (!out) return null;
+    const src = this.ctx!.createBufferSource();
+    src.buffer = clip;
+    src.connect(out);
+    src.onended = () => { src.disconnect(); out.disconnect(); };
+    src.start();
+    this.duck(0.3, clip.duration);
+    return () => { src.stop(); };
+  }
+
 }
