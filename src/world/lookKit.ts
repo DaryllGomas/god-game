@@ -12,7 +12,7 @@ import * as THREE from 'three';
  */
 export const LOOK = {
   /** Renderer tone-mapping exposure (ACES). */
-  exposure: 1.34,
+  exposure: 1.2,
 
   // ---- golden-hour light ----
   /** Sun colour at its warmest (low sun) and its coolest (high noon). */
@@ -41,7 +41,7 @@ export const LOOK = {
   /** Split tone: shadows pushed cool teal-blue, highlights pushed warm gold. */
   tintShadow: new THREE.Vector3(0.9, 0.98, 1.12),
   tintHigh: new THREE.Vector3(1.22, 1.04, 0.76),
-  saturation: 1.1,
+  saturation: 1.0,
   contrast: 1.1, // around mid grey (0.18 linear)
   vignette: 0.26,
 

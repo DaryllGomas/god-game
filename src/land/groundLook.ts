@@ -71,7 +71,7 @@ export const LAND_LOOK_GLSL = /* glsl */ `
 
   vec3 col = diffuseColor.rgb;
   float gw = bwl.x;
-  col *= mix(1.0, 0.8, gw); // deeper greens overall: the storyboard's meadows are mid-dark, not lime
+  col *= mix(1.0, 0.7, gw); col = mix(col, vec3(dot(col, vec3(0.3, 0.59, 0.11))) * vec3(0.92, 1.0, 0.62), gw * 0.3); // deeper, warmer greens overall: the storyboard's meadows are mid-dark, not lime
 
   // Large-scale meadow patches: deep green hollows, mossy lows, warm olive and yellow dry rises.
   col = mix(col, cDeep, gw * (1.0 - smoothstep(0.30, 0.55, big)) * 0.7);
