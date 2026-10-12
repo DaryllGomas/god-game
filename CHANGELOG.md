@@ -5,6 +5,9 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 ## [Unreleased]
 
 ### Added
+- Give villagers lasting jobs by setting them down at forests, fields, building sites, the shore or their prayer place. Builders fetch stone from nearby rocks; set them on open ground to release them.
+
+### Added
 - Cloud shadows drift slowly across the island, over the ground, the woods and the villages alike.
 
 ### Changed

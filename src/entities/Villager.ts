@@ -10,9 +10,13 @@ import { SEA_LEVEL, VILLAGE, VILLAGER } from '../config';
 import { angleLerp, damp } from '../util/math';
 import { rng } from '../util/rng';
 import { villagerName } from '../people/names';
+import { equipment } from '../disciples/Equipment';
+import { FISH_TIME, STONE_TRIP, WORK_RANGE, shoreNear, type Job } from '../disciples/Jobs';
 import { firstBornAt } from '../people/age';
 
 type Task =
+  | { type: 'fish'; target: THREE.Vector3; t: number }
+  | { type: 'quarry'; site: Site; target: THREE.Vector3; phase: 'fetch' | 'go' | 'work'; t: number }
   | { type: 'idle'; t: number }
   | { type: 'wander'; target: THREE.Vector3; t: number; arrived: boolean }
   | { type: 'eat'; t: number; arrived: boolean }
@@ -40,6 +44,9 @@ export class Villager extends Entity {
   village: Village;
   home: House | null = null;
   role: 'work' | 'worship' = 'work';
+  disciple: Job | null = null;
+  readonly jobPoint = new THREE.Vector3();
+  private readonly tools = equipment();
   hunger = rng.range(0, 0.4);
   dead = false;
   carrying: { kind: 'food' | 'wood'; amount: number } | null = null;
@@ -82,7 +89,8 @@ export class Villager extends Entity {
     this.carryMesh = sharedMesh(carriedFood, MAT.base);
     this.carryMesh.position.set(0, 2.25, 0);
     this.carryMesh.visible = false;
-    this.root.add(this.carryMesh);
+    this.root.add(this.carryMesh, ...Object.values(this.tools));
+    this.refreshEquipment();
     this.pos.set(x, 0, z);
   }
 
@@ -105,6 +113,55 @@ export class Villager extends Entity {
     this.legL.position.set(-0.15, 0.78, 0);
     this.legR.position.set(0.15, 0.78, 0);
     this.root.add(this.body, this.armL, this.armR, this.legL, this.legR);
+  }
+
+  setDisciple(job: Job | null, x = this.pos.x, z = this.pos.z) {
+    this.disciple = job;
+    this.jobPoint.set(x, 0, z);
+    this.role = job === 'worshipper' ? 'worship' : 'work';
+    this.setTask({ type: 'idle', t: 0 });
+    this.refreshEquipment();
+  }
+
+  private refreshEquipment() {
+    for (const [job, prop] of Object.entries(this.tools)) prop.visible = job === this.disciple;
+    this.tools.builder.visible = this.disciple === 'builder' && !this.carrying;
+  }
+
+  private discipleWork(game: Game): boolean {
+    const v = this.village;
+    const job = this.disciple;
+    if (!job || v.owner !== 'player') return false;
+    if (job === 'worshipper') this.setTask({ type: 'worship', dancing: false });
+    else if (job === 'fisher') {
+      const target = shoreNear(game, this.jobPoint.x, this.jobPoint.z);
+      if (target) this.setTask({ type: 'fish', target, t: FISH_TIME });
+      else this.idle(3);
+    } else if (job === 'farmer') {
+      const f = v.findRipeField(this) ?? v.fields.find(f => f.alive && !f.burning && !f.claimedBy);
+      if (f) {
+        this.setTask({ type: 'harvest', field: f, target: f.randomPoint(new THREE.Vector3()), working: false, t: 0 });
+        f.claimedBy = this.id;
+      } else this.idle(2);
+    } else {
+      const site = v.projectSite;
+      if (job === 'builder' && site && site.alive && !site.complete) {
+        const res = site.wantedFor(game, v);
+        if (res) this.setTask({ type: 'project', site, res, phase: 'fetch', t: 0 });
+        else if (site.open('stone') > 0) {
+          const rock = game.nearest('rock', this.pos.x, this.pos.z, WORK_RANGE, r => !r.held && !r.airborne && !r.rolling && game.terrain.heightAt(r.pos.x, r.pos.z) > SEA_LEVEL);
+          if (rock) this.setTask({ type: 'quarry', site, target: rock.pos.clone(), phase: 'fetch', t: 0 });
+          else this.idle(3);
+        } else this.idle(2);
+      } else {
+        const tree = v.findTree(game, this, true);
+        if (tree) {
+          this.setTask({ type: 'chop', tree, working: false, t: 0 });
+          tree.claimedBy = this.id;
+        } else this.idle(3);
+      }
+    }
+    return true;
   }
 
   get isInside(): boolean {
@@ -193,7 +250,10 @@ export class Villager extends Entity {
       if (this.task.type !== 'travel' && this.task.type !== 'panic') this.setTask({ type: 'travel', target: this.village.center.clone() });
     }
 
+    // Long-running work yields to the same meal routine, then resumes its assignment.
+    if (this.disciple && this.hunger > 0.7 && this.village.store.food >= 1 && !['eat', 'panic', 'stunned'].includes(this.task.type)) this.setTask({ type: 'eat', t: 1.6, arrived: false });
     this.runTask(game, dt);
+    this.refreshEquipment();
     this.object.position.copy(this.pos);
   }
 
@@ -223,14 +283,17 @@ export class Villager extends Entity {
   decide(game: Game) {
     const v = this.village;
     if (this.burning) return this.startPanic();
+    if (this.disciple && this.hunger > 0.62 && v.store.food >= 1) return this.setTask({ type: 'eat', t: 1.6, arrived: false });
     if (this.carrying) return this.setTask({ type: 'deliver' });
     if (this.lost) return this.idle(rng.range(2, 5));
 
     const dHome = Math.hypot(this.pos.x - v.center.x, this.pos.z - v.center.z);
-    if (dHome > v.radius * 2.2) return this.setTask({ type: 'travel', target: v.center.clone() });
+    if (!this.disciple && dHome > v.radius * 2.2) return this.setTask({ type: 'travel', target: v.center.clone() });
 
     if (this.hunger > 0.62 && v.store.food >= 1) return this.setTask({ type: 'eat', t: 1.6, arrived: false });
     if (this.hunger > 0.62) v.complain(game, 'food');
+
+    if (this.discipleWork(game)) return;
 
     if (!this.home) v.assignHome(this);
     if (game.sky.isNight && this.role !== 'worship') {
@@ -287,6 +350,33 @@ export class Villager extends Entity {
     const t = this.task;
     const v = this.village;
     switch (t.type) {
+      case 'fish':
+        if (this.moveTo(game, t.target, dt)) {
+          this.pose('work');
+          t.t -= dt;
+          if (t.t <= 0) {
+            v.store.deposit('food', 3);
+            t.t = FISH_TIME;
+          }
+        }
+        break;
+      case 'quarry':
+        if (!t.site.alive || t.site.complete || t.site.open('stone') <= 0) { this.idle(0.2); break; }
+        if (t.phase === 'fetch') {
+          if (this.moveTo(game, t.target, dt)) { t.phase = 'go'; t.t = 2; }
+        } else if (t.phase === 'go') {
+          this.pose('work');
+          t.t -= dt;
+          if (t.t <= 0) { t.phase = 'work'; t.t = 2.6; }
+        } else if (this.moveTo(game, t.site.approachPoint(v, this.pos, tmp), dt)) {
+          this.pose('work');
+          t.t -= dt;
+          if (t.t <= 0) {
+            t.site.deliver(game, v, 'stone', STONE_TRIP);
+            this.idle(0.3);
+          }
+        }
+        break;
       case 'idle':
         this.pose('idle');
         t.t -= dt;
@@ -364,7 +454,7 @@ export class Villager extends Entity {
 
       case 'harvest': {
         const f = t.field;
-        if (!f.alive || f.burning || (!f.ripe && !t.working)) {
+        if (!f.alive || f.burning || (!f.ripe && !t.working && this.disciple !== 'farmer')) {
           this.decide(game);
           break;
         }
@@ -378,6 +468,7 @@ export class Villager extends Entity {
         this.pose('work');
         t.t -= dt;
         if (t.t <= 0) {
+          if (!f.ripe && this.disciple === 'farmer') f.water(0.06);
           const food = f.harvest();
           if (food > 0) game.events.emit('fieldHarvested', { field: f, food });
           f.claimedBy = 0;
@@ -562,11 +653,13 @@ export class Villager extends Entity {
     if (!kind || amount <= 0) {
       this.carrying = null;
       this.carryMesh.visible = false;
+      this.refreshEquipment();
       return;
     }
     this.carrying = { kind, amount };
     this.carryMesh.geometry = kind === 'food' ? carriedFood : carriedWood;
     this.carryMesh.visible = true;
+    this.refreshEquipment();
   }
 
   /** Walk toward a point over the terrain. Returns true on arrival. */
@@ -691,6 +784,7 @@ export class Villager extends Entity {
         armSide = 0.9;
         break;
     }
+    if ((this.carrying || this.disciple === 'builder') && ['idle', 'walk', 'work'].includes(anim)) armL = armR = -1.25;
     this.legL.rotation.x = legSwing;
     this.legR.rotation.x = -legSwing;
     this.armL.rotation.set(armL, 0, -armSide);
@@ -761,6 +855,7 @@ export class Villager extends Entity {
     const old = this.village;
     old.removeVillager(this);
     this.leaveHome(game);
+    this.setDisciple(null);
     this.village = v;
     v.addVillager(this);
     game.events.emit('villagerJoined', { villager: this, village: v, from: old });

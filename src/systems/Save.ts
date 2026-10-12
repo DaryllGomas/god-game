@@ -1,5 +1,6 @@
 import type { Game } from '../Game';
 import { Pile, Rock, Tree } from '../entities/Nature';
+import { JOBS } from '../disciples/Jobs';
 import { Villager } from '../entities/Villager';
 import { Golem } from '../creature/Golem';
 import { MIRACLE_INFO, Orb } from '../miracles/Miracles';
@@ -27,8 +28,8 @@ const AUTOSAVE_MS = 60_000;
 /** The "Saved" toast shows at most this often (ms). */
 const TOAST_GAP = 45_000;
 
-/** [villageIndex, seed, x, z, hunger, health, homeHouseIndex, role (1 = worship), carry (0 none, 1 food, 2 wood), carryAmount] */
-type VillagerSave = [number, number, number, number, number, number, number, number, number, number];
+/** [villageIndex, seed, x, z, hunger, health, homeHouseIndex, role (1 = worship), carry (0 none, 1 food, 2 wood), carryAmount, optional job (1..5), jobX, jobZ] */
+type VillagerSave = [number, number, number, number, number, number, number, number, number, number, number?, number?, number?];
 
 export interface SaveData {
   version: number;
@@ -116,7 +117,7 @@ function validate(d: SaveData) {
     [d.rocks, 4],
     [d.piles, 4],
   ];
-  for (const [list, n] of rows) for (const row of list) if (!isArr(row) || row.length !== n || !row.every(isNum)) throw new Error('bad entity row');
+  for (const [list, n] of rows) for (const row of list) if (!isArr(row) || (row.length !== n && !(list === d.villagers && row.length === 13)) || !row.every(isNum)) throw new Error('bad entity row');
   for (const v of d.villages) {
     for (const h of v.houses) if (!isArr(h) || h.length !== 6 || !h.every(isNum)) throw new Error('bad house');
     for (const f of v.fields) if (!isArr(f) || f.length !== 5 || !f.every(isNum)) throw new Error('bad field');
@@ -150,7 +151,7 @@ export function serialize(game: Game): SaveData {
       if (p.dead || !p.alive) continue;
       const hi = p.home && !p.home.destroyed ? houses.indexOf(p.home) : -1;
       const c = p.carrying;
-      villagers.push([vi, p.seed, r2(p.pos.x), r2(p.pos.z), r2(p.hunger), r2(p.health), hi, p.role === 'worship' ? 1 : 0, c ? (c.kind === 'food' ? 1 : 2) : 0, c ? r2(c.amount) : 0]);
+      villagers.push([vi, p.seed, r2(p.pos.x), r2(p.pos.z), r2(p.hunger), r2(p.health), hi, p.role === 'worship' ? 1 : 0, c ? (c.kind === 'food' ? 1 : 2) : 0, c ? r2(c.amount) : 0, p.disciple ? JOBS.indexOf(p.disciple) + 1 : 0, r2(p.jobPoint.x), r2(p.jobPoint.z)]);
     }
   });
 
@@ -243,7 +244,7 @@ export function restoreWorld(game: Game, d: SaveData) {
   });
 
   let maxSeed = 0;
-  for (const [vi, seed, x, z, hunger, health, hi, role, carry, amount] of d.villagers) {
+  for (const [vi, seed, x, z, hunger, health, hi, role, carry, amount, job, jobX, jobZ] of d.villagers) {
     const village = game.villages[vi];
     if (!village) continue;
     const p = new Villager(village, x, z, seed);
@@ -251,6 +252,7 @@ export function restoreWorld(game: Game, d: SaveData) {
     p.hunger = hunger;
     p.health = health;
     p.role = role === 1 ? 'worship' : 'work';
+    if (job && JOBS[job - 1] && village.owner === 'player') p.setDisciple(JOBS[job - 1], jobX ?? x, jobZ ?? z);
     if (carry) p.carry(carry === 1 ? 'food' : 'wood', amount);
     village.addVillager(p);
     const house = village.houses[hi];

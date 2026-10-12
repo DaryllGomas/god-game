@@ -273,10 +273,10 @@ export class Village {
     return best;
   }
 
-  findTree(game: Game, v: Villager): Tree | null {
-    return game.nearest<Tree>('tree', v.pos.x, v.pos.z, this.radius * 2.4, (t) => {
+  findTree(game: Game, v: Villager, wide = false): Tree | null {
+    return game.nearest<Tree>('tree', v.pos.x, v.pos.z, wide ? 60 : this.radius * 2.4, (t) => {
       const tree = t as Tree;
-      return tree.mature && !tree.claimedBy && !tree.burning && !tree.held && !tree.airborne && this.contains(t.pos.x, t.pos.z, 2.6);
+      return tree.mature && !tree.claimedBy && !tree.burning && !tree.held && !tree.airborne && (wide ? Math.hypot(t.pos.x - this.center.x, t.pos.z - this.center.z) <= 60 : this.contains(t.pos.x, t.pos.z, 2.6));
     });
   }
 
@@ -337,7 +337,7 @@ export class Village {
 
   private assignRoles() {
     const frac = this.festival ? 1 : this.owner === 'player' ? this.worshipFraction : VILLAGE.neutralWorship;
-    const adults = this.villagers.filter((v) => !v.dead);
+    const adults = this.villagers.filter((v) => !v.dead && !v.disciple);
     const want = Math.round(adults.length * frac);
     // The best-fed go to worship; everyone else works.
     const sorted = [...adults].sort((a, b) => a.hunger - b.hunger);
@@ -347,6 +347,11 @@ export class Village {
       const worship = i < want && v.hunger < 0.6;
       v.role = worship ? 'worship' : 'work';
       if (worship) v.danceSlot = slot++;
+    }
+    for (const v of this.villagers) {
+      if (!v.disciple || v.dead) continue;
+      v.role = v.disciple === 'worshipper' ? 'worship' : 'work';
+      if (v.role === 'worship') v.danceSlot = slot++;
     }
     this.worshipperCount = slot;
   }
