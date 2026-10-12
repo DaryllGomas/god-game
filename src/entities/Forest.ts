@@ -4,6 +4,7 @@ import { assets } from '../assets';
 import { TREE_VARIANTS, initTrees, treeVariant, type Tree } from './Nature';
 import { BALANCE_TINT, BALANCE_TINT_GLSL } from '../world/balanceTint';
 import { TREE_TINTS } from '../land/palette';
+import { FOLIAGE_WIND } from '../art/softCanopy';
 
 const CAPACITY = 512;
 const WHITE = new THREE.Color(1, 1, 1);
@@ -27,8 +28,11 @@ const SPECIES_CODE: Record<string, number> = { oak: 0, pine: 1, birch: 2, blosso
 /** Per-vertex leaf recolouring and an up-facing snow dusting, on a copy of the shared base material. */
 export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
   const mat = MAT.base.clone();
+  // OPUS pass: smooth shading with the soft crown normals (art/softCanopy.ts) instead of flat facets. Shrubs and
+  // flowers share this material; their geometry is non-indexed with face normals, so they still look faceted.
+  mat.flatShading = false;
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, FOREST_SEASON, BALANCE_TINT, { uSpecies: { value: species } });
+    Object.assign(shader.uniforms, FOREST_SEASON, BALANCE_TINT, FOLIAGE_WIND, { uSpecies: { value: species } });
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -38,7 +42,10 @@ export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
         uniform float uBare;
         uniform float uBlossom;
         uniform float uSpecies;
+        uniform float uWindT;
         varying float vSnowK;
+        varying float vLeaf;
+        vec3 gSway = vec3(0.0);
         ${BALANCE_TINT_GLSL}`,
       )
       .replace(
@@ -76,12 +83,21 @@ export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
           leaf *= grad;
           vColor.rgb = mix(vColor.rgb, leaf * instanceColor.rgb, isLeaf);
           vColor.rgb = balanceTint(vColor.rgb, 0.4 + 0.6 * isLeaf);
+          vLeaf = isLeaf;
+          // OPUS pass: a slow sway in the crowns (more at the top, each tree on its own phase). Kept small (~0.15 m at
+          // the top of a full tree) so the unswayed shadow and AO passes never visibly disagree.
+          float hgt = max(position.y - 1.5, 0.0);
+          float ph = h * 6.2831 + ip.x * 0.05 + ip.z * 0.05;
+          float gust = 0.6 + 0.4 * sin(uWindT * 0.37 + ip.x * 0.013);
+          gSway = vec3(sin(uWindT * 1.3 + ph), 0.0, cos(uWindT * 1.05 + ph * 1.3)) * (0.022 * hgt * gust * isLeaf * (1.0 - 0.6 * uBare));
         }`,
-      );
+      )
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed += gSway;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float uSnowT;
-varying float vSnowK;`)
+varying float vSnowK;
+varying float vLeaf;`)
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
@@ -90,6 +106,24 @@ varying float vSnowK;`)
           float cover = smoothstep(0.2, 0.6, dot(normal, upV)) * uSnowT * vSnowK;
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.9, 0.97), cover * 0.85);
         }`,
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        #if NUM_DIR_LIGHTS > 0
+        {
+          // OPUS pass, leaves only: light through the crown. A backlit rim when you look toward the sun, and a wrapped
+          // terminator so the shadow side of a crown is lit a little past 90 degrees (leaves scatter, stone doesn't).
+          vec3 Ls = directionalLights[0].direction;
+          float ndl = dot(geometryNormal, Ls);
+          float back = pow(saturate(dot(-geometryViewDir, Ls)), 2.0);
+          float rim = pow(1.0 - saturate(dot(geometryNormal, geometryViewDir)), 2.0);
+          float wrapK = saturate((ndl + 0.55) / 1.55) - saturate(ndl);
+          vec3 trans = diffuseColor.rgb * directionalLights[0].color * RECIPROCAL_PI * (1.4 * back * rim + 0.45 * wrapK);
+          trans *= vec3(1.0, 1.05, 0.8); // light through leaves comes out yellow-green
+          if (trans.r == trans.r && trans.g == trans.g && trans.b == trans.b) reflectedLight.directDiffuse += vLeaf * max(trans, vec3(0.0));
+        }
+        #endif`,
       );
   };
   return mat;
