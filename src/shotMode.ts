@@ -29,8 +29,8 @@ export function applyShot(game: Game) {
   style.textContent = 'body > *:not(#app), #app > *:not(canvas) { visibility: hidden !important; }';
   document.head.appendChild(style);
   const stage = q.get('stage');
-  const g = game as unknown as { shrines?: { setStage?: (n: number) => void }; godCam: { target: { x: number; z: number }; setPose?: (p: object, instant: boolean) => void } };
-  if (stage != null) g.shrines?.setStage?.(Number(stage));
+  const g = game as unknown as { shrines?: { setStage?: (which: number, n: number) => void }; godCam: { target: { x: number; z: number }; setPose?: (p: object, instant: boolean) => void } };
+  if (stage != null) g.shrines?.setStage?.(0, Number(stage)); // village 0 = home
   const t = g.godCam.target;
   g.godCam.setPose?.({ x: t.x, z: t.z, distance: pose.distance, pitch: pose.pitch, yaw: 0.5 }, true);
 }
