@@ -56,6 +56,20 @@ export function install(game: Game): GamePlugin {
     }
     return { felled: Math.min(n, trees.length), sites };
   };
+  /** Test helper: put a field (or a house) at an exact spot, through game.add like the game does. */
+  debug.placeAt = (kind: 'field' | 'house', x: number, z: number, rot: number) => {
+    const home = game.villages[0];
+    const y = game.terrain.heightAt(x, z);
+    if (kind === 'field') {
+      const f = new Field(home, x, y, z, rot, 0.6);
+      home.fields.push(f);
+      game.add(f);
+    } else {
+      const h = new House(home, x, y, z, rot, 4242, true);
+      home.houses.push(h);
+      game.add(h);
+    }
+  };
   /** Test helper: drop houses and fields on real slopes (normal.y between lo and hi) near the home village, via game.add. */
   debug.stressSlopes = (n = 8, lo = 0.8, hi = 0.93) => {
     const home = game.villages[0];

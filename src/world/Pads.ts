@@ -17,7 +17,7 @@ import { footprintPoints, type Footprint } from './Terrain';
 export const padLog: { kind: string; x: number; z: number; range: number; taken: boolean; applied: boolean }[] = [];
 
 /** Largest height range under a footprint that we will level, by footprint size. */
-const MAX_RANGE_SMALL = 2.2;
+const MAX_RANGE_SMALL = 3.2;
 const MAX_RANGE_BIG = 3.5;
 
 /** What a flat pad must cover for this entity (null: nothing to level). */

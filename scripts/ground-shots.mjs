@@ -11,7 +11,7 @@ const ev=async x=>{const r=await send('Runtime.evaluate',{expression:x,awaitProm
 await send('Page.enable'); await send('Emulation.setDeviceMetricsOverride',{width:1920,height:1080,deviceScaleFactor:1,mobile:false});
 await send('Page.addScriptToEvaluateOnNewDocument',{source:"try{localStorage.setItem('godgame.intro.v1','1')}catch(e){}"});
 await send('Page.navigate',{url}); await sleep(8000);
-await ev('game.hud.toggleHelp(false)'); await sleep(2500);
+if (!process.env.KEEPHELP) await ev('game.hud.toggleHelp(false)'); await sleep(2500);
 if (prep) console.log('prep', await ev(prep));
 await sleep(2500);
 await ev(`document.querySelectorAll('body *').forEach(e=>{ if(e.tagName!=='CANVAS' && !e.querySelector('canvas')) e.style.visibility='hidden'; }); 1`);
