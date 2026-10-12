@@ -108,6 +108,25 @@ export const LAND_LOOK_GLSL = /* glsl */ `
   pc = mix(pc, cDirtDark, (1.0 - core) * 0.35);
   col = mix(col, pc, path * (1.0 - 0.8 * bwl.w));
 
+  // Sea cliffs: where the ground is steep and near the water the grass gives way to layered strata, a dark wet base
+  // and a grass lip above (v0.6 coast; colour only, the height field is untouched).
+  {
+    float cliffK = smoothstep(0.2, 0.42, slopeL) * (1.0 - smoothstep(9.0, 20.0, gy));
+    if (cliffK > 0.001) {
+      float yy = gy * 1.15 + gnoise(lp * 0.35) * 0.9;
+      float layer = floor(yy);
+      float lf = fract(yy);
+      float rnd = fract(sin(layer * 12.9898) * 43758.5453);
+      vec3 sA = pow(vec3(0.60, 0.54, 0.46), vec3(2.2));
+      vec3 sB = pow(vec3(0.42, 0.40, 0.41), vec3(2.2));
+      vec3 sC = pow(vec3(0.70, 0.60, 0.46), vec3(2.2));
+      vec3 rk = mix(mix(sA, sB, step(0.4, rnd)), sC, step(0.78, rnd));
+      rk *= 0.82 + 0.18 * smoothstep(0.0, 0.14, lf) * (1.0 - smoothstep(0.86, 1.0, lf));
+      rk = mix(rk, rk * vec3(0.45, 0.52, 0.6), 1.0 - smoothstep(0.2, 2.2, gy));
+      col = mix(col, rk, clamp(cliffK, 0.0, 1.0) * 0.92);
+    }
+  }
+
   diffuseColor.rgb = col;
 }
 `;

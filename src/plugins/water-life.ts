@@ -138,6 +138,7 @@ export function install(game: Game): GamePlugin {
       jetty.position.set(sx + ux * 1.5, SEA_LEVEL + 0.55, sz + uz * 1.5);
       jetty.rotation.y = Math.atan2(ux, uz);
       root.add(jetty);
+      (game as unknown as { waterJetty?: THREE.Vector3 }).waterJetty = new THREE.Vector3(sx + ux * 12, 0, sz + uz * 12);
       // Two boats a little off the end of the jetty, one at each side.
       const px = -uz, pz = ux;
       [[len + 6, 10, 0.4], [len + 12, -12, 2.1]].forEach(([fwd, side, ph], i) => {

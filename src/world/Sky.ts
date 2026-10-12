@@ -38,6 +38,10 @@ export class Sky {
         uHorizon: { value: new THREE.Color() },
         uSunDir: { value: new THREE.Vector3() },
         uSunGlow: { value: new THREE.Color() },
+        uTime: { value: 0 },
+        uGold: { value: 0 },
+        uCloud: { value: 0 },
+        uGoldCol: { value: new THREE.Color() },
       },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
@@ -52,12 +56,34 @@ export class Sky {
         uniform vec3 uHorizon;
         uniform vec3 uSunDir;
         uniform vec3 uSunGlow;
+        uniform float uTime;
+        uniform float uGold;
+        uniform float uCloud;
+        uniform vec3 uGoldCol;
         varying vec3 vDir;
+        float sh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float sn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(sh(i), sh(i + vec2(1.0, 0.0)), f.x), mix(sh(i + vec2(0.0, 1.0)), sh(i + vec2(1.0, 1.0)), f.x), f.y); }
+        float sfbm(vec2 p) { return sn(p) * 0.5 + sn(p * 2.03 + 7.1) * 0.25 + sn(p * 4.1 + 3.3) * 0.125 + sn(p * 8.3 + 1.7) * 0.0625; }
         void main() {
           float h = clamp(vDir.y, -0.2, 1.0);
           vec3 col = mix(uHorizon, uZenith, pow(smoothstep(-0.05, 0.9, h), 0.6));
           float s = max(dot(normalize(vDir), normalize(uSunDir)), 0.0);
           col += uSunGlow * (pow(s, 600.0) * 6.0 + pow(s, 12.0) * 0.35);
+          // Warm golden band hugging the horizon (it fades to the horizon colour at h=0 so the sea's edge still matches the fog).
+          float sunAz = max(dot(normalize(vec2(vDir.x, vDir.z) + 1e-4), normalize(vec2(uSunDir.x, uSunDir.z) + 1e-4)), 0.0);
+          float band = smoothstep(0.0, 0.025, vDir.y) * exp(-vDir.y * 5.5);
+          col = mix(col, uGoldCol, clamp(band * uGold * (0.55 + 0.45 * sunAz), 0.0, 1.0));
+          // Soft drifting clouds low in the sky, lit warm on the sun side and fading into the haze at the horizon.
+          if (vDir.y > 0.01 && vDir.y < 0.55 && uCloud > 0.001) {
+            vec2 cp = vDir.xz / (vDir.y + 0.12) * 0.7 + vec2(uTime * 0.012, uTime * 0.004);
+            float cd = sfbm(cp * vec2(1.0, 1.6));
+            float cov = smoothstep(0.36, 0.6, cd) * smoothstep(0.012, 0.06, vDir.y) * (1.0 - smoothstep(0.34, 0.6, vDir.y));
+            vec3 lit = mix(vec3(1.0, 0.96, 0.9), vec3(1.0, 0.82, 0.55), 0.4 + 0.6 * sunAz * uGold);
+            vec3 cl = mix(vec3(0.5, 0.46, 0.6), lit, smoothstep(0.42, 0.78, cd)); // darker belly, brighter tops
+            col = mix(col, cl, clamp(cov * uCloud * 0.9, 0.0, 1.0));
+          }
+          if (!(col.r == col.r) || !(col.g == col.g) || !(col.b == col.b)) col = uHorizon;
           gl_FragColor = vec4(col, 1.0);
           // No tone mapping: fog colour isn't tone-mapped either, so the horizon and
           // fogged distant land/sea must match exactly or the sea's edge shows.
@@ -92,6 +118,7 @@ export class Sky {
     this.group.add(this.stars);
     scene.add(this.group);
 
+
     this.sun = new THREE.DirectionalLight(0xffffff, 2.5);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -124,12 +151,16 @@ export class Sky {
     const zenith = new THREE.Color().copy(NIGHT_ZENITH).lerp(DAY_ZENITH, this.daylight);
     const horizon = new THREE.Color().copy(NIGHT_HORIZON).lerp(DAY_HORIZON, this.daylight);
     zenith.lerp(LOOK.zenithGold, golden * 0.75);
-    horizon.lerp(LOOK.horizonGold, golden * 0.6);
+    horizon.lerp(LOOK.horizonGold, golden * 0.8);
     zenith.lerp(DUSK_ZENITH, dusk * 0.5);
     horizon.lerp(DUSK_HORIZON, dusk * 0.7);
     this.domeMat.uniforms.uZenith.value.copy(zenith);
     this.domeMat.uniforms.uHorizon.value.copy(horizon);
     this.domeMat.uniforms.uSunDir.value.copy(this.sunDir);
+    this.domeMat.uniforms.uTime.value = (this.domeMat.uniforms.uTime.value as number) + 1 / 60;
+    this.domeMat.uniforms.uGold.value = clamp(golden * 0.95 + dusk * 0.3, 0, 1) * this.daylight;
+    this.domeMat.uniforms.uCloud.value = this.daylight;
+    (this.domeMat.uniforms.uGoldCol.value as THREE.Color).setRGB(1.0, 0.72, 0.4).lerp(DUSK_HORIZON, dusk * 0.4);
     this.domeMat.uniforms.uSunGlow.value.setRGB(1.0, 0.8, 0.55).multiplyScalar(smoothstep(-0.15, 0.05, elev));
     this.fog.color.copy(horizon);
     (this.stars.material as THREE.PointsMaterial).opacity = clamp(1 - this.daylight * 1.6, 0, 1);

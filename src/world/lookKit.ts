@@ -29,7 +29,7 @@ export const LOOK = {
   /** How golden the day is at noon (0..1); morning and late afternoon are always 1. */
   goldenAtNoon: 0.4,
   /** Horizon / zenith colours for the golden sky (peach haze, deep saturated blue like the storyboard). */
-  horizonGold: new THREE.Color('#f6c79a'),
+  horizonGold: new THREE.Color('#f8bf7e'),
   zenithGold: new THREE.Color('#2f6fcf'),
 
   // ---- atmosphere ----
