@@ -1,3 +1,4 @@
+import type * as THREE from 'three';
 import type { Game, GamePlugin } from '../Game';
 import { Pace } from '../pace/Pace';
 
@@ -13,7 +14,12 @@ export function install(game: Game): GamePlugin {
   return {
     name: 'pace',
     update: (dt) => pace.update(dt),
-    frame: (dt) => pace.frame(dt),
+    frame(dt) {
+      pace.frame(dt);
+      // Keep the marks and the light out of the ambient-occlusion pre-pass (see plugins/postfx.ts).
+      const ao = (game as unknown as { postfx?: { aoIgnore?: THREE.Object3D[] } }).postfx?.aoIgnore;
+      if (ao && !ao.includes(pace.group)) ao.push(pace.group);
+    },
     save: () => pace.save(),
     load: (d) => pace.load(d),
   };

@@ -20,9 +20,9 @@ const CHECK_MIN_BALANCE = 0.45;
 const CHECK_SHOW = 28;
 /** Distance of each mark from the home prayer place, floating height of its emblem, hit radius on the ground (m). */
 const MARK_DIST = 34;
-const MARK_HEIGHT = 9;
+const MARK_HEIGHT = 12;
 const MARK_HIT = 8.5;
-const MARK_SIZE = 15;
+const MARK_SIZE = 25;
 /** Camera heading the game starts on (same as BeliefRing). */
 const START_YAW = 0.5;
 
@@ -74,11 +74,11 @@ function emblem(kind: 'road' | 'hearth' | 'ora'): THREE.CanvasTexture {
     }
   } else {
     glow(126, 'rgba(255,200,110,A)', 0.4);
-    x.fillStyle = 'rgba(10,20,46,0.62)';
+    x.fillStyle = 'rgba(14,26,58,0.5)';
     x.beginPath();
     x.arc(0, 0, 92, 0, Math.PI * 2);
     x.fill();
-    for (const [r, w, a] of [[96, 7, 1], [110, 2, 0.6], [84, 1.5, 0.5]] as const) {
+    for (const [r, w, a] of [[96, 10, 1], [112, 3, 0.7], [82, 2, 0.6], [120, 1.5, 0.4]] as const) {
       x.strokeStyle = `rgba(255,211,122,${a})`;
       x.lineWidth = w;
       x.beginPath();
@@ -132,6 +132,8 @@ function emblem(kind: 'road' | 'hearth' | 'ora'): THREE.CanvasTexture {
 class Mark {
   readonly group = new THREE.Group();
   readonly sprite: THREE.Sprite;
+  private readonly halo: THREE.Sprite;
+  private readonly haloMat: THREE.SpriteMaterial;
   readonly ground: THREE.Mesh;
   readonly base = new THREE.Vector3();
   /** 0..1 how lit it is right now (hover, chosen). */
@@ -144,8 +146,13 @@ class Mark {
     this.sprite = new THREE.Sprite(this.mat);
     this.sprite.scale.set(MARK_SIZE, MARK_SIZE, 1);
     this.sprite.renderOrder = 9;
+    // An additive twin, brighter than white so it blooms.
+    this.haloMat = new THREE.SpriteMaterial({ map: this.mat.map, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending });
+    this.haloMat.color.setRGB(1.5, 1.25, 0.8);
+    this.halo = new THREE.Sprite(this.haloMat);
+    this.halo.renderOrder = 10;
     const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.22, 0.6, MARK_HEIGHT, 10, 1, true),
+      new THREE.CylinderGeometry(0.3, 0.9, MARK_HEIGHT, 10, 1, true),
       new THREE.MeshBasicMaterial({ color: 0xffd37a, transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
     );
     beam.position.y = MARK_HEIGHT / 2;
@@ -155,7 +162,7 @@ class Mark {
     this.ground.position.y = 0.3;
     this.ground.renderOrder = 8;
     this.sprite.position.y = MARK_HEIGHT + MARK_SIZE * 0.1;
-    this.group.add(this.ground, beam, this.sprite);
+    this.group.add(this.ground, beam, this.sprite, this.halo);
     this.group.traverse((o) => (o.frustumCulled = false));
   }
 
@@ -170,6 +177,9 @@ class Mark {
     this.sprite.position.y = MARK_HEIGHT + MARK_SIZE * 0.1 + bob;
     const s = MARK_SIZE * (1 + 0.1 * this.lit);
     this.sprite.scale.set(s, s, 1);
+    this.halo.scale.set(s, s, 1);
+    this.halo.position.copy(this.sprite.position);
+    this.haloMat.opacity = k * (0.3 + 0.55 * this.lit) * (0.85 + 0.15 * Math.sin(t * 2.4 + phase));
     this.mat.opacity = k * (0.55 + 0.45 * this.lit);
     this.gmat.opacity = k * (0.28 + 0.5 * this.lit);
     this.ground.scale.setScalar(1 + 0.06 * Math.sin(t * 2 + phase) + 0.12 * this.lit);
@@ -190,7 +200,7 @@ export class Pace {
   choice: PaceChoice | null = null;
   confirmed = false;
   checks = 0;
-  private readonly group = new THREE.Group();
+  readonly group = new THREE.Group();
   private readonly road = new Mark('road');
   private readonly hearth = new Mark('hearth');
   private readonly star: THREE.Sprite;
@@ -222,7 +232,7 @@ export class Pace {
     }
     this.star = new THREE.Sprite(new THREE.SpriteMaterial({ map: emblem('ora'), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
     this.star.renderOrder = 9;
-    this.star.scale.setScalar(MARK_SIZE * 1.15);
+    this.star.scale.setScalar(MARK_SIZE * 1.3);
     const cg = new THREE.CylinderGeometry(1, 1, 1, 36, 1, true);
     cg.translate(0, 0.5, 0);
     this.light = new THREE.Mesh(
@@ -271,9 +281,9 @@ export class Pace {
     game.renderer.domElement.addEventListener(
       'pointerdown',
       (e) => {
-        if (e.button !== 0 || !game.hand.valid) return;
+        if (e.button !== 0) return;
         const g = game.hand.ground;
-        if (this.marksUp() && !game.hand.held && this.touchAt(g.x, g.z)) {
+        if (game.hand.valid && this.marksUp() && !game.hand.held && this.touchAt(g.x, g.z)) {
           e.stopImmediatePropagation();
           return;
         }
@@ -474,7 +484,7 @@ export class Pace {
     put(this.road, -1);
     put(this.hearth, 1);
     const mid = home.worship.pos;
-    this.star.position.set(mid.x + fx * 4, g.terrain.surfaceAt(mid.x, mid.z) + MARK_HEIGHT + 14, mid.z + fz * 4);
+    this.star.position.set(mid.x + fx * 4, g.terrain.surfaceAt(mid.x, mid.z) + MARK_HEIGHT + 2, mid.z + fz * 4);
     (this.star.material as THREE.SpriteMaterial).rotation = t * 0.07;
     (this.star.material as THREE.SpriteMaterial).opacity = this.level * 0.9;
 

@@ -17,7 +17,7 @@ const SHRINE_ECHO = 0.7;
 const WAVE_WIDTH = 3;
 const WAVE_WIDTH_PER_DIST = 0.03;
 const PATH_WIDTH = 1.1;
-const PATH_WIDTH_PER_DIST = 0.0045;
+const PATH_WIDTH_PER_DIST = 0.008;
 /** Paths start from the ring (m at most from the source centre) and stop this far from the target totem. */
 const PATH_END_GAP = 17;
 const PATH_MIN_LEN = 26;
@@ -291,7 +291,7 @@ export class Reach {
       const a = (i / SEGMENTS) * Math.PI * 2;
       this.dirs.push({ x: Math.cos(a), z: Math.sin(a) });
     }
-    for (let k = 0; k < 2; k++) {
+    for (let k = 0; k < 3; k++) {
       const geo = stripGeometry(SEGMENTS);
       const uni = { uAlpha: { value: 0 }, uTime: { value: 0 }, uGold: { value: GOLD.clone() } };
       const mesh = new THREE.Mesh(
@@ -323,6 +323,7 @@ export class Reach {
       if (village.owner !== 'player') return;
       this.push(village, 'shrine', 1);
       this.push(village, 'shrine', 0.65, SHRINE_ECHO);
+      this.push(village, 'shrine', 0.4, SHRINE_ECHO * 2);
     });
     game.events.on('houseBuilt', ({ house }) => {
       if (game.realTime - this.lastHouse < 0.6) return;
