@@ -418,3 +418,47 @@
     width: calc(100vw - 28px);
   }
 }
+
+/* Tiny companions share the hand's space; speech floats above them, clear of the palm. */
+.adv-figure {
+  --adv: #bfe6ff;
+  --lean: 5deg;
+  position: absolute;
+  width: 72px;
+  height: 86px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -30%) scale(0.55);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.adv-figure.imp { --adv: #ff9d6b; --lean: -5deg; }
+.adv-figure.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.adv-avatar { filter: drop-shadow(0 0 12px var(--adv)); animation: adv-float 3s ease-in-out infinite; }
+.adv-avatar svg { display: block; width: 72px; height: 72px; position: relative; z-index: 1; }
+.adv-torso {
+  width: 30px;
+  height: 28px;
+  margin: -14px auto 0;
+  border-radius: 40% 40% 60% 60%;
+  background: linear-gradient(var(--adv), transparent);
+}
+.imp .adv-torso { border-radius: 35% 35% 70% 20%; transform: rotate(-12deg); }
+.adv-figure.talking .adv-avatar { animation: adv-bob 0.42s ease-in-out infinite; }
+.adv-figure.talking .adv-mouth { transform-box: fill-box; transform-origin: center; animation: adv-talk 0.22s ease-in-out infinite; }
+.adv-speech {
+  position: absolute;
+  bottom: 94px;
+  left: 50%;
+  width: min(250px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  text-shadow: 0 2px 4px #000, 0 0 10px #000, 0 0 18px #000;
+}
+.spirit .adv-speech { transform: translateX(-25%); }
+.imp .adv-speech { transform: translateX(-75%); }
+.adv-speech.show { opacity: 1; visibility: visible; }
+.adv-speech .adv-text { font-size: 14px; color: #fff5e5; }
+@keyframes adv-float { 50% { transform: translateY(-5px); } }
+@keyframes adv-bob { 50% { transform: translateY(-3px) rotate(var(--lean)) scale(1.035); } }
