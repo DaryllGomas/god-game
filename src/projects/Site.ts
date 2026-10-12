@@ -251,7 +251,7 @@ export class Site extends Entity {
     if (need <= 0 || res === 'stone') return 0;
     const rem = this.open(res) - (includeTransit ? this.inTransit(game, res) : 0);
     const spare = (res === 'wood' ? v.store.wood : v.store.food) - RESERVE[res];
-    return Math.floor(Math.min(CARRY, rem, spare));
+    return Math.floor(Math.min(CARRY, Math.ceil(rem - 0.01), spare)); // the last odd log counts too (was a 95% stall)
   }
 
   /** The material this village's next builder should carry, or null when nothing useful can be fetched. */
@@ -261,7 +261,7 @@ export class Site extends Entity {
     for (const res of ['wood', 'food'] as const) {
       const need = this.def.needs[res];
       if (need <= 0) continue;
-      if (this.loadFor(game, v, res) < 3) continue;
+      if (this.loadFor(game, v, res) < 1) continue;
       const score = this.open(res) / need + Math.random() * 0.1;
       if (score > bestScore) {
         bestScore = score;
@@ -374,7 +374,7 @@ export class Site extends Entity {
       if (e.kind === 'rock') amount = Math.max(4, Math.round(e.radius * e.radius * STONE_PER_ROCK_AREA));
       else if (e.kind === 'tree') {
         const t = e as unknown as { wood: number; charred: boolean };
-        if (t.charred || t.wood < 3) return;
+        if (t.charred || t.wood < 1) return;
         amount = Math.round(t.wood);
       } else amount = Math.round((e as unknown as { amount: number }).amount);
       if (amount <= 0) return;

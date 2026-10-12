@@ -198,6 +198,17 @@ export class PostFX {
           this.hidden.push(o);
         }
       }
+      // Sprites and glow cards (transparent, no depth write) would draw into the pre-pass as solid quads,
+      // which GTAO turns into dark rectangles (the golem's eye halos, the shrine/pace emblems).
+      scene.traverse((o) => {
+        if (!o.visible) return;
+        const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        const mat = Array.isArray(m) ? m[0] : m;
+        if ((o as THREE.Sprite).isSprite || (mat && mat.transparent && !mat.depthWrite)) {
+          o.visible = false;
+          this.hidden.push(o);
+        }
+      });
     };
     a._restoreVisibility = () => {
       restore();

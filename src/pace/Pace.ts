@@ -207,6 +207,8 @@ export class Pace {
   private holdUntilChosen = false;
   private offered = false;
   private offerAge = 0;
+  /** The first question's line has shown (or waited long enough): the marks may rise. */
+  private spoke = false;
   private wantCheck = false;
   private lastCheck = -1e9;
   private clock = 0;
@@ -454,7 +456,12 @@ export class Pace {
     }
     if (this.holdUntilChosen) {
       const showing = (g as unknown as { ora?: { state(): { showing: string | null } } }).ora?.state().showing;
-      if (this.offered && (showing === ORA_LINES.pace[0] || this.offerAge > 2.5)) this.showFor = Math.max(this.showFor, 1);
+      // Rise with Ora's line, not before it (Ora waits out a Lumi/Fizz card, and a silent orb reads as a glitch).
+      if (this.offered && !this.spoke) {
+        this.offerAge += dt;
+        if (showing === ORA_LINES.pace[0] || this.offerAge > 20) this.spoke = true;
+      }
+      if (this.spoke) this.showFor = Math.max(this.showFor, 1);
     }
     this.showFor = Math.max(0, this.showFor - (this.holdUntilChosen ? 0 : dt));
     this.goal = this.holdUntilChosen || this.showFor > 0 ? 1 : 0;
