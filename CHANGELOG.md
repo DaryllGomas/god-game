@@ -4,6 +4,15 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Changed
+- Crop fields now follow the ground: soil and rows lie on slopes instead of sinking into hills or floating.
+- Houses are storyboard cottages: stone footing, timber frame, steep shingled roof, stone chimney, shutters. Lived-in homes glow warm at dusk and send up wind-bent chimney smoke.
+
+### Added
+- Barrels, crates, fences and lantern posts around houses.
+- Stumps stay where trees fell or were taken, and give way when a tree regrows.
+- Gulls circle over the island.
+
 ### Added
 - **The intro lands in the game.** The film no longer ends on black: its last painting of the island dissolves into the live game, and the camera then glides down to your village before the title screen appears.
 - **The intro now plays with sound.** A first visit opens on black with one small, slowly breathing point of light; a click or any key touches it, the light fades and the film begins with its soundtrack. The game's own sound waits until the film ends, and a muted game keeps the film muted.
