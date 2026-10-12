@@ -2,7 +2,26 @@ import * as THREE from 'three';
 import type { Game } from '../Game';
 import type { Village } from '../village/Village';
 import { Entity } from '../entities/Entity';
-import { Pile, Rock } from '../entities/Nature';
+import { Pile, Rock, Tree } from '../entities/Nature';
+import type { Site } from '../projects/Site';
+import { STONE_PER_ROCK_AREA, type Res } from '../projects/defs';
+import { CHILD_DAYS, ageDays } from '../people/age';
+import { SEA_LEVEL } from '../config';
+import {
+  BAD_KEYS,
+  DEED_ALIGNMENT,
+  FRUIT_EVERY,
+  FRUIT_REGROW,
+  GOOD_INFO,
+  GOOD_KEYS,
+  GOOD_REWARD_MULT,
+  HARMLESS_START,
+  WATCH_GAIN,
+  WATCH_RANGE,
+  isGoodKey,
+  type BadKey,
+  type GoodKey,
+} from './Deeds';
 import { Field, type WorshipSite } from '../entities/Buildings';
 import { Villager } from '../entities/Villager';
 import { GolemModel, REST_POSE, type GolemPose } from './GolemModel';
@@ -10,7 +29,7 @@ import { angleLerp, clamp, damp, smoothstep } from '../util/math';
 import { rng } from '../util/rng';
 
 /** Things the golem can learn to like or dislike. */
-export type LearnKey = 'eat:food' | 'eat:crops' | 'eat:villager' | 'eat:rock' | 'throw:rock';
+export type LearnKey = BadKey | GoodKey;
 
 export const LEARN_LABELS: Record<LearnKey, string> = {
   'eat:food': 'Eating food piles',
@@ -18,21 +37,32 @@ export const LEARN_LABELS: Record<LearnKey, string> = {
   'eat:villager': 'Eating villagers',
   'eat:rock': 'Eating rocks',
   'throw:rock': 'Throwing rocks',
+  ...(Object.fromEntries(GOOD_KEYS.map((k) => [k, GOOD_INFO[k].icon])) as Record<GoodKey, string>),
 };
 
-export const LEARN_KEYS = Object.keys(LEARN_LABELS) as LearnKey[];
+/** The old habits (the panel's first group). */
+export const LEARN_KEYS: LearnKey[] = [...BAD_KEYS];
+export { GOOD_KEYS };
+const ALL_KEYS: LearnKey[] = [...BAD_KEYS, ...GOOD_KEYS];
 
 // Tuning
 const START_SIZE = 1.5;
 const MAX_SIZE = 2.6;
-const HUNGER_RATE = 1 / 220; // per second awake
-const SLEEP_HUNGER_RATE = 1 / 600;
+const HUNGER_RATE = 1 / 380; // per second awake: slower, so it isn't pushed to steal food
+const SLEEP_HUNGER_RATE = 1 / 900;
 const TIRE_RATE = 1 / 330;
 const REST_RATE = 1 / 35;
 /** A stroke or slap within this many seconds still counts toward the last thing it did. */
 const MEMORY_WINDOW = 10;
 const WALK_SPEED = 2.6;
 const LOOK_RANGE = 45;
+/** Base desire for a good deed it has no opinion of yet, and how much each point of opinion adds. */
+const DEED_BASE = 0.18;
+const DEED_GAIN = 1.0;
+/** Seconds after being led somewhere during which deeds there are favoured. */
+const GUIDE_WINDOW = 8;
+const GUIDE_RADIUS = 30;
+const MAX_TREES = 470;
 
 type Food = Pile | Field | Villager | Rock;
 type Action =
@@ -41,6 +71,15 @@ type Action =
   | { kind: 'goto'; target: THREE.Vector3; t: number }
   | { kind: 'eat'; key: LearnKey; target: Food; phase: 'go' | 'grab' | 'lift' | 'chew'; t: number }
   | { kind: 'throw'; rock: Rock; phase: 'go' | 'grab' | 'windup' | 'fling' | 'recover'; t: number }
+  | { kind: 'haul'; item: Rock | Pile; site: Site; res: Res; phase: 'go' | 'grab' | 'carry' | 'drop'; t: number }
+  | { kind: 'plant'; tree: Tree | null; target: THREE.Vector3; phase: 'go' | 'work'; t: number }
+  | { kind: 'fire'; target: Entity; phase: 'go' | 'stomp'; t: number }
+  | { kind: 'rescue'; who: Villager; phase: 'go' | 'grab' | 'carry'; t: number }
+  | { kind: 'play'; who: Villager; phase: 'go' | 'play'; t: number }
+  | { kind: 'guard'; who: Villager; t: number }
+  | { kind: 'fruit'; tree: Tree; phase: 'go' | 'shake' | 'eat'; t: number }
+  | { kind: 'fish'; spot: THREE.Vector3; face: number; phase: 'go' | 'wait' | 'catch'; t: number }
+  | { kind: 'leash'; t: number }
   | { kind: 'sleep'; t: number }
   | { kind: 'hurt'; t: number }
   | { kind: 'cheer'; t: number };
@@ -71,7 +110,17 @@ export class Golem extends Entity {
     'eat:villager': 0.15,
     'eat:rock': 0.2,
     'throw:rock': 0.25,
+    'deed:haul': 0,
+    'deed:plant': 0,
+    'deed:fire': 0,
+    'deed:rescue': 0,
+    'deed:play': 0,
+    'deed:guard': 0,
+    'eat:fruit': HARMLESS_START,
+    'eat:fish': HARMLESS_START,
   };
+  /** 0..1: how much it trusts your hand. Grows when you feed it; makes it keener on good deeds. */
+  bond = 0;
   thought = 'Waking up';
   action: Action = { kind: 'idle', t: 2 };
 
@@ -94,6 +143,19 @@ export class Golem extends Entity {
   private readonly target: GolemPose = { ...REST_POSE };
   private readonly eye = new THREE.Vector3();
   private lastStep = 0;
+  /** Something the hand just did that it is glancing at. */
+  private curious: { pos: THREE.Vector3; t: number } | null = null;
+  private readonly watchedAt = new Map<LearnKey, number>();
+  /** The leash: where the held hand points, and how long it stays fresh. */
+  private leashPt = new THREE.Vector3();
+  private leashT = 0;
+  private guided: { x: number; z: number; t: number } | null = null;
+  private readonly fruitReady = new WeakMap<Tree, number>();
+  /** Food the hand put down for it. */
+  private readonly handFed = new WeakSet<Entity>();
+  private guardCheck = 0;
+  /** When each good deed was last finished: a deed it just did is less tempting (so it doesn't do one thing forever). */
+  private readonly doneAt = new Map<GoodKey, number>();
 
   constructor(home: Village, x: number, z: number) {
     super();
@@ -121,10 +183,11 @@ export class Golem extends Entity {
       size: this.size,
       meals: this.meals,
       opinions: { ...this.opinions },
+      bond: this.bond,
     };
   }
 
-  loadState(s: ReturnType<Golem['saveState']>) {
+  loadState(s: Omit<ReturnType<Golem['saveState']>, 'bond'> & { bond?: number }) {
     this.yaw = s.yaw;
     this.hunger = s.hunger;
     this.energy = s.energy;
@@ -132,7 +195,8 @@ export class Golem extends Entity {
     this.shownAlignment = s.alignment;
     this.size = s.size;
     this.meals = s.meals;
-    for (const k of LEARN_KEYS) if (typeof s.opinions?.[k] === 'number') this.opinions[k] = s.opinions[k];
+    for (const k of ALL_KEYS) if (typeof s.opinions?.[k] === 'number') this.opinions[k] = s.opinions[k];
+    this.bond = typeof s.bond === 'number' ? clamp(s.bond, 0, 1) : 0;
     this.applySize();
     this.action = { kind: 'idle', t: 1.5 };
     this.thought = 'Waking up';
@@ -156,6 +220,8 @@ export class Golem extends Entity {
     const a = this.action;
     if (a.kind === 'eat' && a.phase !== 'go') return a.key;
     if (a.kind === 'throw' && a.phase !== 'go') return 'throw:rock';
+    const good = this.deedKeyOf(a);
+    if (good) return good;
     if (this.lastDeed && game.time - this.lastDeed.t < MEMORY_WINDOW) return this.lastDeed.key;
     return null;
   }
@@ -169,7 +235,10 @@ export class Golem extends Entity {
       return;
     }
     const before = this.opinions[key];
-    this.opinions[key] = clamp(before + delta * (1 - Math.abs(before) * 0.35), -1, 1);
+    // A kind word right after a good deed sinks in deeper (and a slap after one stings less).
+    const d = isGoodKey(key) ? (delta > 0 ? delta * GOOD_REWARD_MULT : delta * 0.5) : delta;
+    this.opinions[key] = clamp(before + d * (1 - Math.abs(before) * 0.35), -1, 1);
+    if (delta > 0 && isGoodKey(key)) this.bond = clamp(this.bond + 0.01, 0, 1);
     const arrow = delta > 0 ? '▲' : '▼';
     game.floatText(this.pos.x, top, this.pos.z, `${arrow} ${LEARN_LABELS[key]}`, delta > 0 ? '#9fe8a8' : '#ff8a7a');
   }
@@ -220,6 +289,71 @@ export class Golem extends Entity {
     this.thought = 'Coming to you';
   }
 
+  /** The key of the good deed an action is in the middle of (not just walking toward), if any. */
+  private deedKeyOf(a: Action): GoodKey | null {
+    switch (a.kind) {
+      case 'haul': return a.phase !== 'go' ? 'deed:haul' : null;
+      case 'plant': return a.phase !== 'go' ? 'deed:plant' : null;
+      case 'fire': return a.phase !== 'go' ? 'deed:fire' : null;
+      case 'rescue': return a.phase !== 'go' ? 'deed:rescue' : null;
+      case 'play': return a.phase !== 'go' ? 'deed:play' : null;
+      case 'guard': return 'deed:guard';
+      case 'fruit': return a.phase !== 'go' ? 'eat:fruit' : null;
+      case 'fish': return a.phase !== 'go' ? 'eat:fish' : null;
+      default: return null;
+    }
+  }
+
+  /**
+   * Learning by watching: your hand just did a good deed at (x, z). If it is near enough it glances over,
+   * its desire for that deed rises, and a stroke straight afterwards reinforces it.
+   */
+  observe(game: Game, key: GoodKey, x: number, z: number) {
+    if (Math.hypot(x - this.pos.x, z - this.pos.z) > WATCH_RANGE) return;
+    const k = this.action.kind;
+    if (k === 'sleep' || k === 'hurt') return;
+    if (game.time - (this.watchedAt.get(key) ?? -99) < 4) return;
+    this.watchedAt.set(key, game.time);
+    const before = this.opinions[key];
+    this.opinions[key] = clamp(before + WATCH_GAIN * (1 - Math.abs(before) * 0.35), -1, 1);
+    this.curious = { pos: new THREE.Vector3(x, game.terrain.heightAt(x, z) + 1, z), t: 2.4 };
+    this.lastDeed = { key, t: game.time };
+    if (k === 'idle' || k === 'wander') this.idle(2.4);
+    game.floatText(this.pos.x, this.pos.y + this.topHeight + 3, this.pos.z, `👀 ${GOOD_INFO[key].icon}`, '#bfeee8');
+    game.events.emit('creatureTaught', { key, delta: WATCH_GAIN });
+  }
+
+  /** The hand put food right next to it: it takes it from the hand, and trusts the hand a little more. */
+  feedFromHand(_game: Game, pile: Pile) {
+    if (Math.hypot(pile.pos.x - this.pos.x, pile.pos.z - this.pos.z) > this.radius + 14) return;
+    const k = this.action.kind;
+    if (k === 'sleep' || k === 'hurt') return;
+    this.handFed.add(pile);
+    this.dropHeld();
+    this.action = { kind: 'eat', key: 'eat:food', target: pile, phase: 'go', t: 0 };
+    this.thought = 'Taking food from your hand';
+  }
+
+  /** The leash: the held hand points here; it follows (call every frame while held). */
+  leash(game: Game, point: THREE.Vector3) {
+    if (!game.terrain.isLand(point.x, point.z, 0.5)) return;
+    this.leashPt.copy(point);
+    this.leashT = 0.35;
+    if (this.action.kind !== 'leash') {
+      this.dropHeld();
+      this.action = { kind: 'leash', t: 0 };
+    }
+  }
+
+  endLeash() {
+    this.leashT = 0;
+  }
+
+  /** Is it standing guard close enough to shield (x, z) from the dark hand? */
+  guards(x: number, z: number): boolean {
+    return this.action.kind === 'guard' && Math.hypot(x - this.pos.x, z - this.pos.z) < 10 * this.size;
+  }
+
   /** A rock it threw killed someone. */
   onThrowKilled() {
     this.alignment = clamp(this.alignment - 0.08, -1, 1);
@@ -232,6 +366,15 @@ export class Golem extends Entity {
     this.hunger = Math.min(1, this.hunger + (asleep ? SLEEP_HUNGER_RATE : HUNGER_RATE) * dt);
     this.energy = clamp(this.energy + (asleep ? REST_RATE : -TIRE_RATE) * dt, 0, 1);
     this.happy = Math.max(0, this.happy - dt * 0.4);
+    if (this.curious && (this.curious.t -= dt) <= 0) this.curious = null;
+    if (this.leashT > 0) {
+      this.leashT -= dt;
+      if (this.leashT <= 0 && this.action.kind === 'leash') {
+        this.guided = { x: this.pos.x, z: this.pos.z, t: game.time };
+        this.idle(0.4);
+      }
+    }
+    this.watchForDarkHand(game, dt);
 
     const want = this.previewAlignment ?? this.alignment;
     this.shownAlignment += (want - this.shownAlignment) * damp(2.5, dt);
@@ -273,6 +416,9 @@ export class Golem extends Entity {
     let lookPitch = -0.05;
     let interest = 0;
     const focus = this.focusPoint();
+    if (this.curious && focus === this.curious.pos && (this.action.kind === 'idle' || this.action.kind === 'wander')) {
+      this.yaw = angleLerp(this.yaw, Math.atan2(focus.x - this.pos.x, focus.z - this.pos.z), damp(1.6, dt));
+    }
     if (focus) {
       this.model.eyePoint(this.eye);
       const fx = focus.x - this.pos.x;
@@ -304,6 +450,11 @@ export class Golem extends Entity {
     const a = this.action;
     if (a.kind === 'eat' && a.phase === 'go') return a.target.pos;
     if (a.kind === 'throw' && a.phase === 'go') return a.rock.pos;
+    if (a.kind === 'haul' && a.phase === 'go') return a.item.pos;
+    if (a.kind === 'fire') return a.target.pos;
+    if (a.kind === 'rescue' || a.kind === 'play' || a.kind === 'guard') return a.who.pos;
+    if (a.kind === 'fruit') return a.tree.pos;
+    if (this.curious) return this.curious.pos;
     return null;
   }
 
@@ -360,6 +511,28 @@ export class Golem extends Entity {
 
       case 'eat':
         return this.runEat(game, a, dt);
+
+      case 'leash': {
+        this.thought = 'Following your hand';
+        if (this.leashT <= 0) return false;
+        return !this.walkTo(game, this.leashPt, dt, 3 * this.size) && this.action === a;
+      }
+      case 'haul':
+        return this.runHaul(game, a, dt);
+      case 'plant':
+        return this.runPlant(game, a, dt);
+      case 'fire':
+        return this.runFire(game, a, dt);
+      case 'rescue':
+        return this.runRescue(game, a, dt);
+      case 'play':
+        return this.runPlay(game, a, dt);
+      case 'guard':
+        return this.runGuard(game, a, dt);
+      case 'fruit':
+        return this.runFruit(game, a, dt);
+      case 'fish':
+        return this.runFish(game, a, dt);
 
       case 'throw':
         return this.runThrow(game, a, dt);
@@ -456,6 +629,12 @@ export class Golem extends Entity {
     } else if (f instanceof Pile) {
       nourish = Math.min(0.6, f.amount * 0.015);
       this.alignment = clamp(this.alignment + 0.01, -1, 1);
+      if (this.handFed.has(f)) {
+        this.bond = clamp(this.bond + 0.08, 0, 1);
+        this.alignment = clamp(this.alignment + 0.01, -1, 1);
+        game.floatText(this.pos.x, this.pos.y + this.topHeight + 3, this.pos.z, '♥', '#ffb3c8');
+        game.fx.sparkle(this.pos.x, this.pos.y + this.topHeight * 0.8, this.pos.z, 10, 0xffb3c8, 2 * this.size);
+      }
       this.holding = null;
       game.remove(f);
     } else {
@@ -540,6 +719,591 @@ export class Golem extends Entity {
     }
   }
 
+
+  // ------------------------------------------------------------- good deeds
+
+  /** Deeds finished, by key (for tests and the legacy record; not saved). */
+  readonly deedCount: Partial<Record<LearnKey, number>> = {};
+
+  private finishDeed(game: Game, key: GoodKey) {
+    this.doneAt.set(key, game.time);
+    this.lastDeed = { key, t: game.time };
+    this.alignment = clamp(this.alignment + DEED_ALIGNMENT[key], -1, 1);
+    this.happy = Math.max(this.happy, 0.7);
+    this.deedCount[key] = (this.deedCount[key] ?? 0) + 1;
+    game.floatText(this.pos.x, this.pos.y + this.topHeight + 2, this.pos.z, GOOD_INFO[key].icon, '#9fe8a8');
+    game.fx.sparkle(this.pos.x, this.pos.y + this.topHeight * 0.85, this.pos.z, 16, 0x8ff2e0, 2.5 * this.size);
+    game.audio.happyHum(this.pos);
+  }
+
+  /** The thing it was carrying is no use any more: put it down where it stands. */
+  private abandon(a: Action) {
+    if (this.action === a) this.idle(rng.range(0.5, 1.5));
+  }
+
+  private runHaul(game: Game, a: Extract<Action, { kind: 'haul' }>, dt: number): boolean {
+    const T = this.target;
+    const it = a.item;
+    if (!a.site.alive || a.site.complete) {
+      this.dropHeld();
+      this.idle(1);
+      return false;
+    }
+    if ((a.phase === 'go' || a.phase === 'grab') && (!it.alive || it.airborne || (it.held && this.holding !== it))) {
+      this.idle(0.5);
+      return false;
+    }
+    switch (a.phase) {
+      case 'go':
+        this.thought = a.res === 'stone' ? 'Fetching stone for the build' : 'Fetching wood for the build';
+        if (this.walkTo(game, it.pos, dt, 3.4 * this.size)) {
+          a.phase = 'grab';
+          a.t = 0;
+        }
+        return a.phase === 'go' && this.action === a;
+      case 'grab':
+        a.t += dt;
+        this.face(it.pos, dt);
+        T.reach = 1;
+        if (a.t > 0.55) {
+          this.holding = it;
+          it.held = true;
+          it.airborne = false;
+          it.rolling = false;
+          it.claimedBy = 0;
+          a.phase = 'carry';
+          a.t = 0;
+        }
+        return false;
+      case 'carry': {
+        this.thought = 'Carrying it to the build';
+        if (this.holding !== it) return this.abandon(a), false;
+        const stop = a.site.def.radius + 3.5 * this.size;
+        if (this.walkTo(game, a.site.pos, dt, stop)) {
+          a.phase = 'drop';
+          a.t = 0;
+        }
+        return a.phase === 'carry' && this.action === a;
+      }
+      case 'drop':
+        a.t += dt;
+        this.face(a.site.pos, dt);
+        if (a.t < 0.5) T.windup = 1;
+        else T.fling = 1;
+        if (a.t > 0.6) {
+          if (this.holding === it) {
+            this.holding = null;
+            it.held = false;
+            const amount = it instanceof Rock ? Math.max(4, Math.round(it.radius * it.radius * STONE_PER_ROCK_AREA)) : Math.round((it as Pile).amount);
+            const taken = a.site.add(game, a.res, amount, 'gift');
+            if (taken > 0) {
+              game.fx.dust(a.site.pos.x, a.site.pos.y + 1, a.site.pos.z, 14, 0.9, a.res === 'stone' ? 0xb8b1a4 : 0xc9a070);
+              game.floatText(a.site.pos.x, a.site.pos.y + 6, a.site.pos.z, `+${Math.round(taken)} ${a.res}`, '#e4dccb');
+              game.audio.chime(a.site.pos);
+              game.remove(it);
+            } else {
+              it.airborne = true;
+              it.vel.set(0, -1, 0);
+            }
+          }
+          this.finishDeed(game, 'deed:haul');
+          this.idle(rng.range(1, 2.5));
+        }
+        return false;
+    }
+  }
+
+  private runPlant(game: Game, a: Extract<Action, { kind: 'plant' }>, dt: number): boolean {
+    const T = this.target;
+    if (a.tree && (!a.tree.alive || a.tree.charred || a.tree.held)) {
+      this.idle(0.5);
+      return false;
+    }
+    if (a.phase === 'go') {
+      this.thought = a.tree ? 'Going to water a sapling' : 'Going to plant a sapling';
+      if (this.walkTo(game, a.tree ? a.tree.pos : a.target, dt, a.tree ? a.tree.radius + 3 * this.size : 2.5 * this.size)) {
+        a.phase = 'work';
+        a.t = 0;
+      }
+      return a.phase === 'go' && this.action === a;
+    }
+    a.t += dt;
+    this.face(a.tree ? a.tree.pos : a.target, dt);
+    T.reach = 1;
+    T.sit = 0.35;
+    this.thought = a.tree ? 'Watering' : 'Planting';
+    if (Math.random() < dt * 6) game.fx.dust(a.target.x, a.target.y + 0.5, a.target.z, 2, 0.5, a.tree ? 0x9fd8ff : 0x7a5a3a);
+    if (a.t > 1.7) {
+      let ok = false;
+      if (a.tree) {
+        a.tree.water(0.35);
+        game.fx.sparkle(a.tree.pos.x, a.tree.pos.y + 2, a.tree.pos.z, 18, 0x9fe8ff, 2.5);
+        ok = true;
+      } else if (game.canPlantTree(a.target.x, a.target.z)) {
+        const t = new Tree(Math.floor(Math.random() * 1e6), a.target.x, a.target.z, 0.1);
+        t.pos.y = game.terrain.heightAt(a.target.x, a.target.z);
+        game.add(t);
+        game.fx.sparkle(t.pos.x, t.pos.y + 1, t.pos.z, 20, 0xb8f08a, 2.5);
+        ok = true;
+      }
+      if (ok) this.finishDeed(game, 'deed:plant');
+      this.idle(rng.range(1, 2.5));
+    }
+    return false;
+  }
+
+  private runFire(game: Game, a: Extract<Action, { kind: 'fire' }>, dt: number): boolean {
+    const T = this.target;
+    const f = a.target;
+    if (!f.alive || !f.burning) {
+      if (a.phase === 'stomp') this.finishDeed(game, 'deed:fire');
+      this.idle(rng.range(1, 2));
+      return false;
+    }
+    this.thought = 'Putting out the fire';
+    if (a.phase === 'go') {
+      if (this.walkTo(game, f.pos, dt, f.radius + 3.5 * this.size)) {
+        a.phase = 'stomp';
+        a.t = 0;
+      }
+      return a.phase === 'go' && this.action === a;
+    }
+    a.t += dt;
+    this.face(f.pos, dt);
+    const beat = a.t % 0.7;
+    if (beat < 0.4) T.windup = 1;
+    else T.fling = 1;
+    if (beat < dt) {
+      game.shake(0.12);
+      game.fx.dust(f.pos.x, f.pos.y + 0.5, f.pos.z, 8, 0.8, 0x9a8a70);
+    }
+    if (a.t > 2.1) {
+      f.extinguish(game);
+      game.events.emit('fireOut', { entity: f });
+    }
+    return false;
+  }
+
+  private runRescue(game: Game, a: Extract<Action, { kind: 'rescue' }>, dt: number): boolean {
+    const T = this.target;
+    const v = a.who;
+    if (v.dead || !v.alive || (a.phase !== 'carry' && (v.held || v.airborne || !v.lost))) {
+      this.dropHeld();
+      this.idle(1);
+      return false;
+    }
+    switch (a.phase) {
+      case 'go':
+        this.thought = 'Going to a lost villager';
+        if (this.walkTo(game, v.pos, dt, 3.4 * this.size)) {
+          a.phase = 'grab';
+          a.t = 0;
+        }
+        return a.phase === 'go' && this.action === a;
+      case 'grab':
+        a.t += dt;
+        this.face(v.pos, dt);
+        T.reach = 1;
+        if (a.t > 0.6) {
+          this.holding = v;
+          v.held = true;
+          v.airborne = false;
+          v.claimedBy = 0;
+          v.onPickup(game);
+          a.phase = 'carry';
+          a.t = 0;
+        }
+        return false;
+      case 'carry': {
+        this.thought = 'Carrying a lost villager home';
+        if (this.holding !== v) return this.abandon(a), false;
+        const home = v.village;
+        if (this.walkTo(game, home.center, dt, Math.max(7, home.radius * 0.45))) {
+          this.holding = null;
+          v.held = false;
+          const x = this.pos.x + Math.sin(this.yaw) * 3.5 * this.size;
+          const z = this.pos.z + Math.cos(this.yaw) * 3.5 * this.size;
+          v.pos.set(x, game.terrain.heightAt(x, z) + 0.8, z);
+          v.vel.set(0, -2, 0);
+          v.airborne = true;
+          v.onDrop(game);
+          game.events.emit('place', { entity: v, x, z });
+          if (v.lost) v.lost = false;
+          this.finishDeed(game, 'deed:rescue');
+          this.idle(rng.range(1, 2.5));
+        }
+        return this.action === a;
+      }
+    }
+  }
+
+  private runPlay(game: Game, a: Extract<Action, { kind: 'play' }>, dt: number): boolean {
+    const T = this.target;
+    const v = a.who;
+    if (v.dead || !v.alive || v.held || v.airborne) {
+      this.idle(1);
+      return false;
+    }
+    if (a.phase === 'go') {
+      this.thought = 'Going to play';
+      if (this.walkTo(game, v.pos, dt, 6.5 * this.size)) {
+        a.phase = 'play';
+        a.t = 0;
+      }
+      return a.phase === 'go' && this.action === a;
+    }
+    a.t += dt;
+    this.face(v.pos, dt);
+    this.thought = 'Playing gently';
+    T.cheer = 0.35 + 0.35 * Math.sin(a.t * 4);
+    T.happy = 1;
+    if (Math.floor(a.t * 1.4) !== Math.floor((a.t - dt) * 1.4)) {
+      game.floatText(v.pos.x, v.pos.y + 4, v.pos.z, '♥', '#ffb3c8');
+      game.fx.sparkle(v.pos.x, v.pos.y + 2, v.pos.z, 8, 0xffe28a, 2);
+    }
+    if (a.t > 3.4) {
+      const child = ageDays(v.bornAt, game.time) < CHILD_DAYS;
+      const village = v.village;
+      village.belief = Math.min(100, village.belief + (child ? 3 : 1.5));
+      game.floatText(village.center.x, this.pos.y + 8, village.center.z, '+faith', '#f4cf73');
+      this.finishDeed(game, 'deed:play');
+      this.idle(rng.range(1, 2.5));
+    }
+    return false;
+  }
+
+  private runGuard(game: Game, a: Extract<Action, { kind: 'guard' }>, dt: number): boolean {
+    const T = this.target;
+    a.t += dt;
+    const scheme = this.darkHand(game);
+    if (!scheme || a.who !== scheme.target || a.t > 60) {
+      if (a.t > 4) this.finishDeed(game, 'deed:guard');
+      this.idle(rng.range(1, 2));
+      return false;
+    }
+    this.thought = 'Standing guard';
+    const d = Math.hypot(a.who.pos.x - this.pos.x, a.who.pos.z - this.pos.z);
+    if (d > 4.5 * this.size) return !this.walkTo(game, a.who.pos, dt, 4 * this.size) && this.action === a;
+    this.face(a.who.pos, dt);
+    T.windup = 0.7;
+    T.interest = 1;
+    return false;
+  }
+
+  private runFruit(game: Game, a: Extract<Action, { kind: 'fruit' }>, dt: number): boolean {
+    const T = this.target;
+    const tr = a.tree;
+    if (!tr.alive || tr.charred || tr.held) {
+      this.idle(0.5);
+      return false;
+    }
+    switch (a.phase) {
+      case 'go':
+        this.thought = 'Going to a fruit tree';
+        if (this.walkTo(game, tr.pos, dt, tr.radius + 2.5 * this.size)) {
+          a.phase = 'shake';
+          a.t = 0;
+        }
+        return a.phase === 'go' && this.action === a;
+      case 'shake':
+        a.t += dt;
+        this.face(tr.pos, dt);
+        T.reach = 1;
+        this.thought = 'Shaking down fruit';
+        if (Math.random() < dt * 10) game.fx.sparkle(tr.pos.x + rng.range(-1.5, 1.5), tr.pos.y + 3 + rng.range(0, 3), tr.pos.z + rng.range(-1.5, 1.5), 3, 0xffd36b, 1.2);
+        if (a.t > 1.3) {
+          a.phase = 'eat';
+          a.t = 0;
+        }
+        return false;
+      case 'eat':
+        a.t += dt;
+        T.eat = 1;
+        T.chew = a.t > 0.5 ? 1 : 0;
+        this.thought = 'Munching fruit';
+        if (a.t > 1.4) {
+          this.hunger = Math.max(0, this.hunger - 0.32);
+          this.meals++;
+          this.fruitReady.set(tr, game.time + FRUIT_REGROW);
+          this.size = Math.min(MAX_SIZE, this.size + 0.01);
+          this.applySize();
+          game.audio.crunch(this.pos);
+          game.events.emit('creatureAte', { key: 'eat:fruit' });
+          this.finishDeed(game, 'eat:fruit');
+          this.idle(rng.range(1, 3));
+        }
+        return false;
+    }
+  }
+
+  private runFish(game: Game, a: Extract<Action, { kind: 'fish' }>, dt: number): boolean {
+    const T = this.target;
+    if (a.phase === 'go') {
+      this.thought = 'Going fishing';
+      if (this.walkTo(game, a.spot, dt, 2.5)) {
+        a.phase = 'wait';
+        a.t = 0;
+      }
+      return a.phase === 'go' && this.action === a;
+    }
+    this.yaw = angleLerp(this.yaw, a.face, damp(3, dt));
+    const wx = this.pos.x + Math.sin(a.face) * 6;
+    const wz = this.pos.z + Math.cos(a.face) * 6;
+    a.t += dt;
+    if (a.phase === 'wait') {
+      this.thought = 'Fishing';
+      T.reach = 1;
+      T.sit = 0.3;
+      if (Math.random() < dt * 1.2) game.fx.splash(wx, wz, 3, 0.4);
+      if (a.t > 4) {
+        a.phase = 'catch';
+        a.t = 0;
+        game.fx.splash(wx, wz, 14, 1);
+      }
+      return false;
+    }
+    T.eat = 1;
+    T.chew = a.t > 0.5 ? 1 : 0;
+    this.thought = 'Munching a fish';
+    if (a.t > 1.4) {
+      this.hunger = Math.max(0, this.hunger - 0.38);
+      this.meals++;
+      game.audio.crunch(this.pos);
+      game.events.emit('creatureAte', { key: 'eat:fish' });
+      this.finishDeed(game, 'eat:fish');
+      this.idle(rng.range(1, 3));
+    }
+    return false;
+  }
+
+  /** Dark hand reaching for a villager: it moves to stand between (see GraspingHand: a guarded villager is spared). */
+  private darkHand(game: Game): { kind: string; target: Villager } | null {
+    const s = (game as unknown as { rival?: { scheme: { kind: string; target?: Villager } | null } }).rival?.scheme;
+    return s && s.kind === 'hand' && s.target && s.target.alive && !s.target.dead ? (s as { kind: string; target: Villager }) : null;
+  }
+
+  private watchForDarkHand(game: Game, dt: number) {
+    this.guardCheck -= dt;
+    if (this.guardCheck > 0) return;
+    this.guardCheck = 0.6;
+    const k = this.action.kind;
+    if (k !== 'idle' && k !== 'wander' && k !== 'goto' && k !== 'cheer') return;
+    const s = this.darkHand(game);
+    if (!s || this.opinions['deed:guard'] < 0.1) return;
+    this.dropHeld();
+    this.action = { kind: 'guard', who: s.target, t: 0 };
+  }
+
+  /** Good-deed targets, nearest first. */
+  private findHaul(game: Game): { item: Rock | Pile; site: Site; res: Res; d: number } | null {
+    let best: { item: Rock | Pile; site: Site; res: Res; d: number } | null = null;
+    const free = (e: Entity) => !e.held && !e.airborne && !e.rolling && !((this.skip.get(e) ?? 0) > game.time);
+    for (const e of game.entities) {
+      if (e.kind !== 'site' || !e.alive) continue;
+      const site = e as Site;
+      if (site.complete) continue;
+      for (const res of ['stone', 'wood'] as Res[]) {
+        if (site.open(res) < 3) continue;
+        const item = res === 'stone' ? game.nearest<Rock>('rock', this.pos.x, this.pos.z, 130, free) : game.nearest<Pile>('wood', this.pos.x, this.pos.z, 130, free);
+        if (!item) continue;
+        const d = Math.hypot(item.pos.x - this.pos.x, item.pos.z - this.pos.z) + Math.hypot(item.pos.x - site.pos.x, item.pos.z - site.pos.z);
+        if (!best || d < best.d) best = { item, site, res, d };
+      }
+    }
+    return best;
+  }
+
+  private findPlant(game: Game): { tree: Tree | null; target: THREE.Vector3; d: number } | null {
+    let young: Tree | null = null;
+    let yd = 110;
+    let mature: Tree | null = null;
+    let md = 110;
+    let trees = 0;
+    for (const e of game.entities) {
+      if (!(e instanceof Tree) || !e.alive || e.charred || e.held) continue;
+      trees++;
+      const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
+      if (e.growth < 0.6) {
+        if (d < yd && !((this.skip.get(e) ?? 0) > game.time)) {
+          yd = d;
+          young = e;
+        }
+      } else if (d < md && Math.random() < 0.3) {
+        md = d;
+        mature = e;
+      }
+    }
+    const canPlant = trees < MAX_TREES;
+    if (young && (!canPlant || Math.random() < 0.5)) return { tree: young, target: young.pos.clone(), d: yd };
+    if (canPlant && mature) {
+      for (let i = 0; i < 14; i++) {
+        const ang = rng.range(0, Math.PI * 2);
+        const r = rng.range(6, 15);
+        const x = mature.pos.x + Math.cos(ang) * r;
+        const z = mature.pos.z + Math.sin(ang) * r;
+        if (!game.canPlantTree(x, z)) continue;
+        return { tree: null, target: new THREE.Vector3(x, game.terrain.heightAt(x, z), z), d: md };
+      }
+    }
+    return young ? { tree: young, target: young.pos.clone(), d: yd } : null;
+  }
+
+  private findFire(game: Game): Entity | null {
+    let best: Entity | null = null;
+    let bd = 150;
+    for (const e of game.entities) {
+      if (!e.alive || !e.burning || e === this || e.kind === 'villager' || e.held) continue;
+      if ((this.skip.get(e) ?? 0) > game.time) continue;
+      const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
+      if (d < bd) {
+        bd = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  private findLost(game: Game): Villager | null {
+    let best: Villager | null = null;
+    let bd = 200;
+    for (const vg of game.villages) {
+      for (const v of vg.villagers) {
+        if (!v.lost || v.dead || !v.alive || v.held || v.airborne || (this.skip.get(v) ?? 0) > game.time) continue;
+        const d = Math.hypot(v.pos.x - this.pos.x, v.pos.z - this.pos.z);
+        if (d < bd) {
+          bd = d;
+          best = v;
+        }
+      }
+    }
+    return best;
+  }
+
+  /** A child (or, failing that, anyone) to play with, and whether they are a child. */
+  private findPlaymate(game: Game): { who: Villager; d: number; child: boolean } | null {
+    let best: { who: Villager; d: number; child: boolean } | null = null;
+    for (const vg of game.villages) {
+      for (const v of vg.villagers) {
+        if (v.dead || !v.alive || v.held || v.airborne || v.lost || v.isInside || v.burning || !v.object.visible) continue;
+        if ((this.skip.get(v) ?? 0) > game.time) continue;
+        const child = ageDays(v.bornAt, game.time) < CHILD_DAYS;
+        const d = Math.hypot(v.pos.x - this.pos.x, v.pos.z - this.pos.z) * (child ? 1 : 2.2);
+        if (d < 150 && (!best || d < best.d)) best = { who: v, d, child };
+      }
+    }
+    return best;
+  }
+
+  private findFruit(game: Game): Tree | null {
+    let best: Tree | null = null;
+    let bd = 130;
+    for (const e of game.entities) {
+      if (!(e instanceof Tree) || !e.alive || !e.mature || e.held || e.seed % FRUIT_EVERY !== 0) continue;
+      if ((this.fruitReady.get(e) ?? 0) > game.time || (this.skip.get(e) ?? 0) > game.time) continue;
+      const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
+      if (d < bd) {
+        bd = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /** A spot on the shore with deep-enough water to cast into, and the way to face. */
+  private findShore(game: Game): { spot: THREE.Vector3; face: number; d: number } | null {
+    let best: { spot: THREE.Vector3; face: number; d: number } | null = null;
+    const t = game.terrain;
+    for (let i = 0; i < 90; i++) {
+      const ang = rng.range(0, Math.PI * 2);
+      const r = rng.range(10, 110);
+      const x = this.pos.x + Math.cos(ang) * r;
+      const z = this.pos.z + Math.sin(ang) * r;
+      const h = t.heightAt(x, z);
+      if (h < SEA_LEVEL + 0.3 || h > SEA_LEVEL + 2.4 || !t.isLand(x, z, 1.2)) continue;
+      if (game.villageAt(x, z)) continue;
+      for (let k = 0; k < 8; k++) {
+        const f = (k / 8) * Math.PI * 2;
+        if (t.heightAt(x + Math.sin(f) * 6, z + Math.cos(f) * 6) < SEA_LEVEL - 0.4) {
+          if (!best || r < best.d) best = { spot: new THREE.Vector3(x, h, z), face: f, d: r };
+          break;
+        }
+      }
+      if (best && best.d < 40) break;
+    }
+    return best;
+  }
+
+  /** Favoured if your hand led it near here a moment ago. */
+  private guideBoost(game: Game, x: number, z: number): number {
+    const g = this.guided;
+    if (!g || game.time - g.t > GUIDE_WINDOW) return 1;
+    return Math.hypot(x - g.x, z - g.z) < GUIDE_RADIUS ? 3 : 1;
+  }
+
+  private desire(key: GoodKey, avail: number, dist: number, game: Game, x: number, z: number): number {
+    const op = Math.max(0, this.opinions[key]);
+    const fresh = game.time - (this.doneAt.get(key) ?? -999) < 45 ? 0.35 : 1;
+    return fresh * avail * (DEED_BASE + op * DEED_GAIN) * (1 + this.bond * 0.5) * (1 / (1 + dist / 90)) * this.guideBoost(game, x, z);
+  }
+
+  private pushDeedOptions(game: Game, options: { score: number; start: () => void }[]) {
+    const haul = this.hunger < 0.85 ? this.findHaul(game) : null;
+    if (haul) {
+      options.push({
+        score: this.desire('deed:haul', 0.6, haul.d, game, haul.site.pos.x, haul.site.pos.z),
+        start: () => (this.action = { kind: 'haul', item: haul.item, site: haul.site, res: haul.res, phase: 'go', t: 0 }),
+      });
+    }
+    const fire = this.findFire(game);
+    if (fire) {
+      options.push({
+        score: this.desire('deed:fire', 1.4, 0, game, fire.pos.x, fire.pos.z),
+        start: () => (this.action = { kind: 'fire', target: fire, phase: 'go', t: 0 }),
+      });
+    }
+    const lost = this.findLost(game);
+    if (lost) {
+      options.push({
+        score: this.desire('deed:rescue', 1.3, 0, game, lost.pos.x, lost.pos.z),
+        start: () => (this.action = { kind: 'rescue', who: lost, phase: 'go', t: 0 }),
+      });
+    }
+    if (this.hunger < 0.85) {
+      const plant = this.findPlant(game);
+      if (plant) {
+        options.push({
+          score: this.desire('deed:plant', 0.5, plant.d, game, plant.target.x, plant.target.z),
+          start: () => (this.action = { kind: 'plant', tree: plant.tree, target: plant.target, phase: 'go', t: 0 }),
+        });
+      }
+      const mate = this.findPlaymate(game);
+      if (mate) {
+        options.push({
+          score: this.desire('deed:play', 0.5, mate.d, game, mate.who.pos.x, mate.who.pos.z),
+          start: () => (this.action = { kind: 'play', who: mate.who, phase: 'go', t: 0 }),
+        });
+      }
+    }
+  }
+
+  private pushHarmlessFood(game: Game, options: { score: number; start: () => void }[], hungerDrive: number) {
+    const fruit = this.findFruit(game);
+    if (fruit) {
+      const d = Math.hypot(fruit.pos.x - this.pos.x, fruit.pos.z - this.pos.z);
+      options.push({
+        score: hungerDrive * 1.4 * Math.max(0, 0.55 + this.opinions['eat:fruit']) * (1 / (1 + d / 70)),
+        start: () => (this.action = { kind: 'fruit', tree: fruit, phase: 'go', t: 0 }),
+      });
+    }
+    const shore = this.findShore(game);
+    if (shore) {
+      options.push({
+        score: hungerDrive * 1.2 * Math.max(0, 0.55 + this.opinions['eat:fish']) * (1 / (1 + shore.d / 70)),
+        start: () => (this.action = { kind: 'fish', spot: shore.spot, face: shore.face, phase: 'go', t: 0 }),
+      });
+    }
+  }
+
   private dropHeld() {
     const h = this.holding;
     if (!h) return;
@@ -584,6 +1348,8 @@ export class Golem extends Entity {
         });
       }
     }
+    if (hungerDrive > 0) this.pushHarmlessFood(game, options, hungerDrive);
+    this.pushDeedOptions(game, options);
     options.push({ score: 0.22, start: () => this.startWander(game) });
 
     // Weighted random, sharpened so strong preferences dominate.
@@ -610,6 +1376,8 @@ export class Golem extends Entity {
       case 'eat:rock':
       case 'throw:rock':
         return game.nearest<Rock>('rock', x, z, 90, (e) => free(e) && !e.rolling);
+      default:
+        return null;
     }
   }
 
@@ -720,6 +1488,11 @@ export class Golem extends Entity {
     const a = this.action;
     if (a.kind === 'eat') this.skip.set(a.target, game.time + 30);
     else if (a.kind === 'throw') this.skip.set(a.rock, game.time + 30);
+    else if (a.kind === 'haul') this.skip.set(a.item, game.time + 30);
+    else if (a.kind === 'fire') this.skip.set(a.target, game.time + 30);
+    else if (a.kind === 'rescue' || a.kind === 'play') this.skip.set(a.who, game.time + 30);
+    else if (a.kind === 'fruit') this.skip.set(a.tree, game.time + 30);
+    if (a.kind === 'haul' || a.kind === 'rescue') this.dropHeld();
     this.idle(1);
     return false;
   }
