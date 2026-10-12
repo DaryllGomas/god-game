@@ -163,11 +163,15 @@ export class Grass {
           #endif
           sc *= 1.0 - smoothstep(uRadius * 0.82, uRadius, d);
           // Tint by the meadow tone so tufts match the ground beneath them.
-          vec3 warm = vec3(1.08, 1.05, 0.72);
-          vec3 cool = vec3(0.78, 1.0, 0.95);
+          vec3 warm = vec3(1.0, 0.95, 0.66);
+          vec3 cool = vec3(0.72, 0.92, 0.82);
           vec3 tint = mix(cool, warm, smoothstep(0.3, 0.7, tone));
           #if FLOWERS == 0
-            vColor.rgb *= tint * (0.85 + 0.3 * r2.x) * (1.0 - 0.42 * lmk.g);
+            vColor.rgb *= tint * vec3(0.86, 0.9, 0.78) * (0.85 + 0.3 * r2.x) * (1.0 - 0.42 * lmk.g);
+            // Deeper, warmer greens like the ground (groundLook.ts) with dry straw tips on some tufts.
+            float dryTuft = smoothstep(0.55, 0.9, fract(r1.x * 7.3 + r1.y * 3.1 + tone)) * (0.5 + 0.5 * smoothstep(0.4, 0.8, tone));
+            float tipK = smoothstep(0.35, 1.0, clamp(position.y, 0.0, 1.0));
+            vColor.rgb = mix(vColor.rgb, vec3(0.62, 0.5, 0.2) * (0.6 + 0.5 * position.y), clamp(dryTuft * tipK * 0.85, 0.0, 1.0));
             // Season: shift the blade colour toward the season's, keeping root-to-tip shading.
             float bl = dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722));
             vColor.rgb = mix(vColor.rgb, uGrassTarget * (bl / 0.26), uGrassAmt);

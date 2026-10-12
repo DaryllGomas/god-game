@@ -138,7 +138,7 @@ export class Village {
     game.add(this.worship);
 
     for (let i = 0; i < site.houses; i++) {
-      const spot = this.findSpot(game, 0.3, 0.75, 6.5);
+      const spot = this.findSpot(game, 0.4, 0.9, 6.5);
       if (!spot) break;
       const h = new House(this, spot.x, spot.y, spot.z, Math.atan2(c.x - spot.x, c.z - spot.z), r.int(0, 1e6), true);
       this.houses.push(h);
@@ -146,7 +146,7 @@ export class Village {
     }
 
     for (let i = 0; i < site.fields; i++) {
-      const spot = this.findSpot(game, 0.85, 1.25, 9);
+      const spot = this.findSpot(game, 0.95, 1.3, 9);
       if (!spot) break;
       const f = new Field(this, spot.x, spot.y, spot.z, Math.atan2(c.x - spot.x, c.z - spot.z), r.range(0.3, 1));
       this.fields.push(f);
@@ -389,7 +389,7 @@ export class Village {
       this.houses.length < VILLAGE.maxHouses &&
       this.store.wood >= 10
     ) {
-      const spot = this.findSpot(game, 0.3, 0.9, 6.5);
+      const spot = this.findSpot(game, 0.4, 1.0, 6.5);
       if (spot) {
         const h = new House(this, spot.x, spot.y, spot.z, Math.atan2(this.center.x - spot.x, this.center.z - spot.z), rng.int(0, 1e6), false);
         this.houses.push(h);

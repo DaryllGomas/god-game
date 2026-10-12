@@ -32,7 +32,7 @@ const ROCK_TINTS = [new THREE.Color(1, 1, 1), new THREE.Color(0.88, 0.8, 0.7), n
 const WHITE = [new THREE.Color(1, 1, 1)];
 
 /** A shrub: two or three low jittered blobs. */
-function bushGeometry(seed: number, hue: number): THREE.BufferGeometry {
+export function bushGeometry(seed: number, hue: number): THREE.BufferGeometry {
   const rng = new Rng(seed);
   const parts: THREE.BufferGeometry[] = [];
   const cols = [0x4c8a30, 0x3d7a2a, 0x5f9a38, 0x6b8f34][hue % 4];
@@ -48,7 +48,7 @@ function bushGeometry(seed: number, hue: number): THREE.BufferGeometry {
 }
 
 /** A flowering clump: a squat green mound studded with coloured blooms. */
-function flowerGeometry(seed: number, bloom: number): THREE.BufferGeometry {
+export function flowerGeometry(seed: number, bloom: number): THREE.BufferGeometry {
   const rng = new Rng(seed);
   const parts: THREE.BufferGeometry[] = [];
   const mound = jitterVerts(new THREE.IcosahedronGeometry(0.55, 1), 0.07, rng);

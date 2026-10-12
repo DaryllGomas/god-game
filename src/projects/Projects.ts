@@ -240,11 +240,10 @@ export class Projects {
     vs.site = site;
     vs.prayer = this.prayers.spawnProject(v, def.icon, pick(def.prayer), def.thanks);
     g.events.emit('projectStarted', { village: v, project: id });
-    const hint = def.needs.stone > 0 && !BUILT_AT_SHRINE.has(id) ? ' Drop boulders on the marked ground for stone.' : '';
     g.message(
       v.owner === 'player'
-        ? `${v.name} dreams of a ${def.name.toLowerCase()}.${hint}`
-        : `${v.name} dreams of a ${def.name.toLowerCase()}. Help them build it to win their hearts.${hint}`,
+        ? `${v.name} dreams of a ${def.name.toLowerCase()}.`
+        : `${v.name} dreams of a ${def.name.toLowerCase()}. Help them build it to win their hearts.`,
       'info',
       `proj-${v.name}`,
     );

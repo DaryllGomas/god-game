@@ -409,8 +409,7 @@ export class Site extends Entity {
     if (this.complete) {
       return `<div class="tip-title">${d.name}${d.id === 'wonder' ? '' : `, ${this.village.name}`}</div><div class="tip-body">${d.effect}</div>`;
     }
-    const hint = d.needs.stone > 0 ? `<div class="tip-hint">Drop boulders here for stone</div>` : '';
-    return `<div class="tip-title">${d.name} (building)</div><div class="tip-body">${this.progressText()}</div>${hint}`;
+    return `<div class="tip-title">${d.name} (building)</div><div class="tip-body">${this.progressText()}</div>`;
   }
 }
 

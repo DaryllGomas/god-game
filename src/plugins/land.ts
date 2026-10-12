@@ -4,6 +4,8 @@ import { LAND_RES, setLandMask } from '../land/groundLook';
 import { CH_FLOOR, CH_PATH, CH_WORN, LandPainter } from '../land/LandMask';
 import { findRoad, type Path } from '../land/Roads';
 import { buildFlora } from '../land/Flora';
+import { VillageDecor } from '../land/VillageDecor';
+import type { Village } from '../village/Village';
 
 /**
  * v0.6 "land": the ground and the density of the world. Roads between villages (A* around the mountains), village
@@ -15,6 +17,9 @@ import { buildFlora } from '../land/Flora';
 const CHECK = 1.5; // seconds between "did the buildings or trees change?" checks
 const ROAD_HALF = 2.3;
 const FOOTPATH_HALF = 1.25;
+/** Worn ring paths round the totem, as fractions of the village radius (panel 2's concentric rings). */
+const RINGS = [0.24, 0.37, 0.53];
+const RING_HALF = 0.95;
 
 function mix32(n: number) {
   n = Math.imul(n ^ (n >>> 15), 0x2c1b3c6d);
@@ -66,6 +71,11 @@ export function install(game: Game): GamePlugin {
   base.copyFrom(roads);
   for (let i = 0; i < LAND_RES * LAND_RES; i++) base.data[i * 4 + CH_FLOOR] = flora.floor.data[i * 4 + CH_FLOOR];
   const live = new LandPainter();
+  // Village density: decorative clumps, gardens and walkers (visual only; re-checked against the live mask each repaint).
+  const decor = new VillageDecor(game, roads);
+  flora.sets.push(...decor.sets);
+  (game as unknown as { landFlora: Record<string, number> }).landFlora = { ...flora.count, ...decor.count };
+  const routes = new Map<Village, Path[]>();
 
   let lastSig = NaN;
   let timer = 0;
@@ -81,7 +91,10 @@ export function install(game: Game): GamePlugin {
     if (Math.abs(sig - lastSig) < 1e-6) return;
     lastSig = sig;
     live.copyFrom(base);
+    routes.clear();
     for (const v of game.villages) {
+      const vroutes: Path[] = [];
+      routes.set(v, vroutes);
       const cx = v.center.x;
       const cz = v.center.z;
       live.disc(cx, cz, v.radius * 0.5, CH_WORN, 0.55, 0.3);
@@ -95,7 +108,34 @@ export function install(game: Game): GamePlugin {
         live.disc(e.pos.x, e.pos.z, r, CH_WORN, e.kind === 'field' ? 0.7 : 0.85, 0.45);
       }
       // Footpaths: from the totem to every building, and each building to its nearest neighbour.
-      for (const s of spots) live.path(footpath(cx, cz, s.x, s.z), FOOTPATH_HALF, CH_PATH, 0.9, 0.3);
+      for (const s of spots) {
+        const fp = footpath(cx, cz, s.x, s.z);
+        live.path(fp, FOOTPATH_HALF, CH_PATH, 0.9, 0.3);
+        vroutes.push(fp);
+      }
+      // Concentric worn rings round the totem, broken wherever a building stands in the way.
+      const wp = v.worship.pos;
+      for (const f of RINGS) {
+        const rad = v.radius * f;
+        const steps = Math.max(36, Math.round(rad * 2.2));
+        let run: Path = [];
+        const flush = () => {
+          if (run.length > 1) {
+            live.path(run, RING_HALF, CH_PATH, 0.75, 0.3);
+            vroutes.push(run);
+          }
+          run = [];
+        };
+        for (let k = 0; k <= steps; k++) {
+          const a = (k / steps) * Math.PI * 2;
+          const x = wp.x + Math.cos(a) * rad;
+          const z = wp.z + Math.sin(a) * rad;
+          const blocked = !game.terrain.isLand(x, z, 1.2) || spots.some((s) => Math.hypot(s.x - x, s.z - z) < s.r * 0.62);
+          if (blocked) flush();
+          else run.push({ x, z });
+        }
+        flush();
+      }
       for (const s of spots) {
         let best: (typeof spots)[number] | null = null;
         let bd = 30;
@@ -114,12 +154,14 @@ export function install(game: Game): GamePlugin {
       if (e.alive && e.kind === 'tree') live.disc(e.pos.x, e.pos.z, 3.6 + e.object.scale.x * 1.4, CH_FLOOR, 0.9, 0.3);
     }
     setLandMask(live.data);
+    decor.refresh(live, routes);
   };
   rebuild();
 
   return {
     name: 'land',
     frame(realDt) {
+      decor.frame(realDt, game.godCam.distance);
       timer -= realDt;
       if (timer <= 0) {
         timer = CHECK;
