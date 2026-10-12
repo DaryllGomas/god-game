@@ -740,6 +740,29 @@ canvas {
 .cp-op-fill.neg {
   background: #ff8a7a;
 }
+.cp-learned.cp-good {
+  margin-top: -2px;
+  margin-bottom: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(143, 242, 224, 0.18);
+}
+.cp-learn.good {
+  grid-template-columns: 20px 1fr;
+}
+.cp-icon {
+  font-size: 13px;
+  line-height: 1;
+  filter: saturate(0.8);
+}
+.cp-learn.cp-bond {
+  grid-template-columns: 20px 1fr;
+  margin-bottom: 8px;
+  color: #ffb3c8;
+}
+.cp-op-fill.bond {
+  left: 0;
+  background: #ffb3c8;
+}
 .cp-op-mid {
   position: absolute;
   left: 50%;

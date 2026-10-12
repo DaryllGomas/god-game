@@ -328,7 +328,8 @@ export class GraspingHand extends Scheme {
       if (this.t >= this.total) {
         this.stage = 'strike';
         this.stageT = 0;
-        this.caught = this.tracking() && dist2(t.pos.x, t.pos.z, this.aim.x, this.aim.z) < HAND.reach;
+        // A golem standing guard next to the villager shields them (the golem's good side, src/creature).
+        this.caught = this.tracking() && dist2(t.pos.x, t.pos.z, this.aim.x, this.aim.z) < HAND.reach && !this.game.creature?.guards(t.pos.x, t.pos.z);
         this.hand.strike(this.caught ? TUNICS[Math.abs(Math.floor(this.village.center.x)) % 3] : null);
         this.game.audio.schemeStrikes(this.aim);
       }

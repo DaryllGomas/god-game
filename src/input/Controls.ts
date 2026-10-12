@@ -22,9 +22,10 @@ const THROW_GAIN = 0.65;
  *   RMB flick+release   throw what you're holding (a still click just drops it)
  *   RMB / MMB drag      rotate & tilt (with an empty hand)
  *   Wheel               zoom to cursor, double-click to fly there
+ *   MMB / Shift+LMB on the golem, hold   leash: it follows where the hand points
  */
 export class Controls {
-  mode: 'none' | 'pan' | 'rotate' | 'throw' | 'stroke' = 'none';
+  mode: 'none' | 'pan' | 'rotate' | 'throw' | 'stroke' | 'leash' = 'none';
   private dragDist = 0;
   private rub = 0;
   private rubs = 0;
@@ -51,6 +52,7 @@ export class Controls {
       cam.dragGrab(this.ray.ray);
     }
     if (this.mode === 'rotate') cam.rotate(-dx * 0.006, dy * 0.004);
+    if (this.mode === 'leash' && g.hand.valid) g.creature.leash(g, g.hand.ground);
     if (this.mode === 'stroke') {
       this.rub += Math.abs(dx) + Math.abs(dy);
       while (this.rub >= RUB_PER_STROKE) {
@@ -86,6 +88,10 @@ export class Controls {
         if (this.mode !== 'none') return;
         this.dragDist = 0;
         const onCreature = !hand.held && g.hoverBuilding instanceof Golem;
+        if (onCreature && (ev.button === 1 || (ev.button === 0 && (this.input.keys.has('ShiftLeft') || this.input.keys.has('ShiftRight'))))) {
+          this.mode = 'leash';
+          return;
+        }
         if (ev.button === 0 && onCreature) {
           this.mode = 'stroke';
           this.rub = 0;
@@ -117,6 +123,11 @@ export class Controls {
       }
       case 'up': {
         const click = this.dragDist < CLICK_SLOP;
+        if (this.mode === 'leash' && (ev.button === 0 || ev.button === 1)) {
+          this.mode = 'none';
+          g.creature.endLeash();
+          return;
+        }
         if (ev.button === 0 && this.mode === 'stroke') {
           this.mode = 'none';
           if (click) g.creature.pat(g);

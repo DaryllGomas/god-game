@@ -1,5 +1,6 @@
 import type { Game } from '../Game';
-import { LEARN_KEYS, LEARN_LABELS, type Golem, type LearnKey } from '../creature/Golem';
+import { GOOD_KEYS, LEARN_KEYS, LEARN_LABELS, type Golem, type LearnKey } from '../creature/Golem';
+import { GOOD_INFO } from '../creature/Deeds';
 
 /**
  * The golem's panel: needs, current thought, nature (its own alignment) and what it has
@@ -28,8 +29,9 @@ export class CreaturePanel {
       </div>
       <div class="stat-label cp-learned-title">What it has learned</div>
       <div class="cp-learned"></div>
+      <div class="cp-learned cp-good"></div>
+      <div class="cp-learn cp-bond"><span title="Trust in your hand">♥</span><div class="cp-op"><div class="cp-op-fill bond"></div></div></div>
       <div class="cp-row cp-actions"></div>
-      <div class="cp-hint">Stroke: left-click &amp; rub it · Slap: right-click it<br/>It learns from whatever it's doing, or just did.</div>
       <div class="cp-looks-title">Preview looks</div>
       <div class="cp-row cp-looks"></div>`;
     this.el = panel;
@@ -40,6 +42,15 @@ export class CreaturePanel {
       row.className = 'cp-learn';
       row.innerHTML = `<span>${LEARN_LABELS[key]}</span><div class="cp-op"><div class="cp-op-fill"></div><div class="cp-op-mid"></div></div>`;
       learned.appendChild(row);
+      this.rows.set(key, row);
+    }
+
+    const good = panel.querySelector('.cp-good')!;
+    for (const key of GOOD_KEYS) {
+      const row = document.createElement('div');
+      row.className = 'cp-learn good';
+      row.innerHTML = `<span class="cp-icon" title="${GOOD_INFO[key].name}">${GOOD_INFO[key].icon}</span><div class="cp-op"><div class="cp-op-fill"></div><div class="cp-op-mid"></div></div>`;
+      good.appendChild(row);
       this.rows.set(key, row);
     }
 
@@ -93,6 +104,7 @@ export class CreaturePanel {
     q<HTMLDivElement>('.cp-fill.hunger').style.width = `${g.hunger * 100}%`;
     q<HTMLDivElement>('.cp-fill.energy').style.width = `${g.energy * 100}%`;
     q<HTMLDivElement>('.cp-marker').style.left = `${(g.alignment * 0.5 + 0.5) * 100}%`;
+    q<HTMLDivElement>('.cp-op-fill.bond').style.width = `${g.bond * 100}%`;
     const lesson = g.currentLesson(this.game);
     for (const [key, row] of this.rows) {
       const op = g.opinions[key];
