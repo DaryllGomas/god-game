@@ -160,6 +160,7 @@ export class HUD {
           <div><b>Rotate / tilt</b><span>Right- or middle-drag (empty hand), Q/E, T/G</span></div>
           <div><b>Zoom</b><span>Mouse wheel, R/F. Double-click to fly somewhere</span></div>
           <div><b>Miracles</b><span>1 Water · 2 Food · 3 Fire, then throw or set down. Esc refunds</span></div>
+          <div><b>Draw a mark</b><span>Hold Ctrl, left-drag: wave, spiral, zigzag, or a cradle with a sprout</span></div>
           <div><b>Village</b><span>Click a building to see it and set how many worship</span></div>
           <div><b>Your creature</b><span>C finds your golem, L calls it over. Stroke it (left-click &amp; rub) when it does something you like, slap it (right-click) when it doesn't</span></div>
         </div>
