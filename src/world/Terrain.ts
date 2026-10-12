@@ -4,6 +4,7 @@ import { clamp, lerp, smoothstep } from '../util/math';
 import { SEA_LEVEL, TERRAIN_RES, WORLD_SIZE, type VillageSite } from '../config';
 import { GROUND_NOISE_GLSL } from './groundNoise';
 import { BALANCE_TINT, BALANCE_TINT_GLSL } from './balanceTint';
+import { LAND_LOOK_GLSL, LAND_SAMPLE_GLSL, LAND_UNIFORMS } from '../land/groundLook';
 
 const MAX_INFLUENCE = 8;
 const MAX_RIVAL = 4;
@@ -40,6 +41,8 @@ export class Terrain {
     uWet: { value: 0 },
     // The world's balance (see src/balance): drained or rich colour.
     ...BALANCE_TINT,
+    // The land mask (see src/land): paths, worn ground, forest floor.
+    ...LAND_UNIFORMS,
   };
 
   constructor(seed: number, sites: VillageSite[]) {
@@ -127,9 +130,9 @@ export class Terrain {
 
     const sand = new THREE.Color(0xd9c38a);
     const wetSand = new THREE.Color(0xa89468);
-    const grass = new THREE.Color(0x6aa33f);
-    const lush = new THREE.Color(0x3f7f2c);
-    const dry = new THREE.Color(0x9aa84a);
+    const grass = new THREE.Color(0x5c8f36);
+    const lush = new THREE.Color(0x3d7a2c);
+    const dry = new THREE.Color(0x93a048);
     const rock = new THREE.Color(0x857c70);
     const darkRock = new THREE.Color(0x5e5750);
     const snow = new THREE.Color(0xf2f4f7);
@@ -215,6 +218,7 @@ export class Terrain {
           float gSnow = 0.0;
           ${GROUND_NOISE_GLSL}
           ${BALANCE_TINT_GLSL}
+          ${LAND_SAMPLE_GLSL}
           uniform vec3 uInfluence[${MAX_INFLUENCE}];
           uniform int uInfluenceCount;
           uniform vec3 uRival[${MAX_RIVAL}];
@@ -255,6 +259,11 @@ export class Terrain {
               gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.3, 0.1, 0.55), (1.0 - smoothstep(-22.0, 0.0, rd)) * step(rd, 0.0) * 0.22);
               gl_FragColor.rgb = mix(gl_FragColor.rgb, rcol, rring * 0.92 * rpulse);
             }
+            // Guard: a grazing sliver at the shoreline can light up to an absurd value (or NaN); bloom would smear
+            // it into a big white glow. Keep every terrain pixel finite and inside a sane HDR range.
+            vec3 tc = gl_FragColor.rgb;
+            if (!(tc.r == tc.r) || !(tc.g == tc.g) || !(tc.b == tc.b)) tc = diffuseColor.rgb * 0.4;
+            gl_FragColor.rgb = clamp(tc, vec3(0.0), vec3(1.8));
             // Soft hand shadow / cursor spot.
             float hd = length(vWorldPos.xz - uHand.xy);
             float spot = (1.0 - smoothstep(uHand.z * 0.35, uHand.z, hd)) * step(0.001, uHand.z);
@@ -424,6 +433,7 @@ const GROUND_DETAIL_GLSL = /* glsl */ `
   float strata = gnoise(vec2(gp.x * 0.05 + gp.y * 0.03, vWorldPos.y * 0.55));
   vec3 rm = vec3(0.86 + 0.28 * strata + 0.14 * (n3 - 0.5));
   vec3 snm = mix(vec3(0.90, 0.95, 1.04), vec3(1.03, 1.02, 1.0), n2);
+  ${LAND_LOOK_GLSL}
   vec4 bw = vBiome / max(vBiome.x + vBiome.y + vBiome.z + vBiome.w, 1e-3);
   vec3 grassPart = diffuseColor.rgb * gm;
   // Season: pull the grass toward the season's colour, keeping its light/dark blotches.

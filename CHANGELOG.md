@@ -4,6 +4,10 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Added
+- The land is lived in: worn dirt paths link each village's houses, fields and totem, roads run between the villages, and the ground has darker, warmer and mossy patches, trampled earth around buildings and darker ground under trees. Dense mixed woods, shrubs, flower clumps, boulders and a stony shore fill the island; the villages' own groves are thicker.
+
+
 ### Changed
 - Crop fields now follow the ground: soil and rows lie on slopes instead of sinking into hills or floating.
 - Houses are storyboard cottages: stone footing, timber frame, steep shingled roof, stone chimney, shutters. Lived-in homes glow warm at dusk and send up wind-bent chimney smoke.

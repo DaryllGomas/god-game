@@ -3,6 +3,7 @@ import { MAT } from '../art/Models';
 import { assets } from '../assets';
 import { TREE_VARIANTS, initTrees, treeVariant, type Tree } from './Nature';
 import { BALANCE_TINT, BALANCE_TINT_GLSL } from '../world/balanceTint';
+import { TREE_TINTS } from '../land/palette';
 
 const CAPACITY = 512;
 const WHITE = new THREE.Color(1, 1, 1);
@@ -24,7 +25,7 @@ export const FOREST_SEASON = {
 const SPECIES_CODE: Record<string, number> = { oak: 0, pine: 1, birch: 2, blossom: 3 };
 
 /** Per-vertex leaf recolouring and an up-facing snow dusting, on a copy of the shared base material. */
-function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
+export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
   const mat = MAT.base.clone();
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, FOREST_SEASON, BALANCE_TINT, { uSpecies: { value: species } });
@@ -144,7 +145,7 @@ export class Forest {
         this.local.makeRotationY(t.yaw).scale(this.s.setScalar(t.scale));
         this.world.multiplyMatrices(t.object.matrix, this.local);
         mesh.setMatrixAt(i, this.world);
-        mesh.setColorAt(i, t.charred ? CHARRED : WHITE);
+        mesh.setColorAt(i, t.charred ? CHARRED : TREE_TINTS[Math.abs(t.seed) % TREE_TINTS.length]);
       }
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
