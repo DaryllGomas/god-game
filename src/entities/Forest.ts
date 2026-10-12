@@ -70,8 +70,10 @@ export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
           leaf = mix(leaf, vec3(0.30, 0.20, 0.12) * lf, uBare * dec);
           leaf = mix(leaf, base * vec3(0.8, 0.95, 1.12), uBare * pine);
           // Value contrast (v0.6 polish 3): dark blue-green undersides, warm sunlit tops; pines run deeper and bluer.
-          float topK = smoothstep(0.08, 0.95, position.y / 7.0);
-          vec3 grad = mix(vec3(0.58, 0.68, 0.78), vec3(1.04, 0.98, 0.86), topK);
+          // Fable pass: wider value range so a wood reads as a dark mass with lit crowns, not one flat green.
+          float treeH = mix(7.0, 10.0, pine);
+          float topK = smoothstep(0.05, 0.95, position.y / treeH);
+          vec3 grad = mix(vec3(0.42, 0.52, 0.66), vec3(1.1, 1.02, 0.84), topK);
           grad = mix(grad, grad * vec3(0.78, 0.96, 1.04), pine);
           leaf *= grad;
           vColor.rgb = mix(vColor.rgb, leaf * instanceColor.rgb, isLeaf);
