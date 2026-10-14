@@ -43,6 +43,17 @@ export const INFLUENCE = {
   perStage: 10,
   /** The hand reaches 150 m, so the ring never grows past it. */
   max: 150,
+  /**
+   * Your light carries to a neighbour (2026-10-14, the road): once one of your villages has raised its standing
+   * stones, the hand works inside any village whose centre is within this distance of it, believer or not.
+   * Without this the ring (150 m at most) never reaches Brambleholt (223 m from Ashford) or Stonemere (257 m
+   * from Brambleholt), and a player who never thinks to throw is stuck. Ashford to Stonemere (397 m) stays out.
+   */
+  neighbour: 270,
+  /** The shrine stage index (0 totem, 1 stone circle...) a village needs before its light carries. */
+  neighbourFromStage: 1,
+  /** A reached village's own patch of influence: its radius times this (contains() uses 1.25; projects sit inside 1.1). */
+  neighbourScale: 1.35,
 };
 
 export const VILLAGER = {

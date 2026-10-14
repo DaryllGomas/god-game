@@ -424,3 +424,8 @@
     border-radius: 18px;
   }
 }
+
+/* A village beyond your light: its card waits out of sight until the light reaches it (the road, 2026-10-14). */
+.pr-card.far {
+  display: none;
+}

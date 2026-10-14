@@ -6,6 +6,7 @@ import { DEFS, type ProjectId } from '../projects/defs';
 import { WHOLE_AFTER } from '../endings/Endings';
 import { ORA_LINES } from '../ora/Ora';
 import { clamp } from '../util/math';
+import { freePlayUnlocked } from '../story/unlock';
 
 // ------------------------------------------------------------------ tuning knobs
 
@@ -31,15 +32,25 @@ const ORA_HEIGHT = 27;
 const START_YAW = 0.5;
 
 export type PaceChoice = 'walk' | 'stay';
+/**
+ * Story or free play (Daryll, 2026-10-14). Story (the default, and the only mode until story mode is beaten):
+ * the Walk on pace, Ora names one goal at a time and a soft light marks it (src/story). Free play (unlocked by
+ * the good ending): the Stay a while pace, no guidance, and you ascend when you choose.
+ */
+export type PlayMode = 'story' | 'free';
 export interface PaceSave {
   choice?: PaceChoice | null;
   confirmed?: boolean;
   checks?: number;
+  mode?: PlayMode | null;
 }
+
+/** Marks' glow, softened 20% (Daryll, 2026-10-14: "everything's just a little too luminous"). */
+const GLOW = 0.8;
 
 // ------------------------------------------------------------------ the emblems
 
-function emblem(kind: 'road' | 'hearth' | 'ora'): THREE.CanvasTexture {
+export function emblem(kind: 'road' | 'hearth' | 'ora'): THREE.CanvasTexture {
   const S = 256;
   const c = document.createElement('canvas');
   c.width = c.height = S;
@@ -141,12 +152,12 @@ class Mark {
     this.sprite.renderOrder = 9;
     // An additive twin, brighter than white so it blooms.
     this.haloMat = new THREE.SpriteMaterial({ map: this.mat.map, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending });
-    this.haloMat.color.setRGB(1.5, 1.25, 0.8);
+    this.haloMat.color.setRGB(1.5 * GLOW, 1.25 * GLOW, 0.8 * GLOW);
     this.halo = new THREE.Sprite(this.haloMat);
     this.halo.renderOrder = 10;
     const beam = new THREE.Mesh(
       new THREE.CylinderGeometry(0.3, 0.9, MARK_HEIGHT, 10, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xffd37a, transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
+      new THREE.MeshBasicMaterial({ color: 0xffd37a, transparent: true, opacity: 0.12 * GLOW, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
     );
     beam.position.y = MARK_HEIGHT / 2;
     this.gmat = new THREE.MeshBasicMaterial({ color: 0xffd37a, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide });
@@ -172,9 +183,9 @@ class Mark {
     this.sprite.scale.set(s, s, 1);
     this.halo.scale.set(s, s, 1);
     this.halo.position.copy(this.sprite.position);
-    this.haloMat.opacity = k * (0.3 + 0.55 * this.lit) * (0.85 + 0.15 * Math.sin(t * 2.4 + phase));
+    this.haloMat.opacity = k * GLOW * (0.3 + 0.55 * this.lit) * (0.85 + 0.15 * Math.sin(t * 2.4 + phase));
     this.mat.opacity = k * (0.55 + 0.45 * this.lit);
-    this.gmat.opacity = k * (0.28 + 0.5 * this.lit);
+    this.gmat.opacity = k * GLOW * (0.28 + 0.5 * this.lit);
     this.ground.scale.setScalar(1 + 0.06 * Math.sin(t * 2 + phase) + 0.12 * this.lit);
     this.group.visible = k > 0.01;
   }
@@ -191,6 +202,8 @@ class Mark {
  */
 export class Pace {
   choice: PaceChoice | null = null;
+  /** Story or free play (null until the island's first question is settled). */
+  mode: PlayMode | null = null;
   confirmed = false;
   checks = 0;
   readonly group = new THREE.Group();
@@ -291,7 +304,7 @@ export class Pace {
   // ---------------------------------------------------------------- the state
 
   save(): PaceSave {
-    return { choice: this.choice, confirmed: this.confirmed, checks: this.checks };
+    return { choice: this.choice, confirmed: this.confirmed, checks: this.checks, mode: this.mode };
   }
 
   load(d: unknown) {
@@ -299,6 +312,12 @@ export class Pace {
     if (s.choice === 'walk' || s.choice === 'stay') this.choice = s.choice;
     this.confirmed = !!s.confirmed;
     this.checks = Math.max(0, Math.floor(Number(s.checks) || 0));
+    if (s.mode === 'story' || s.mode === 'free') this.mode = s.mode;
+    else if (this.confirmed) {
+      // An island from before story mode: free play only if it is unlocked and the island was at the hearth already.
+      this.mode = freePlayUnlocked() && this.choice === 'stay' ? 'free' : 'story';
+    }
+    if (this.mode === 'story') this.choice = 'walk'; // story pace is Walk on
     this.applyChoice();
   }
 
@@ -307,9 +326,15 @@ export class Pace {
     return this.choice !== 'stay';
   }
 
-  /** Set the pace (also the debug handle). */
+  /** Story mode (guided). */
+  get story(): boolean {
+    return this.mode === 'story';
+  }
+
+  /** Set the pace (also the debug handle). The island's first choice also settles story (road) or free play (hearth). */
   choose(c: PaceChoice, confirm = true) {
     this.choice = c;
+    if (confirm && this.mode === null) this.mode = c === 'walk' ? 'story' : 'free';
     if (confirm) {
       this.confirmed = true;
       this.holdUntilChosen = false;
@@ -381,7 +406,8 @@ export class Pace {
   /** A new shrine stage or a new season: maybe Ora checks in. */
   private milestone() {
     const g = this.game;
-    if (!this.confirmed || this.checks >= MAX_CHECKS || this.wantCheck) return;
+    // Story mode keeps its pace (Walk on) and never asks; free play may still check in.
+    if (!this.confirmed || this.mode !== 'free' || this.checks >= MAX_CHECKS || this.wantCheck) return;
     if (g.time - this.lastCheck < CHECK_GAP || g.time < 60) return;
     const bal = (g as unknown as { balance?: { value: number } }).balance?.value ?? 1;
     if (bal < CHECK_MIN_BALANCE) return;
@@ -439,9 +465,19 @@ export class Pace {
       if (this.offerAge > 2.5) {
         this.offered = true;
         this.wantCheck = false;
-        if (this.preselect && this.choice === null) this.choose('walk', false);
-        this.holdUntilChosen = true;
-        (g as unknown as { ora?: { raise(m: string, f?: boolean): boolean } }).ora?.raise('pace', true);
+        if (!freePlayUnlocked()) {
+          // Story mode until it is beaten: no question. Ora's first goal (src/story) takes the question's place.
+          this.mode = 'story';
+          this.choice = 'walk';
+          this.confirmed = true;
+          if (this.firstPrayerIn < 0) this.firstPrayerIn = FIRST_PRAYER_DELAY;
+          this.applyChoice();
+        } else {
+          // Story beaten: the road walks the story again, the hearth is free play.
+          if (this.preselect && this.choice === null) this.choose('walk', false);
+          this.holdUntilChosen = true;
+          (g as unknown as { ora?: { raise(m: string, f?: boolean): boolean } }).ora?.raise('mode', true);
+        }
       }
     }
     // A check-in: the marks show while Ora speaks the line.
@@ -459,7 +495,7 @@ export class Pace {
       // Rise with Ora's line, not before it (Ora waits out a Lumi/Fizz card, and a silent orb reads as a glitch).
       if (this.offered && !this.spoke) {
         this.offerAge += dt;
-        if (showing === ORA_LINES.pace[0] || this.offerAge > 20) this.spoke = true;
+        if (showing === ORA_LINES.pace[0] || showing === ORA_LINES.mode[0] || this.offerAge > 20) this.spoke = true;
       }
       if (this.spoke) this.showFor = Math.max(this.showFor, 1);
     }
@@ -497,7 +533,7 @@ export class Pace {
     put(this.hearth, 1);
     const mid = home.worship.pos;
     this.star.position.set(mid.x, g.terrain.surfaceAt(mid.x, mid.z) + ORA_HEIGHT, mid.z);
-        (this.star.material as THREE.SpriteMaterial).opacity = this.level * 0.9;
+    (this.star.material as THREE.SpriteMaterial).opacity = this.level * 0.9 * GLOW;
 
     // The hand over a mark lights it; the current pace stays lit.
     const h = g.hand;

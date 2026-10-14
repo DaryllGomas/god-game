@@ -230,7 +230,7 @@ export class Prayers {
         if (h.burning && !h.destroyed) {
           const since = this.burnSince.get(h) ?? now;
           this.burnSince.set(h, since);
-          if (now - since >= FIRE_DELAY && !this.active.some((p) => p.house === h)) this.spawn(v, 'fire', true, h);
+          if (now - since >= FIRE_DELAY && !this.active.some((p) => p.house === h) && g.canReach(v)) this.spawn(v, 'fire', true, h);
         } else this.burnSince.delete(h);
       }
     }
@@ -253,7 +253,9 @@ export class Prayers {
     for (const v of g.villages) {
       const due = this.nextAt.get(v) ?? 0;
       if (now < due) continue;
-      if (this.regular(v).length >= MAX_PER_VILLAGE || v.population < 2) {
+      // A village beyond your light can't hear you yet, so it doesn't ask (its prayers could only fade, and fading
+      // prayers weigh on the balance). It starts praying the moment your light reaches it (Game.canReach).
+      if (this.regular(v).length >= MAX_PER_VILLAGE || v.population < 2 || !g.canReach(v)) {
         this.nextAt.set(v, now + 10 + step);
         continue;
       }
@@ -292,6 +294,8 @@ export class Prayers {
     if (!force && this.regular(v).length >= MAX_PER_VILLAGE) return null;
     let villager: Villager | undefined;
     let childName: string | undefined;
+    // A child lost from a village you only reach (not yours) would wander beyond your light: they ask for a sign instead.
+    if (kind === 'lost' && v.owner !== 'player') return this.spawn(v, 'sign', force);
     if (kind === 'lost') {
       const lost = this.loseSomeone(v);
       if (!lost) return this.spawn(v, 'sign', force);

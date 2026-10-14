@@ -24,7 +24,8 @@ import { MIRACLE_INFO, Orb, type MiracleId } from './miracles/Miracles';
 import { MAT } from './art/Models';
 import { Audio, type SoundscapeInput } from './audio/Audio';
 import { EventBus } from './systems/Events';
-import { DAY_LENGTH, PLAYER, SEA_LEVEL, START_TIME_OF_DAY, VILLAGE, VILLAGE_SITES, WORLD_SEED, WORLD_SIZE } from './config';
+import { DAY_LENGTH, INFLUENCE, PLAYER, SEA_LEVEL, START_TIME_OF_DAY, VILLAGE, VILLAGE_SITES, WORLD_SEED, WORLD_SIZE } from './config';
+import { SHRINE_STAGES } from './shrines/stages';
 import { Rng } from './util/rng';
 import { Noise2D } from './util/noise';
 import { SaveSystem, loadPlugins, quarantine, readSave, restoreWorld } from './systems/Save';
@@ -400,8 +401,28 @@ export class Game {
   inInfluence(x: number, z: number): boolean {
     for (const v of this.villages) {
       if (v.owner === 'player' && Math.hypot(v.center.x - x, v.center.z - z) < v.influenceRadius) return true;
+      if (v.owner !== 'player' && Math.hypot(v.center.x - x, v.center.z - z) < v.radius * INFLUENCE.neighbourScale && this.withinReach(v)) return true;
     }
     return false;
+  }
+
+  /**
+   * A village that isn't yours, but your light carries to it: one of your villages within INFLUENCE.neighbour
+   * has raised its standing stones. The hand works there, and its people pray to you.
+   */
+  withinReach(v: Village): boolean {
+    if (v.owner === 'player') return false;
+    for (const o of this.villages) {
+      if (o === v || o.owner !== 'player') continue;
+      if (SHRINE_STAGES.indexOf(o.shrineStage) < INFLUENCE.neighbourFromStage) continue;
+      if (Math.hypot(o.center.x - v.center.x, o.center.z - v.center.z) <= INFLUENCE.neighbour) return true;
+    }
+    return false;
+  }
+
+  /** The hand can act in this village: it is yours, or your light reaches it. */
+  canReach(v: Village): boolean {
+    return v.owner === 'player' || this.withinReach(v);
   }
 
   findWaterNear(x: number, z: number, r: number): THREE.Vector3 | null {
@@ -417,9 +438,11 @@ export class Game {
   }
 
   private updateInfluence() {
-    this.terrain.setInfluence(
-      this.villages.filter((v) => v.owner === 'player').map((v) => ({ x: v.center.x, z: v.center.z, r: v.influenceRadius })),
-    );
+    this.terrain.setInfluence([
+      ...this.villages.filter((v) => v.owner === 'player').map((v) => ({ x: v.center.x, z: v.center.z, r: v.influenceRadius })),
+      // Where your light carries (withinReach): the neighbour's own patch joins your ring.
+      ...this.villages.filter((v) => this.withinReach(v)).map((v) => ({ x: v.center.x, z: v.center.z, r: v.radius * INFLUENCE.neighbourScale })),
+    ]);
     // The rival god's villages get a violet ring of their own.
     this.terrain.setRivalInfluence(
       this.villages.filter((v) => v.owner === 'rival').map((v) => ({ x: v.center.x, z: v.center.z, r: v.influenceRadius })),

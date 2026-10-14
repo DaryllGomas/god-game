@@ -6,6 +6,12 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ### Added
 - Vexahl speaks aloud: 56 recorded lines (Kokoro bm_daniel pitched down), played on his card, which stays up for the clip plus 0.6s; the synth motif remains the fallback. Voice candidates in docs/voice-candidates/.
+- Story mode, the default on a first island: Ora names one goal at a time on the road to the Ascension, re-nudges gently if you're stuck, and a soft light marks the goal. Beating the story unlocks free play: a new island then offers Story or Free play (no guidance, you ascend when you choose).
+
+### Fixed
+- The road no longer dead-ends after your home village: once a village of yours raises its standing stones, your light reaches the next village, so your hand works there and its people pray to you. Far villages no longer send prayers you can't reach, and the prayer list never flies you somewhere you can't act. The pace marks glow a little softer.
+
+### Added
 - Lumi and Fizz speak aloud and float beside your hand, arguing over tempting mischief. Their speech stays readable when the hand leaves the screen.
 - Give villagers lasting jobs by setting them down at forests, fields, building sites, the shore or their prayer place. Builders fetch stone from nearby rocks; set them on open ground to release them.
 
