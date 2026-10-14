@@ -56,6 +56,8 @@ export class RivalUI {
   private cardLife = 0;
   private wait = 0;
   private last = '';
+  private loading = false;
+  private stopVoice: (() => void) | null = null;
   onDifficulty: (() => void) | null = null;
   onScheme: (() => void) | null = null;
 
@@ -91,7 +93,10 @@ export class RivalUI {
     this.card.innerHTML = `<div class="rv-face">${FACE}</div><div class="rv-body"><div class="rv-who">${RIVAL_NAME}</div><div class="rv-say"></div></div>`;
     this.cardText = this.card.querySelector('.rv-say')!;
     this.card.title = 'Click to dismiss';
-    this.card.onclick = () => (this.cardLife = 0);
+    this.card.onclick = () => {
+      this.cardLife = 0;
+      this.silence();
+    };
     game.hud.root.appendChild(this.card);
   }
 
@@ -167,33 +172,32 @@ export class RivalUI {
 
   /** True while the conversation is still going. */
   get talking(): boolean {
-    return this.queue.length > 0 || this.cardLife > 0 || this.wait > 0;
+    return this.queue.length > 0 || this.cardLife > 0 || this.wait > 0 || this.loading;
   }
 
   frame(dt: number) {
     if (this.game.hud.helpOpen) {
       this.card.classList.remove('show');
+      this.silence();
       return;
     }
     if (this.cardLife > 0) {
       this.cardLife -= dt;
-      if (this.cardLife <= 0) this.card.classList.remove('show');
+      if (this.cardLife <= 0) {
+        this.card.classList.remove('show');
+        this.silence();
+      }
     }
+    if (this.loading) return;
     if (this.wait > 0) {
       this.wait -= dt;
       return;
     }
     const q = this.queue[0];
     if (!q) return;
-    const g = this.game;
     if (q.line.who === 'rival') {
       this.queue.shift();
-      this.cardText.textContent = q.line.text;
-      void this.card.offsetWidth;
-      this.card.classList.add('show');
-      this.cardLife = cardTime(q.line.text);
-      this.wait = this.cardLife + 0.6;
-      g.audio.rivalVoice();
+      void this.showRival(q.line.text);
     } else {
       if (!this.advisors || this.advisors.muted) {
         this.queue.shift();
@@ -207,6 +211,32 @@ export class RivalUI {
         this.wait = cardTime(q.line.text) + 2.4;
       } else if (++q.tries > 600) this.queue.shift();
     }
+  }
+
+  private silence() {
+    this.stopVoice?.();
+    this.stopVoice = null;
+  }
+
+  /** His card, with his recorded voice when there is one (the synth motif otherwise). The card stays up for the clip plus 0.6s. */
+  private async showRival(text: string) {
+    this.loading = true;
+    this.silence();
+    let clip: AudioBuffer | null = null;
+    try {
+      clip = this.advisors?.muted ? null : await this.game.audio.advisorClip(text);
+    } catch {
+      clip = null;
+    }
+    this.loading = false;
+    this.cardText.textContent = text;
+    void this.card.offsetWidth;
+    this.card.classList.add('show');
+    this.cardLife = Math.max(cardTime(text), (clip?.duration ?? 0) + 0.6);
+    this.wait = this.cardLife + 0.6;
+    const stop = clip ? this.game.audio.playAdvisorClip(clip) : null;
+    if (stop) this.stopVoice = stop;
+    else if (!clip) this.game.audio.rivalVoice();
   }
 
   /** A grander moment: the victory card when he retreats. */

@@ -5,6 +5,7 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 ## [Unreleased]
 
 ### Added
+- Vexahl speaks aloud: 56 recorded lines (Kokoro bm_daniel pitched down), played on his card, which stays up for the clip plus 0.6s; the synth motif remains the fallback. Voice candidates in docs/voice-candidates/.
 - Lumi and Fizz speak aloud and float beside your hand, arguing over tempting mischief. Their speech stays readable when the hand leaves the screen.
 - Give villagers lasting jobs by setting them down at forests, fields, building sites, the shore or their prayer place. Builders fetch stone from nearby rocks; set them on open ground to release them.
 

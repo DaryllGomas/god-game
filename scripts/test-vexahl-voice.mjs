@@ -1,0 +1,34 @@
+import { chromium } from 'playwright-core';
+import fs from 'node:fs/promises';
+const browser = await chromium.launch({executablePath:process.env.CHROMIUM,args:['--use-gl=angle','--enable-gpu','--ignore-gpu-blocklist','--use-angle=vulkan','--autoplay-policy=no-user-gesture-required']});
+const p = await browser.newPage({viewport:{width:1600,height:1000}});
+const errors=[], requests=[];
+p.on('pageerror',e=>errors.push(String(e)));
+p.on('console',m=>{if(m.type()==='error') errors.push(m.text());});
+p.on('request',r=>{if(r.url().includes('/voice/vexahl-'))requests.push(r.url());});
+await p.addInitScript(()=>{
+ window.voiceStarts=[];
+ const start=AudioBufferSourceNode.prototype.start;
+ AudioBufferSourceNode.prototype.start=function(...a){if(this.buffer && !this.loop)window.voiceStarts.push({duration:this.buffer.duration});return start.apply(this,a);};
+});
+await p.goto(process.env.SITE_URL+'/index.html?shot=default');
+await p.waitForFunction(()=>window.game,null,{timeout:120000});
+await p.evaluate(()=>{for(const s of document.querySelectorAll('style'))if(s.textContent.includes('visibility: hidden !important'))s.remove();});
+await p.getByText('Begin',{exact:false}).first().click({timeout:5000});
+await p.mouse.move(800,600);
+await p.waitForTimeout(800);
+await p.evaluate(()=>{game.audio.unlock();game.audio.setMuted(false);game.prayerSystem.advisors.setMuted(false);window.clipPlays=[];const play=game.audio.playAdvisorClip.bind(game.audio);game.audio.playAdvisorClip=(c)=>{const s=play(c);window.clipPlays.push({duration:c.duration,started:!!s});return s;};
+ game.rival.ui.say({who:'rival',text:'Fine. FINE. They can have a nice day. See if I care.'});});
+const t0=Date.now();
+await p.waitForFunction(()=>document.querySelector('.rv-card.show'),null,{timeout:10000});
+await p.waitForTimeout(400);
+await p.screenshot({path:process.env.OUT_DIR+'/vexahl.png'});
+const text=await p.locator('.rv-say').textContent();
+const hidden=await p.waitForFunction(()=>!document.querySelector('.rv-card.show'),null,{timeout:20000}).then(()=>Date.now()-t0);
+// fallback: a line with no recording
+await p.evaluate(()=>game.rival.ui.say({who:'rival',text:'This line has no recording.'}));
+await p.waitForFunction(()=>document.querySelector('.rv-card.show .rv-say')?.textContent==='This line has no recording.',null,{timeout:20000});
+const result=await p.evaluate(()=>({starts:window.voiceStarts,clips:window.clipPlays}));
+await fs.writeFile(process.env.OUT_DIR+'/vexahl-evidence.json',JSON.stringify({errors,requests,text,cardVisibleMs:hidden,...result},null,2));
+await browser.close();
+if(errors.length||!requests.length||!result.clips.some(c=>c.started)||hidden<(result.clips[0].duration+0.6)*1000-300||result.clips.length!==1)throw Error('Evidence check failed');
