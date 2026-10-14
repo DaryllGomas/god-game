@@ -39,7 +39,10 @@ const BINARY_AFTER = 300;
 
 // ------------------------------------------------------------------ the words
 
-export type OraMoment = 'firstAnswer' | 'imbalance' | 'recovered' | 'cruel' | 'kind' | 'tending' | 'binary' | 'pace' | 'paceCheck';
+export type OraMoment = 'firstAnswer' | 'imbalance' | 'recovered' | 'cruel' | 'kind' | 'tending' | 'binary' | 'pace' | 'paceCheck' | 'mode';
+
+/** Story mode's guide lines (src/story) wait at least this long after Ora's last line (real seconds), not MIN_GAP. */
+const GUIDE_GAP = 6;
 
 /**
  * Ora never instructs. It notices, asks, warns once, or offers a flash of insight, then leaves you to choose
@@ -61,12 +64,14 @@ export const ORA_LINES: Record<OraMoment, readonly string[]> = {
   ],
   tending: ['Listen. It is in tune.', 'Nothing happened just now. That is the hardest thing to make.', 'They look up at the sky a little less. I think that is a good sign.'],
   pace: ['Walk on, or stay a while?'],
+  /** A new island once story mode is beaten (src/story): the road is the story again, the hearth is free play. */
+  mode: ['You have walked this road before. Walk it again, or simply stay a while?'],
   paceCheck: ['Walk on, or stay a little longer?', 'Still the same pace for you? Walk on, or stay?', 'Would you walk on now, or stay a while more?'],
   binary: ['Hmm. Those two only ever see one side each, don\'t they?', 'One pulls up, one pulls down. Where would you stand, without either?'],
 };
 
 /** Which moment wins when two are waiting. */
-const RANK: Record<OraMoment, number> = { imbalance: 6, cruel: 5, kind: 5, firstAnswer: 4, recovered: 3, tending: 2, binary: 1, pace: 4, paceCheck: 1 };
+const RANK: Record<OraMoment, number> = { imbalance: 6, cruel: 5, kind: 5, firstAnswer: 4, recovered: 3, tending: 2, binary: 1, pace: 4, paceCheck: 1, mode: 4 };
 
 const ORB = `<svg viewBox="0 0 40 40" aria-hidden="true">
   <defs><radialGradient id="ora-core" cx="50%" cy="50%" r="50%">
@@ -115,6 +120,10 @@ export class Ora {
   private readonly once = new Set<OraMoment>();
   private readonly lastOf = new Map<OraMoment, number>();
   private pending: Pending | null = null;
+  /** Story mode (src/story): the next goal, in Ora's words. Spoken before any waiting moment; never goes stale. */
+  private guidePending: string | null = null;
+  /** The line on screen is a guide line. */
+  private guiding = false;
   private spoken = 0;
   private clock = 0;
   private lastSpoke = -1e9;
@@ -191,6 +200,20 @@ export class Ora {
     return true;
   }
 
+  /**
+   * Story mode only (Daryll, 2026-10-14: "Ora kind of guiding you through it"): name the next goal. A guide line
+   * replaces any guide line still waiting, is spoken when the stage is quiet, and doesn't count toward the
+   * rare-insight limit. Free play never calls this.
+   */
+  guide(text: string) {
+    if (text.trim()) this.guidePending = text;
+  }
+
+  /** A guide line is waiting or on screen. */
+  get guideBusy(): boolean {
+    return !!this.guidePending || (this.showing && this.guiding);
+  }
+
   /** Debug/test: the state of the watchers. */
   state() {
     return {
@@ -198,6 +221,7 @@ export class Ora {
       fromBalanceSystem: typeof (this.game as unknown as { balance?: unknown }).balance !== 'undefined',
       spoken: this.spoken,
       pending: this.pending?.moment ?? null,
+      guide: this.guidePending,
       showing: this.showing ? this.lineEl.textContent : null,
       once: [...this.once],
     };
@@ -272,13 +296,22 @@ export class Ora {
     this.watchAdvisors();
 
     if (this.showing) {
-      this.t += dt;
+      // Stepping aside for a speaking character pauses the line; it comes back when they're done.
+      if (!card) this.t += dt;
       const end = FADE_IN + this.hold + FADE_OUT;
       if (this.t >= FADE_IN + this.hold) this.el.classList.remove('show');
       if (this.t >= end) this.showing = false;
       return;
     }
 
+    const quiet = !card && !this.advisorWasShowing && this.clock - this.advisorQuietSince >= AFTER_ADVISORS;
+    if (this.guidePending) {
+      if (!quiet || this.clock - this.lastSpoke < GUIDE_GAP || g.paused) return;
+      const text = this.guidePending;
+      this.guidePending = null;
+      this.show(text, true);
+      return;
+    }
     const p = this.pending;
     if (!p) return;
     p.age += dt;
@@ -286,7 +319,6 @@ export class Ora {
       this.pending = null;
       return;
     }
-    const quiet = !card && !this.advisorWasShowing && this.clock - this.advisorQuietSince >= AFTER_ADVISORS;
     if (!quiet || this.clock - this.lastSpoke < MIN_GAP || g.paused) return;
     this.pending = null;
     this.speak(p.moment);
@@ -300,6 +332,11 @@ export class Ora {
     this.once.add(moment);
     this.lastOf.set(moment, this.game.time);
     this.spoken++;
+    this.show(line, false);
+  }
+
+  private show(line: string, guide: boolean) {
+    this.guiding = guide;
     this.lastSpoke = this.clock;
     this.lineEl.textContent = line;
     this.hold = Math.min(HOLD_MAX, HOLD_BASE + line.length * HOLD_PER_CHAR);

@@ -372,7 +372,7 @@ export class Reach {
       const neutral = v.owner === null;
       let p = this.paths.get(v);
       if (!p) {
-        if (!mine && !(neutral && v.belief >= PATH_SHOW_FROM)) continue;
+        if (!mine && !(neutral && (v.belief >= PATH_SHOW_FROM || g.withinReach(v)))) continue;
         p = new Path(g, v);
         p.joined = mine;
         if (mine) {
@@ -383,7 +383,8 @@ export class Reach {
       }
       if (mine) p.joined = true;
       else if (p.joined) p.joined = false; // lost again: the road starts over from what is left
-      const show = mine || (neutral && v.belief >= PATH_SHOW_FROM * 0.5);
+      // Once your light reaches a village, its path shows (a seed of light, filling as belief grows).
+      const show = mine || (neutral && (v.belief >= PATH_SHOW_FROM * 0.5 || g.withinReach(v)));
       const goal = mine ? 1 : clamp(num(v.belief) / VILLAGE.convertAt, 0, 1);
       p.frame(dt, time, this.source(v), goal, show);
     }

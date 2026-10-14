@@ -15,6 +15,7 @@ import { EndCard } from './EndCard';
 import { RuinModel, ruinSite } from './Ruin';
 import { buildLegacy, downloadLegacy, nearestVillage, type Legacy } from './Legacy';
 import { clearRebirth, readRebirth, writeRebirth, type Ruin } from './memory';
+import { unlockFreePlay } from '../story/unlock';
 import './endings.css';
 
 // ------------------------------------------------------------------ tuning knobs
@@ -232,6 +233,7 @@ export class Endings {
 
   private showCard() {
     this.phase = 'card';
+    unlockFreePlay(); // story mode is beaten: a new island may now offer free play (src/story/unlock.ts)
     this.card.show();
   }
 

@@ -75,7 +75,8 @@ export class PrayerPanel {
     el.setAttribute('aria-label', `${p.village.name}: ${p.text}`);
     el.innerHTML = `<div class="pc-band"></div>${medallion(p.kind, 'pc-medal')}<div class="pr-bar"><div></div></div>`;
     el.classList.toggle('timed', p.need > 0 && Number.isFinite(p.expiresAt));
-    el.onclick = () => this.onPick(p, false);
+    // Never fly the camera somewhere the hand can't act (Daryll, 2026-10-14): a far village's card waits, hidden, until your light reaches it.
+    el.onclick = () => this.game.canReach(p.village) && this.onPick(p, false);
     const card = {
       prayer: p,
       el,
@@ -115,8 +116,14 @@ export class PrayerPanel {
   /** Every rendered frame: turn the rings and bars, and keep the panel clear of its neighbours. */
   frame(visible: boolean, count: number) {
     const g = this.game;
-    this.root.classList.toggle('hidden', !visible || this.cards.length === 0);
-    this.count.textContent = String(count);
+    let far = 0;
+    for (const c of this.cards) {
+      const out = !g.canReach(c.prayer.village) && !c.el.classList.contains('done');
+      c.el.classList.toggle('far', out);
+      if (out) far++;
+    }
+    this.root.classList.toggle('hidden', !visible || this.cards.length - far <= 0);
+    this.count.textContent = String(Math.max(0, count - far));
     for (const c of this.cards) {
       const p = c.prayer;
       if (c.el.classList.contains('done') || c.el.classList.contains('fading')) continue;
