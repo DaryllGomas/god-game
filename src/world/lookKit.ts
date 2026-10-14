@@ -46,7 +46,7 @@ export const LOOK = {
   vignette: 0.26,
 
   // ---- soft glow ----
-  bloomStrength: 0.42, bloomRadius: 0.6, bloomThreshold: 0.95,
+  bloomStrength: 0.36, bloomRadius: 0.6, bloomThreshold: 0.95, // 2026-10-14: a touch less glow (Daryll: "just a little too luminous")
   aoIntensity: 1.0, aoRadius: 4,
 
   // ---- tilt-shift depth of field ----
