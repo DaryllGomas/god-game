@@ -1131,7 +1131,7 @@ export class Audio {
     this.voiceManifest ??= fetch(`${import.meta.env.BASE_URL}voice/manifest.json`)
       .then((r) => r.ok ? r.json() : {}).catch(() => ({}));
     const name = (await this.voiceManifest)[text];
-    if (!name || !/^(lumi|fizz)-[0-9a-f]{8}$/.test(name)) return null;
+    if (!name || !/^(lumi|fizz|vexahl)-[0-9a-f]{8}$/.test(name)) return null;
     let clip = this.voiceClips.get(name);
     if (!clip) {
       clip = fetch(`${import.meta.env.BASE_URL}voice/${name}.mp3`)
