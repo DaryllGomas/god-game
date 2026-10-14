@@ -338,28 +338,32 @@
 /* ------------------------------------------------------------ advisors */
 
 .adv-card {
+  /* The one place Lumi and Fizz speak: a bubble at the top centre, where the eye already is. */
   position: absolute;
-  left: 14px;
-  bottom: 18px;
-  width: 320px;
+  left: 50%;
+  top: 14vh;
+  z-index: 30;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 28px));
+  min-width: 260px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px 9px 9px;
-  border-radius: 14px;
-  background: var(--panel);
-  border: 1px solid var(--adv, var(--panel-edge));
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4), 0 0 18px color-mix(in srgb, var(--adv, #fff) 22%, transparent);
-  backdrop-filter: blur(6px);
+  gap: 14px;
+  padding: 12px 22px 12px 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(30, 26, 44, 0.92), rgba(16, 13, 26, 0.94));
+  border: 1px solid color-mix(in srgb, var(--adv, #fff) 55%, transparent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 26px color-mix(in srgb, var(--adv, #fff) 28%, transparent);
+  backdrop-filter: blur(8px);
   cursor: pointer;
   pointer-events: auto;
   opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.45s ease, transform 0.45s ease;
+  transform: translate(-50%, -10px) scale(0.96);
+  transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .adv-card.show {
   opacity: 1;
-  transform: none;
+  transform: translate(-50%, 0);
 }
 .adv-card.spirit {
   --adv: #bfe6ff;
@@ -369,8 +373,8 @@
 }
 .adv-face {
   flex: none;
-  width: 52px;
-  height: 52px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   overflow: hidden;
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--adv) 40%, #1b1824), #14111c 75%);
@@ -400,8 +404,8 @@
   margin-bottom: 2px;
 }
 .adv-text {
-  font-size: 13px;
-  line-height: 1.38;
+  font-size: 15.5px;
+  line-height: 1.4;
   color: var(--text);
 }
 .adv-spirit-glow {
@@ -416,49 +420,7 @@
 @media (max-width: 720px) {
   .adv-card {
     width: calc(100vw - 28px);
+    min-width: 0;
+    border-radius: 18px;
   }
 }
-
-/* Tiny companions share the hand's space; speech floats above them, clear of the palm. */
-.adv-figure {
-  --adv: #bfe6ff;
-  --lean: 5deg;
-  position: absolute;
-  width: 72px;
-  height: 86px;
-  pointer-events: none;
-  opacity: 0;
-  transform: translate(-50%, -30%) scale(0.55);
-  transition: opacity 0.4s ease, transform 0.4s ease;
-}
-.adv-figure.imp { --adv: #ff9d6b; --lean: -5deg; }
-.adv-figure.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-.adv-avatar { filter: drop-shadow(0 0 12px var(--adv)); animation: adv-float 3s ease-in-out infinite; }
-.adv-avatar svg { display: block; width: 72px; height: 72px; position: relative; z-index: 1; }
-.adv-torso {
-  width: 30px;
-  height: 28px;
-  margin: -14px auto 0;
-  border-radius: 40% 40% 60% 60%;
-  background: linear-gradient(var(--adv), transparent);
-}
-.imp .adv-torso { border-radius: 35% 35% 70% 20%; transform: rotate(-12deg); }
-.adv-figure.talking .adv-avatar { animation: adv-bob 0.42s ease-in-out infinite; }
-.adv-figure.talking .adv-mouth { transform-box: fill-box; transform-origin: center; animation: adv-talk 0.22s ease-in-out infinite; }
-.adv-speech {
-  position: absolute;
-  bottom: 94px;
-  left: 50%;
-  width: min(250px, calc(100vw - 32px));
-  transform: translateX(-50%);
-  text-align: center;
-  opacity: 0;
-  visibility: hidden;
-  text-shadow: 0 2px 4px #000, 0 0 10px #000, 0 0 18px #000;
-}
-.spirit .adv-speech { transform: translateX(-25%); }
-.imp .adv-speech { transform: translateX(-75%); }
-.adv-speech.show { opacity: 1; visibility: visible; }
-.adv-speech .adv-text { font-size: 14px; color: #fff5e5; }
-@keyframes adv-float { 50% { transform: translateY(-5px); } }
-@keyframes adv-bob { 50% { transform: translateY(-3px) rotate(var(--lean)) scale(1.035); } }

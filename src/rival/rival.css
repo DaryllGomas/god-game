@@ -126,9 +126,11 @@
 /* ----------------------------------------------------------- his words */
 
 .rv-card {
+  /* Same spot as Lumi and Fizz: all dialogue speaks from the top centre. */
   position: absolute;
   left: 50%;
-  bottom: 124px;
+  top: 14vh;
+  z-index: 30;
   width: 400px;
   max-width: calc(100vw - 28px);
   display: flex;
@@ -143,7 +145,7 @@
   cursor: pointer;
   pointer-events: auto;
   opacity: 0;
-  transform: translate(-50%, 10px);
+  transform: translate(-50%, -10px);
   transition:
     opacity 0.45s ease,
     transform 0.45s ease;

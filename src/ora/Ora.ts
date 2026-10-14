@@ -264,7 +264,9 @@ export class Ora {
   frame(dt: number) {
     const g = this.game;
     const hidden = g.hud.helpOpen;
-    this.el.classList.toggle('away', hidden);
+    // Ora shares the top centre with the speaking characters: it steps aside while one of them talks.
+    const card = !!g.hud.root.querySelector('.adv-card.show, .rv-card.show');
+    this.el.classList.toggle('away', hidden || card);
     if (hidden) return;
     this.clock += dt;
     this.watchAdvisors();
@@ -284,7 +286,7 @@ export class Ora {
       this.pending = null;
       return;
     }
-    const quiet = !this.advisorWasShowing && this.clock - this.advisorQuietSince >= AFTER_ADVISORS;
+    const quiet = !card && !this.advisorWasShowing && this.clock - this.advisorQuietSince >= AFTER_ADVISORS;
     if (!quiet || this.clock - this.lastSpoke < MIN_GAP || g.paused) return;
     this.pending = null;
     this.speak(p.moment);

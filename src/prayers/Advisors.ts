@@ -13,9 +13,6 @@ const TOPIC_COOLDOWN = 300;
 const ANSWER_CHANCE = 0.3;
 /** Hold a villager this long (or a boulder over a village) and Fizz starts whispering. */
 const TEMPT_AFTER = 5;
-const FIGURE_SIDE = 105;
-const FIGURE_LIFT = 110;
-const SPEECH_TOP = 190;
 const ARGUMENT_GAP = 0.35;
 const STORE_KEY = 'godgame.advisors.v1';
 
@@ -141,10 +138,7 @@ export class Advisors {
   private readonly faceEl: HTMLDivElement;
   private readonly nameEl: HTMLDivElement;
   private readonly textEl: HTMLDivElement;
-  private readonly messages: HTMLElement | null;
   private readonly toggle: HTMLButtonElement;
-  private readonly figures = {} as Record<Who, HTMLDivElement>;
-  private speaker: Who = 'spirit';
   private argument = false;
   private loading = false;
   private generation = 0;
@@ -156,7 +150,6 @@ export class Advisors {
   private lastChat = -999;
   private readonly queue: Queued[] = [];
   private readonly topics = new Map<string, number>();
-  private lastBottom = '';
   private moodTopic = 0;
   /** Real seconds the hand has held its current temptation. */
   private holding = 0;
@@ -181,14 +174,6 @@ export class Advisors {
     this.textEl = this.card.querySelector('.adv-text')!;
     this.card.onclick = () => (this.cardLife = 0);
     game.hud.root.appendChild(this.card);
-    for (const who of ['spirit', 'imp'] as const) {
-      const figure = document.createElement('div');
-      figure.className = `adv-figure ${who}`;
-      figure.innerHTML = `<div class="adv-avatar">${FACE[who]}<div class="adv-torso"></div></div><div class="adv-speech"><div class="adv-name">${NAME[who]}</div><div class="adv-text"></div></div>`;
-      game.hud.root.appendChild(figure);
-      this.figures[who] = figure;
-    }
-    this.messages = game.hud.root.querySelector('.messages');
 
     this.toggle = document.createElement('button');
     this.toggle.className = 'speed-btn';
@@ -333,13 +318,11 @@ export class Advisors {
     this.showing = false;
     this.cardLife = 0;
     this.lastEnd = this.clock;
-    this.card.classList.remove('show');
-    for (const figure of Object.values(this.figures)) {
-      figure.classList.remove('talking');
-      if (!keepArgument) figure.classList.remove('show');
-      figure.querySelector('.adv-speech')!.classList.remove('show');
+    // Between two lines of one argument the bubble stays up and only its words and face change.
+    if (!keepArgument) {
+      this.card.classList.remove('show');
+      this.argument = false;
     }
-    if (!keepArgument) this.argument = false;
   }
 
   private async showNext() {
@@ -350,17 +333,12 @@ export class Advisors {
     if (token !== this.generation) return;
     this.loading = false;
     const { who, text } = q.line;
-    this.speaker = who;
     this.argument = q.argument;
-    this.card.className = `adv-card ${who}`;
+    const wasUp = this.card.classList.contains('show');
+    this.card.className = `adv-card ${who}${wasUp ? ' show' : ''}`;
     this.faceEl.innerHTML = FACE[who];
     this.nameEl.textContent = NAME[who];
     this.textEl.textContent = text;
-    for (const [key, figure] of Object.entries(this.figures)) {
-      figure.querySelector('.adv-text')!.textContent = key === who ? text : '';
-      figure.classList.toggle('talking', key === who);
-      figure.querySelector('.adv-speech')!.classList.toggle('show', key === who);
-    }
     this.showing = true;
     this.cardLife = Math.max(Math.min(9.5, 3.8 + text.length * 0.05), (clip?.duration ?? 0) + 0.6);
     this.place();
@@ -391,35 +369,9 @@ export class Advisors {
     this.place();
   }
 
-  /** Follow the palm; the old card only sits above the feed when the hand is out of view. */
+  /** One speech bubble, top centre, and only ever with words in it. */
   private place() {
-    const g = this.game;
-    const point = g.hand.pos.clone().project(g.godCam.camera);
-    const rect = g.hud.root.getBoundingClientRect();
-    const visible = g.hand.valid && point.z > -1 && point.z < 1 && Math.abs(point.x) < 1 && Math.abs(point.y) < 1;
-    this.card.classList.toggle('show', this.showing && !visible && !!this.textEl.textContent?.trim());
-    const x = (point.x + 1) * rect.width / 2;
-    const y = (1 - point.y) * rect.height / 2;
-    for (const who of ['spirit', 'imp'] as const) {
-      const figure = this.figures[who];
-      figure.classList.toggle('show', visible && (this.showing || this.argument) && (this.argument || who === this.speaker));
-      // Offset above the palm, leaving its whole interaction area clear even at screen edges.
-      const side = who === 'spirit' ? -1 : 1;
-      figure.style.left = `${Math.max(48, Math.min(rect.width - 48, x + side * FIGURE_SIDE))}px`;
-      figure.style.top = `${Math.max(SPEECH_TOP, Math.min(rect.height - 65, y - FIGURE_LIFT))}px`;
-      const speech = figure.querySelector<HTMLElement>('.adv-speech')!;
-      speech.style.marginLeft = '0px';
-      const bounds = speech.getBoundingClientRect();
-      const shift = bounds.left < rect.left + 12 ? rect.left + 12 - bounds.left
-        : bounds.right > rect.right - 12 ? rect.right - 12 - bounds.right : 0;
-      speech.style.marginLeft = `${shift}px`;
-    }
-    const h = this.messages?.offsetHeight ?? 0;
-    const bottom = `${18 + h + (h ? 10 : 0)}px`;
-    if (bottom !== this.lastBottom) {
-      this.lastBottom = bottom;
-      this.card.style.bottom = bottom;
-    }
+    this.card.classList.toggle('show', (this.showing || this.argument) && !!this.textEl.textContent?.trim());
   }
 
   private watchMood() {
