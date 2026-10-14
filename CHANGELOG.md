@@ -5,6 +5,7 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 ## [Unreleased]
 
 ### Added
+- Voiced Lumi and Fizz's 14 new story-mode lines (Qwen3 Sohee and Kokoro fable, same settings and loudness as the rest), so they no longer fall back to synth babble. Ora stays text-only.
 - Vexahl speaks aloud: 56 recorded lines (Kokoro bm_daniel pitched down), played on his card, which stays up for the clip plus 0.6s; the synth motif remains the fallback. Voice candidates in docs/voice-candidates/.
 - Story mode, the default on a first island: Ora names one goal at a time on the road to the Ascension, re-nudges gently if you're stuck, and a soft light marks the goal. Beating the story unlocks free play: a new island then offers Story or Free play (no guidance, you ascend when you choose).
 
