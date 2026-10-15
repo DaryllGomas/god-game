@@ -23,6 +23,11 @@ export interface Line {
 }
 type Priority = 'important' | 'chat';
 
+const EATEN: Line[] = [
+  { who: 'imp', text: 'Your golem just ate a villager. Chef\'s kiss.' },
+  { who: 'spirit', text: 'That is not funny. That was somebody\'s grandad.' },
+];
+
 const NAME: Record<Who, string> = { spirit: 'Lumi', imp: 'Fizz' };
 
 const FACE: Record<Who, string> = {
@@ -153,6 +158,9 @@ export class Advisors {
   private moodTopic = 0;
   /** Real seconds the hand has held its current temptation. */
   private holding = 0;
+  /** The golem has eaten someone and the first time has not been said yet (it waits for a free moment, never skipped). */
+  private eatenPending = false;
+  private eatenSaid = false;
 
   /**
    * Lumi and Fizz are characters, not a tutorial (the no-hints rule): they react to what you do,
@@ -236,13 +244,9 @@ export class Advisors {
     );
     ev.on('villagerDied', ({ cause, byPlayer }) => {
       if (cause === 'eaten') {
-        this.say(
-          [
-            { who: 'imp', text: 'Your golem just ate a villager. Chef\'s kiss.' },
-            { who: 'spirit', text: 'That is not funny. That was somebody\'s grandad.' },
-          ],
-          { pri: 'chat', topic: 'eaten' },
-        );
+        // The first time is always said (2026-10-15 playtest: it ate two villagers without a word); later ones are chatter.
+        if (!this.eatenSaid) this.eatenPending = true;
+        else this.say(EATEN, { pri: 'chat', topic: 'eaten' });
       } else if (byPlayer) this.react(pick(CRUEL_DEATH), 'death');
     });
     ev.on('houseDestroyed', ({ byPlayer }) => {
@@ -361,6 +365,17 @@ export class Advisors {
       return;
     }
     this.clock += dt;
+
+    if (this.eatenPending && !this.muted) {
+      if (this.argument || this.queue.some((q) => q.argument)) {
+        this.queue.length = 0;
+        this.finish();
+      }
+      if (this.say(EATEN, { pri: 'important', topic: 'eaten', cooldown: 0 })) {
+        this.eatenPending = false;
+        this.eatenSaid = true;
+      }
+    }
 
     if (this.showing) {
       this.cardLife -= dt;

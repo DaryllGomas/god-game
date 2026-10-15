@@ -98,6 +98,8 @@ export class Game {
   private readonly ndc = new THREE.Vector2();
   private readonly projV = new THREE.Vector3();
   private lastFrame = performance.now();
+  /** Renderer exposure as the look set it (captured on the first frame); the night lift multiplies it. */
+  private baseExposure?: number;
   private influenceTimer = 0;
   private regrowTimer = 0;
   private removals = false;
@@ -718,18 +720,76 @@ export class Game {
       if ((held as Orb).miracle === id) return this.cancelMiracle();
       this.cancelMiracle();
     } else if (held) {
-      this.message('Your hand is full. Put that down first.', 'warn', 'hand-full');
-      return;
+      // Holding a rock (or a tree, or a villager) and asking for a miracle: set it down gently and give the miracle.
+      if (!this.player.canAfford(info.cost)) return this.noPowerFor(id);
+      if (!this.setDownHeld()) {
+        this.handHint('Put that down first', 'Your hand is full. Put that down first.', 'hand-full');
+        return;
+      }
     }
-    if (!this.player.spend(info.cost)) {
-      this.message(`Not enough prayer power for ${info.name} (${info.cost}). More worshippers will help.`, 'warn', 'no-power');
-      return;
-    }
+    if (!this.player.spend(info.cost)) return this.noPowerFor(id);
     const orb = new Orb(id);
     orb.pos.copy(this.hand.pos);
     this.add(orb);
     this.hand.grab(this, orb);
     this.audio.miracleSelect(id);
+  }
+
+  private noPowerFor(id: MiracleId) {
+    const info = MIRACLE_INFO[id];
+    this.handHint(`Not enough prayer power for ${info.name}`, `Not enough prayer power for ${info.name} (${info.cost}). More worshippers will help.`, 'no-power');
+  }
+
+  /**
+   * Put down what the hand holds, gently and without moving the camera (2026-10-15 playtest: clicking Water with a
+   * rock in hand was a dead end). Right under the hand when that is inside your light, else back where it was
+   * picked up, else the nearest spot inside your light. Returns false only if there is nowhere to put it.
+   */
+  setDownHeld(): boolean {
+    const hand = this.hand;
+    const e = hand.held;
+    if (!e) return true;
+    const ok = (x: number, z: number) => this.terrain.isLand(x, z, 0.8) && this.inInfluence(x, z);
+    const tries: [number, number][] = [[e.pos.x, e.pos.z]];
+    if (hand.valid) tries.push([hand.ground.x, hand.ground.z]);
+    if (hand.hasPickedFrom) tries.push([hand.pickedFrom.x, hand.pickedFrom.z]);
+    let spot = tries.find(([x, z]) => ok(x, z));
+    // Nearest allowed spot: rings outward from the hand.
+    for (let r = 3; !spot && r <= 160; r += 3) {
+      const n = Math.max(8, Math.round(r * 1.2));
+      for (let i = 0; i < n && !spot; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const x = e.pos.x + Math.cos(a) * r;
+        const z = e.pos.z + Math.sin(a) * r;
+        if (ok(x, z)) spot = [x, z];
+      }
+    }
+    if (!spot) return false;
+    const [x, z] = spot;
+    const y = this.terrain.surfaceAt(x, z);
+    hand.place(this, new THREE.Vector3(x, y, z));
+    this.fx.sparkle(x, y + 1, z, 10, 0xffffff, 1.5);
+    return true;
+  }
+
+  /** A brief refusal shown by the hand (and kept in the log), so it is seen where the player is looking. */
+  handHint(hint: string, log: string, key: string) {
+    const hand = this.hand;
+    const at = new THREE.Vector3().copy(hand.valid ? hand.pos : this.godCam.target);
+    at.y += hand.scale * 1.2;
+    // By the hand, but slid in toward the middle of the view if the hand is at the screen's edge (the text is wide).
+    const cam = this.godCam.camera;
+    const goal = new THREE.Vector3().copy(this.godCam.target);
+    const p = new THREE.Vector3();
+    for (let k = 0; k <= 1; k += 0.1) {
+      p.copy(at).lerp(goal, k).project(cam);
+      if (Math.abs(p.x) < 0.62 && Math.abs(p.y) < 0.8) {
+        at.lerp(goal, k);
+        break;
+      }
+    }
+    this.floatText(at.x, at.y, at.z, hint, '#ffd9a0');
+    this.message(log, 'warn', key);
   }
 
   cancelMiracle() {
@@ -877,6 +937,9 @@ export class Game {
 
     const cam = this.godCam.camera;
     this.sky.update(this.dayTime, cam, this.godCam.target, this.godCam.distance);
+    // The night floor lifts the exposure a little in the dark (src/world/Sky.ts); the base is whatever the look set.
+    this.baseExposure ??= this.renderer.toneMappingExposure;
+    this.renderer.toneMappingExposure = this.baseExposure * this.sky.exposureScale;
     this.water.update(this.realTime, this.sky.sunDir, this.sky.sunColor, this.sky.daylight);
     this.fx.light = 0.18 + 0.82 * this.sky.daylight;
     this.terrain.setFrame(this.realTime, this.godCam.distance);

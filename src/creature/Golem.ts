@@ -54,6 +54,10 @@ const TIRE_RATE = 1 / 330;
 const REST_RATE = 1 / 35;
 /** A stroke or slap within this many seconds still counts toward the last thing it did. */
 const MEMORY_WINDOW = 10;
+/** ...or within this many real seconds, so at 4x speed there is still time to react (2026-10-15 playtest). */
+const MEMORY_REAL = 6;
+/** Eating a villager gives it a taste for it (the panel's "Eating villagers" bar moves) until you teach it otherwise. */
+const VILLAGER_TASTE = 0.05;
 const WALK_SPEED = 2.6;
 const LOOK_RANGE = 45;
 /** Base desire for a good deed it has no opinion of yet, and how much each point of opinion adds. */
@@ -124,7 +128,7 @@ export class Golem extends Entity {
   thought = 'Waking up';
   action: Action = { kind: 'idle', t: 2 };
 
-  private lastDeed: { key: LearnKey; t: number } | null = null;
+  private lastDeed: { key: LearnKey; t: number; rt: number } | null = null;
   private holding: Entity | null = null;
   private shownAlignment = 0;
   private yaw = rng.range(0, Math.PI * 2);
@@ -222,7 +226,8 @@ export class Golem extends Entity {
     if (a.kind === 'throw' && a.phase !== 'go') return 'throw:rock';
     const good = this.deedKeyOf(a);
     if (good) return good;
-    if (this.lastDeed && game.time - this.lastDeed.t < MEMORY_WINDOW) return this.lastDeed.key;
+    const d = this.lastDeed;
+    if (d && (game.time - d.t < MEMORY_WINDOW || game.realTime - d.rt < MEMORY_REAL)) return d.key;
     return null;
   }
 
@@ -317,7 +322,7 @@ export class Golem extends Entity {
     const before = this.opinions[key];
     this.opinions[key] = clamp(before + WATCH_GAIN * (1 - Math.abs(before) * 0.35), -1, 1);
     this.curious = { pos: new THREE.Vector3(x, game.terrain.heightAt(x, z) + 1, z), t: 2.4 };
-    this.lastDeed = { key, t: game.time };
+    this.lastDeed = { key, t: game.time, rt: game.realTime };
     if (k === 'idle' || k === 'wander') this.idle(2.4);
     game.floatText(this.pos.x, this.pos.y + this.topHeight + 3, this.pos.z, `👀 ${GOOD_INFO[key].icon}`, '#bfeee8');
     game.events.emit('creatureTaught', { key, delta: WATCH_GAIN });
@@ -621,6 +626,7 @@ export class Golem extends Entity {
       game.audio.yelp(f.pos, 1.4);
       f.die(game, 'eaten', false);
       game.remove(f);
+      this.opinions['eat:villager'] = clamp(this.opinions['eat:villager'] + VILLAGER_TASTE, -1, 1);
     } else if (f instanceof Field) {
       f.harvest();
       nourish = 0.45;
@@ -645,7 +651,7 @@ export class Golem extends Entity {
     this.meals++;
     this.size = Math.min(MAX_SIZE, this.size + 0.025);
     this.applySize();
-    this.lastDeed = { key: a.key, t: game.time };
+    this.lastDeed = { key: a.key, t: game.time, rt: game.realTime };
     game.floatText(this.pos.x, this.pos.y + this.topHeight + 1, this.pos.z, 'Nom!', '#ffe9a8');
     game.audio.crunch(this.pos);
     game.events.emit('creatureAte', { key: a.key });
@@ -703,7 +709,7 @@ export class Golem extends Entity {
           r.thrownByCreature = true;
           r.impressPending = true;
           r.launchPoint.copy(r.pos);
-          this.lastDeed = { key: 'throw:rock', t: game.time };
+          this.lastDeed = { key: 'throw:rock', t: game.time, rt: game.realTime };
           this.thought = 'Wheee!';
           game.audio.whoosh(r.pos, speed);
         }
@@ -727,7 +733,7 @@ export class Golem extends Entity {
 
   private finishDeed(game: Game, key: GoodKey) {
     this.doneAt.set(key, game.time);
-    this.lastDeed = { key, t: game.time };
+    this.lastDeed = { key, t: game.time, rt: game.realTime };
     this.alignment = clamp(this.alignment + DEED_ALIGNMENT[key], -1, 1);
     this.happy = Math.max(this.happy, 0.7);
     this.deedCount[key] = (this.deedCount[key] ?? 0) + 1;

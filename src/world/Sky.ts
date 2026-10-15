@@ -9,6 +9,18 @@ const DUSK_HORIZON = new THREE.Color(0xf29a5c);
 const NIGHT_ZENITH = new THREE.Color(0x03060f);
 const NIGHT_HORIZON = new THREE.Color(0x101a33);
 
+/**
+ * The night floor (2026-10-15 playtest: at 4x the nights went nearly black, villagers and lost children unreadable).
+ * Nights stay moody and blue, but the moon comes up as the sun goes (no dark gap at dusk), the sky fill never drops
+ * below NIGHT_HEMI, and the exposure lifts a little in the dark.
+ */
+const MOON_INTENSITY = 0.85;
+const MOON_COLOR = new THREE.Color(0.48, 0.6, 1.0);
+const NIGHT_HEMI = 0.78;
+const NIGHT_HEMI_COLOR = new THREE.Color(0x6788d8);
+const NIGHT_GROUND = 0.4;
+const NIGHT_EXPOSURE_LIFT = 0.14;
+
 /** Sky dome, sun/moon light, hemisphere fill, stars and fog, all driven by time of day. */
 export class Sky {
   readonly sun: THREE.DirectionalLight;
@@ -19,6 +31,8 @@ export class Sky {
   /** 0 at deep night, 1 at full day. */
   daylight = 1;
   timeOfDay = 0.3;
+  /** Multiplier on the renderer's base exposure: 1 by day, a little more at night (Game applies it each frame). */
+  exposureScale = 1;
 
   private readonly dome: THREE.Mesh;
   private readonly domeMat: THREE.ShaderMaterial;
@@ -177,14 +191,15 @@ export class Sky {
       lightDir.copy(this.sunDir).negate();
       lightDir.y = Math.abs(lightDir.y) + 0.3;
       lightDir.normalize();
-      this.sunColor.setRGB(0.55, 0.65, 1.0);
-      this.sun.intensity = 0.8 * smoothstep(-0.05, -0.3, elev);
+      this.sunColor.copy(MOON_COLOR);
+      this.sun.intensity = MOON_INTENSITY * smoothstep(-0.03, -0.2, elev);
     }
     this.sun.color.copy(this.sunColor);
-    this.hemi.intensity = 0.45 + (LOOK.hemiIntensity - 0.45) * this.daylight;
+    this.hemi.intensity = NIGHT_HEMI + (LOOK.hemiIntensity - NIGHT_HEMI) * this.daylight;
     this.hemi.color.copy(horizon).lerp(LOOK.hemiSky, 0.65);
-    this.hemi.groundColor.copy(LOOK.hemiGround).multiplyScalar((0.4 + 0.6 * this.daylight) * 0.9);
-    if (this.daylight < 0.5) this.hemi.color.lerp(new THREE.Color(0x4a6aa8), 1 - this.daylight * 2);
+    this.hemi.groundColor.copy(LOOK.hemiGround).multiplyScalar((NIGHT_GROUND + (1 - NIGHT_GROUND) * this.daylight) * 0.9);
+    if (this.daylight < 0.5) this.hemi.color.lerp(NIGHT_HEMI_COLOR, 1 - this.daylight * 2);
+    this.exposureScale = 1 + NIGHT_EXPOSURE_LIFT * (1 - this.daylight);
 
     // Shadow frustum follows what the camera is looking at.
     const extent = clamp(viewDistance * 1.1, 60, 520);
