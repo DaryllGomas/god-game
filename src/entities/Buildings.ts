@@ -23,7 +23,71 @@ const WINDOW_LIT = MAT.window;
 /** A lived-in home's windows glow softly even by day (v0.6 polish 3). */
 const WINDOW_WARM = new THREE.MeshStandardMaterial({ color: 0x4a3418, emissive: 0xffa640, emissiveIntensity: 0.55, roughness: 0.6 });
 const WINDOW_DARK = new THREE.MeshStandardMaterial({ color: 0x2a2218, roughness: 0.8 });
+/** A family that has come to believe in you (a village not yet yours): its windows take the gold of your light. */
+const WINDOW_GOLD = new THREE.MeshStandardMaterial({ color: 0x5a4418, emissive: 0xffd37a, emissiveIntensity: 0.75, roughness: 0.6 });
 const scaffoldGeo = scaffoldGeometry();
+
+// ------------------------------------------------------------- believing home
+
+/** The soft gold ring of light on the ground round a believing home (the game's gold-ring language): size (m), peak opacity. */
+const HALO_SIZE = 13;
+const HALO_PEAK = 0.85;
+/** Seconds to fade in or out, and the swell when the whole village joins you. */
+const HALO_FADE = 1.6;
+const HALO_FLARE = 3.5;
+let haloTex: THREE.Texture | null = null;
+const haloGeo = new THREE.PlaneGeometry(HALO_SIZE, HALO_SIZE).rotateX(-Math.PI / 2);
+/** A faint gold wash inside, a thin bright ring near the edge, soft on both sides of it (alpha only; colour is gold). */
+function haloTexture(): THREE.Texture {
+  if (haloTex) return haloTex;
+  const N = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = N;
+  const x = c.getContext('2d')!;
+  const img = x.createImageData(N, N);
+  for (let j = 0; j < N; j++)
+    for (let i = 0; i < N; i++) {
+      const r = Math.hypot(i + 0.5 - N / 2, j + 0.5 - N / 2) / (N / 2);
+      const ring = Math.exp(-(((r - 0.8) / 0.06) ** 2));
+      const glow = Math.exp(-(((r - 0.8) / 0.16) ** 2)) * 0.35;
+      const wash = 0.3 * (1 - smooth(0.5, 0.85, r));
+      const a = Math.min(1, ring + glow + wash) * (1 - smooth(0.9, 1, r));
+      const k = (j * N + i) * 4;
+      img.data[k] = 255;
+      img.data[k + 1] = 214;
+      img.data[k + 2] = 128;
+      img.data[k + 3] = Math.round(a * 255);
+    }
+  x.putImageData(img, 0, 0);
+  haloTex = new THREE.CanvasTexture(c);
+  haloTex.colorSpace = THREE.SRGBColorSpace;
+  return haloTex;
+}
+/** A small soft light that hangs over a believing home's roof, so it reads from afar (gold, gently breathing). */
+let moteTex: THREE.Texture | null = null;
+function moteTexture(): THREE.Texture {
+  if (moteTex) return moteTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const x = c.getContext('2d')!;
+  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,246,220,1)');
+  g.addColorStop(0.18, 'rgba(255,224,150,0.85)');
+  g.addColorStop(0.5, 'rgba(255,205,110,0.22)');
+  g.addColorStop(1, 'rgba(255,200,110,0)');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 64, 64);
+  moteTex = new THREE.CanvasTexture(c);
+  moteTex.colorSpace = THREE.SRGBColorSpace;
+  return moteTex;
+}
+const MOTE_SIZE = 5;
+const MOTE_PEAK = 1;
+
+function smooth(a: number, b: number, v: number) {
+  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
 
 // --------------------------------------------------------------------- house
 
@@ -43,6 +107,12 @@ export class House extends Entity {
   readonly chimney: THREE.Vector3;
   readonly footW: number;
   readonly footD: number;
+  /** Its family believes in you (a village not yet yours): glows gold (see setBelieving). */
+  believing = false;
+  private glow = 0;
+  private flare = 0;
+  private halo: THREE.Mesh | null = null;
+  private mote: THREE.Sprite | null = null;
 
   constructor(village: Village, x: number, y: number, z: number, rotY: number, seed: number, built: boolean) {
     super();
@@ -66,6 +136,56 @@ export class House extends Entity {
 
   get complete(): boolean {
     return this.progress >= 1 && !this.destroyed;
+  }
+
+  /**
+   * Households join one by one (2026-10-14): a home whose family has come to believe glows a soft gold, its windows
+   * and a pool of light round it. `flare`: the whole village just became yours, so the light swells and fades.
+   */
+  setBelieving(on: boolean, flare = false) {
+    this.believing = on;
+    if (flare && this.complete) this.flare = HALO_FLARE;
+  }
+
+  private updateGlow(dt: number) {
+    const want = this.believing && this.complete ? 1 : 0;
+    this.glow += Math.sign(want - this.glow) * Math.min(Math.abs(want - this.glow), dt / HALO_FADE);
+    if (this.flare > 0) this.flare = Math.max(0, this.flare - dt);
+    const f = this.flare > 0 ? Math.sin((this.flare / HALO_FLARE) * Math.PI) * 1.6 : 0;
+    const k = Math.max(this.glow, f);
+    if (k <= 0.001) {
+      if (this.halo) this.halo.visible = false;
+      if (this.mote) this.mote.visible = false;
+      return;
+    }
+    if (!this.halo) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: haloTexture(),
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -3,
+        polygonOffsetUnits: -3,
+        fog: false,
+      });
+      this.halo = new THREE.Mesh(haloGeo, mat);
+      this.halo.position.y = 0.25;
+      this.halo.renderOrder = 4;
+      this.halo.castShadow = this.halo.receiveShadow = false;
+      this.object.add(this.halo);
+    }
+    if (!this.mote) {
+      this.mote = new THREE.Sprite(new THREE.SpriteMaterial({ map: moteTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      this.mote.scale.setScalar(MOTE_SIZE);
+      this.mote.renderOrder = 5;
+      this.object.add(this.mote);
+    }
+    this.halo.visible = this.mote.visible = true;
+    const t = performance.now() * 0.001;
+    const breathe = 0.88 + 0.12 * Math.sin(t * 1.2 + this.seed);
+    (this.halo.material as THREE.MeshBasicMaterial).opacity = Math.min(1, k * HALO_PEAK * breathe);
+    (this.mote.material as THREE.SpriteMaterial).opacity = Math.min(1, k * MOTE_PEAK * breathe);
+    this.mote.position.set(0, 9 + Math.sin(t * 0.9 + this.seed * 0.7) * 0.35, 0);
   }
 
   get capacity(): number {
@@ -143,7 +263,8 @@ export class House extends Entity {
     }
     // A lived-in home keeps its windows warm from late afternoon on (even with everyone out at work).
     const lit = game.sky.daylight < 0.7 && this.complete && this.residents.length > 0;
-    this.windows.material = lit ? WINDOW_LIT : this.complete && this.residents.length > 0 ? WINDOW_WARM : WINDOW_DARK;
+    this.windows.material = this.believing && this.complete ? WINDOW_GOLD : lit ? WINDOW_LIT : this.complete && this.residents.length > 0 ? WINDOW_WARM : WINDOW_DARK;
+    this.updateGlow(dt);
     if (this.complete && !this.burning && this.health < 1 && !game.sky.isNight) {
       this.health = Math.min(1, this.health + dt * 0.01);
     }

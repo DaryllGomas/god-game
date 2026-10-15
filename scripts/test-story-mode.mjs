@@ -88,8 +88,15 @@ for (const size of [
     });
     check(!e.reachBefore.reach && !e.reachBefore.hand, `${tag}: Brambleholt out of reach before the stones`);
 
-    // Ashford raises its stones -> win Brambleholt.
+    // Ashford raises its stones -> its light grows toward Brambleholt (carry) as you tend -> win Brambleholt.
     await p.evaluate(() => game.shrines.setStage('Ashford', 'stone_circle', true));
+    await p.waitForFunction(() => game.story.state().goal?.id === 'carry', null, { timeout: 20000 });
+    e.carryState = await p.evaluate(() => game.story.state());
+    check(e.carryState.goal?.via === 'Ashford', `${tag}: after the stones, Ashford's light grows toward Brambleholt`);
+    await p.evaluate(() => {
+      game.villages.find((v) => v.name === 'Ashford').grow(80);
+      game.advance(30);
+    });
     e.win = await oraSays(p, 'Brambleholt', 60000);
     await p.screenshot({ path: `${OUT}/${tag}-4-next-goal-brambleholt.png` });
     e.winState = await p.evaluate(() => game.story.state());

@@ -41,9 +41,10 @@ interface StorySave {
  * Ora kind of guiding you through it." The road from the first prayer to the Ascension, one goal at a time:
  *
  *   1. answer   the first prayer in your home village;
- *   2. stones   your home raises its standing stones (helping its well);
- *   3. win      your light now reaches the nearest village: win its belief (prayers, gifts, help its dream);
- *      carry    (a village still beyond your light: a nearer village of yours must raise its stones first);
+ *   2. stones   your home raises its standing stones (its well waits for stone you carry);
+ *   3. carry    your light grows as you tend (prayers, gifts, dreams) and leans toward the nearest village; at its
+ *               prayer place's limit, only the next age carries it on (2026-10-14, progression);
+ *      win      your light touches it: win its families one by one (prayers, gifts, help its dream);
  *   4. raise    every village of yours grows its prayer place, age by age, to a temple;
  *   5. tune     every temple stands: keep the island in tune until it is ready to see (the Ascension).
  *
@@ -123,8 +124,10 @@ export class Story {
       const near = (v: Village) => Math.min(...mine.map((m) => Math.hypot(m.center.x - v.center.x, m.center.z - v.center.z)));
       const t = [...others].sort((a, b) => near(a) - near(b))[0];
       if (g.withinReach(t)) return { id: 'win', key: `win:${t.name}:${t.owner ?? 'none'}`, village: t, pos: t.worship.pos };
-      const via = [...mine].sort((a, b) => Math.hypot(a.center.x - t.center.x, a.center.z - t.center.z) - Math.hypot(b.center.x - t.center.x, b.center.z - t.center.z))[0];
-      return { id: 'carry', key: `carry:${t.name}:${via.name}:${via.projectSite ? 'site' : 'wait'}`, village: t, via, pos: at(via) };
+      const via = g.lightSource(t) ?? [...mine].sort((a, b) => Math.hypot(a.center.x - t.center.x, a.center.z - t.center.z) - Math.hypot(b.center.x - t.center.x, b.center.z - t.center.z))[0];
+      // The light grows as you tend; when it stands at its prayer place's limit, the next age carries it on.
+      const capped = this.capped(via);
+      return { id: 'carry', key: `carry:${t.name}:${via.name}:${capped ? 'cap' : 'grow'}:${capped && via.projectSite ? 'site' : 'wait'}`, village: t, via, pos: capped ? at(via) : this.lightTip(via, t) };
     }
 
     const climbing = mine.filter((v) => v.shrineStage !== 'temple');
@@ -135,6 +138,21 @@ export class Story {
       return { id: 'raise', key: `raise:${v.name}:${v.shrineStage}:${v.projectSite ? 'site' : 'wait'}`, village: v, pos: at(v) };
     }
     return { id: 'tune', key: 'tune', village: home, pos: home.worship.pos };
+  }
+
+  /** `v`'s light has grown as far as its prayer place lets it (only a new age carries it further). */
+  private capped(v: Village): boolean {
+    return v.influenceRadius >= v.ringCap - 1;
+  }
+
+  /** The tip of `src`'s light on the way to `t`: where the gold is creeping. */
+  private lightTip(src: Village, t: Village): THREE.Vector3 {
+    const g = this.game;
+    const d = Math.max(1, Math.hypot(t.center.x - src.center.x, t.center.z - src.center.z));
+    const e = Math.min(d, g.lightEdgeToward(src, t.center.x, t.center.z));
+    const x = src.center.x + ((t.center.x - src.center.x) / d) * e;
+    const z = src.center.z + ((t.center.z - src.center.z) / d) * e;
+    return new THREE.Vector3(x, g.terrain.heightAt(x, z), z);
   }
 
   private ctx(goal: Goal, reminder: boolean): Ctx {
@@ -154,6 +172,9 @@ export class Story {
       low: bal < LOW_BALANCE,
       again: this.led.has(goal.id),
       reminder,
+      capped: goal.id === 'carry' && !!goal.via && this.capped(goal.via),
+      families: v.familiesWithYou(),
+      homes: v.households().length,
     };
   }
 

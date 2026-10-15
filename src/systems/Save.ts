@@ -146,6 +146,7 @@ export function serialize(game: Game): SaveData {
       totem: [r2(v.worship.pos.x), r2(v.worship.pos.z)],
       houses: houses.map((h) => [r2(h.pos.x), r2(h.pos.z), r2(h.object.rotation.y), h.seed, r2(h.progress), r2(h.health)]),
       fields: v.fields.filter((f) => f.alive).map((f) => [r2(f.pos.x), r2(f.pos.z), r2(f.object.rotation.y), r2(f.growth), r2(f.scorched)]),
+      light: [r2(Math.max(0, v.ringGrowth)), r2(v.ringPending)],
     });
     for (const p of v.villagers) {
       if (p.dead || !p.alive) continue;

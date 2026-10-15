@@ -1102,6 +1102,8 @@ export class Golem extends Entity {
       if (e.kind !== 'site' || !e.alive) continue;
       const site = e as Site;
       if (site.complete) continue;
+      // Only your own villages' dreams: a neighbour rises with your hand, and is won by it (2026-10-14, progression).
+      if (site.village.owner !== 'player') continue;
       for (const res of ['stone', 'wood'] as Res[]) {
         if (site.open(res) < 3) continue;
         const item = res === 'stone' ? game.nearest<Rock>('rock', this.pos.x, this.pos.z, 130, free) : game.nearest<Pile>('wood', this.pos.x, this.pos.z, 130, free);

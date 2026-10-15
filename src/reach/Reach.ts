@@ -251,10 +251,11 @@ class Path {
     const lift = 0.16 + cam * 0.0012;
     const t = this.target.worship.pos;
     const dist = Math.hypot(t.x - src.center.x, t.z - src.center.z);
-    const start = Math.max(8, Math.min(src.influenceRadius, dist - PATH_END_GAP - PATH_MIN_LEN));
+    // From the edge of your light, which leans toward the next village and creeps out as you tend.
+    const start = Math.max(8, Math.min(g.lightEdgeToward(src, t.x, t.z) - 2, dist - PATH_END_GAP - PATH_MIN_LEN));
     const sx = src.center.x + ((t.x - src.center.x) / Math.max(1, dist)) * start;
     const sz = src.center.z + ((t.z - src.center.z) / Math.max(1, dist)) * start;
-    const key = `${src.name}|${Math.round(sx)}|${Math.round(sz)}|${Math.round(half * 20)}`;
+    const key = `${src.name}|${Math.round(sx / 2)}|${Math.round(sz / 2)}|${Math.round(half * 20)}`;
     if (key !== this.key) {
       this.key = key;
       this.build(sx, sz, half, lift);
@@ -343,11 +344,13 @@ export class Reach {
 
   /** Send a wave out from a village's centre to its influence ring (also a debug handle). */
   push(village: Village, kind: 'shrine' | 'house', strength = 1, delay = 0) {
-    const r1 = num(village.influenceRadius, 70);
+    const r1 = num(village.roundRadius, 70);
     this.waves.push({ village, delay, t: 0, dur: WAVE_TIME[kind], r1, strength });
   }
 
   private source(target: Village): Village | null {
+    const lit = this.game.lightSource(target);
+    if (lit) return lit;
     let best: Village | null = null;
     let bd = Infinity;
     for (const v of this.game.villages) {

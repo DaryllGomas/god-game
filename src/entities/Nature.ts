@@ -4,6 +4,7 @@ import { Entity, ownedMesh, sharedMesh } from './Entity';
 import { MAT, carriedGeometry, logStackGeometry, foodHeapGeometry, rockGeometry, treeGeometry } from '../art/Models';
 import { clamp } from '../util/math';
 import { assets } from '../assets';
+import { lightSdf } from '../reach/Light';
 import { softenCanopy } from '../art/softCanopy';
 
 // ---------------------------------------------------------------------- tree
@@ -262,6 +263,8 @@ export class Rock extends Entity {
 
 // --------------------------------------------------------------------- piles
 
+/** A pile set down inside a village you reach, but away from its storehouse, counts as this share of a gift. */
+const PILE_NEAR_SHARE = 0.5;
 const foodGeo = foodHeapGeometry();
 const woodGeo = logStackGeometry();
 export const carriedFood = carriedGeometry('food');
@@ -317,9 +320,21 @@ export class Pile extends Entity {
       return;
     }
     if (speed > 6) game.fx.dust(this.pos.x, this.pos.y, this.pos.z, 8, 0.6, this.kind === 'food' ? 0xe0c070 : 0xb59a6c);
+    // Set down anywhere inside a village your light reaches (not only on its storehouse), it still counts a little:
+    // its people carry it in themselves (2026-10-14, progression). Once per pile.
+    if ((this.thrownByPlayer || this.droppedByPlayer) && !this.counted) {
+      const { x, z } = this.pos;
+      const v = game.villages.find((o) => o.owner !== 'player' && game.canReach(o) && lightSdf(game.neighbourGlow(o), x, z) < 0);
+      if (v) {
+        this.counted = true;
+        game.giftToVillage(v, this.amount * PILE_NEAR_SHARE, this.kind);
+      }
+    }
   }
 
   droppedByPlayer = false;
+  /** Already counted as a gift where it landed (see onImpact). */
+  private counted = false;
 
   onDrop() {
     this.droppedByPlayer = true;

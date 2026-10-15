@@ -31,7 +31,10 @@ const LOST_DIST = [60, 110] as const;
 const FIRE_DELAY = 4;
 /** Rewards: faith in an owned village / belief in a neutral one, and prayer power. */
 const BELIEF_OWNED = 8;
-const BELIEF_NEUTRAL = 28;
+/** 2026-10-14 (progression): was 28, which won a village in 2 to 4 moments; now a family joins every few deeds. */
+const BELIEF_NEUTRAL = 10;
+/** One miracle answers one prayer: after a cast answers a prayer in a village, its rain doesn't answer another for this long. */
+const ONE_ANSWER_HOLD = 20;
 const POWER = { timber: 20, food: 20, rain: 25, lost: 35, fire: 30, sign: 15, project: 60 } as const;
 /** Miracles that count as "a sign". Fire is left out: nobody asks to be burned. */
 const SIGN_MIRACLES = new Set(['water', 'food']);
@@ -117,6 +120,8 @@ export class Prayers {
   private firstDone = false;
   private tick = 0;
   private readonly tmp = new THREE.Vector3();
+  /** Villages whose rain (from a cast that already answered a prayer there) answers nothing more, until this game time. */
+  private readonly rainSpent = new Map<Village, number>();
 
   constructor(private readonly game: Game) {
     for (const v of game.villages) {
@@ -132,10 +137,30 @@ export class Prayers {
         }
       }
     });
-    ev.on('rainedOn', ({ village }) => this.answerFirst('rain', village));
+    // One miracle answers ONE prayer (2026-10-14): a Water cast over a village answers its rain prayer if it has one,
+    // else its call for a sign; Food on a storehouse answers the hunger (through the gift), else a sign.
+    ev.on('rainedOn', ({ village }) => {
+      if ((this.rainSpent.get(village) ?? -1) > this.game.time) return;
+      this.answerFirst('rain', village);
+    });
     ev.on('miracle', ({ id, x, z }) => {
       if (!SIGN_MIRACLES.has(id)) return;
-      for (const p of [...this.active]) if (p.kind === 'sign' && p.village.contains(x, z, 1.3)) this.fulfil(p);
+      const v = this.game.villages.find((o) => o.contains(x, z, 1.3));
+      if (!v) return;
+      const mine = this.active.filter((p) => p.village === v);
+      if (id === 'water') {
+        const rain = mine.find((p) => p.kind === 'rain');
+        const p = rain ?? mine.find((p) => p.kind === 'sign');
+        if (p) {
+          this.fulfil(p);
+          this.rainSpent.set(v, this.game.time + ONE_ANSWER_HOLD);
+        }
+        return;
+      }
+      // Food: landing on the storehouse feeds a hunger prayer (the gift answers it); then it is no sign as well.
+      if (this.game.storeNear(x, z, 10)?.village === v && mine.some((p) => p.kind === 'food')) return;
+      const sign = mine.find((p) => p.kind === 'sign');
+      if (sign) this.fulfil(sign);
     });
     ev.on('place', ({ entity, x, z }) => {
       for (const p of [...this.active]) {

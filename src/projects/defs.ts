@@ -46,8 +46,16 @@ export const WONDER_BUILDERS = 3;
 /** Stone from one boulder: radius squared times this (min 4). A typical boulder is ~15. */
 export const STONE_PER_ROCK_AREA = 5;
 /** Wood in a thrown tree is its own wood; food/wood piles count in full. */
-/** Every village quarries a trickle of stone itself (per second) so it never stalls for good. */
+/**
+ * A village of yours quarries a trickle of stone itself (per second) so it never stalls for good, but only once a
+ * dream has waited QUARRY_PATIENCE game seconds for your stone: the stones are something you raise with them
+ * (2026-10-14; before, Ashford raised its own at about 3 minutes whatever you did). A village that isn't yours
+ * never quarries: it rises past the totem only with your hand. (The name is kept from v0.4.)
+ */
 export const NEUTRAL_QUARRY = 0.12;
+export const QUARRY_PATIENCE = 150;
+/** A neighbour your light has just reached waits at least this long before it announces a dream (game seconds). */
+export const FIRST_DREAM_AFTER_REACH = [60, 90] as const;
 
 /** Well: field growth multiplier, and extra fuel burned per second by fires inside the village (1 = twice as fast). */
 export const WELL_CROP_BOOST = 1.6;
@@ -61,9 +69,9 @@ export const FESTIVAL_TIME = 80;
 export const FESTIVAL_FAITH = 30;
 export const FESTIVAL_POWER = 200;
 /** Extra belief a neutral village gets for finishing a project (on top of the prayer reward). */
-export const NEUTRAL_FINISH_BELIEF = 40;
-/** Belief a neutral village gains per unit of material you give its project. */
-export const NEUTRAL_GIFT_BELIEF = 0.25;
+export const NEUTRAL_FINISH_BELIEF = 15;
+/** Belief a neutral village gains per unit of material you give its project (a boulder is ~15 stone). */
+export const NEUTRAL_GIFT_BELIEF = 0.12;
 
 /**
  * The Wonder (v0.4's end goal). Retired in v0.5: every village's temple standing is the goal now. It is

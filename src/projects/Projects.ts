@@ -16,6 +16,8 @@ import {
   FIRST_PROJECT_OTHER,
   NEUTRAL_FINISH_BELIEF,
   NEUTRAL_QUARRY,
+  QUARRY_PATIENCE,
+  FIRST_DREAM_AFTER_REACH,
   NEXT_PROJECT_GAP,
   TEMPLE_FAITH_REGEN,
   TEMPLE_FAITH_SHIELD,
@@ -44,6 +46,10 @@ export interface VillageProjects {
   /** Where the festival is (the new temple), while one runs. */
   festivalAt: THREE.Vector3 | null;
   quarry: number;
+  /** Game time its current dream was announced (the village quarries only after QUARRY_PATIENCE). */
+  startedAt: number;
+  /** Your light has reached it at least once (a neighbour's first dream waits a little after that). */
+  reached: boolean;
 }
 
 interface Mote {
@@ -117,6 +123,8 @@ export class Projects {
         festivalUntil: 0,
         festivalAt: null,
         quarry: 0,
+        startedAt: 0,
+        reached: v.owner === 'player',
       });
     }
   }
@@ -156,15 +164,22 @@ export class Projects {
   private updateVillage(vs: VillageProjects, step: number) {
     const g = this.game;
     const v = vs.village;
+    // Neighbours wait for you (2026-10-14): a village beyond your light dreams of nothing yet. Once your light
+    // reaches it, it announces its dream a little later (so the player arrives to a village at its totem).
+    const reach = g.canReach(v);
+    if (reach && !vs.reached) {
+      vs.reached = true;
+      vs.nextAt = Math.max(vs.nextAt, g.time + rng.range(FIRST_DREAM_AFTER_REACH[0], FIRST_DREAM_AFTER_REACH[1]));
+    }
     if (!vs.site) {
-      if (vs.index < CHAIN.length && g.time >= vs.nextAt && v.population >= 3) this.start(vs, CHAIN[vs.index]);
+      if (reach && vs.index < CHAIN.length && g.time >= vs.nextAt && v.population >= 3) this.start(vs, CHAIN[vs.index]);
       return;
     }
     const site = vs.site;
     if (vs.prayer) vs.prayer.progress = site.fraction * 100;
-    // Villagers quarry a little stone themselves so they are never stuck for good (yours too: helping a village
-    // must never leave it slower than one you ignore; the hand's boulders are still far faster).
-    if (site.open('stone') > 0 && v.population >= 4) {
+    // A village of yours quarries a little stone itself once a dream has waited a while, so it is never stuck for
+    // good; the hand's boulders are far faster. A village that isn't yours waits for your stone.
+    if (v.owner === 'player' && g.time - vs.startedAt >= QUARRY_PATIENCE && site.open('stone') > 0 && v.population >= 4) {
       vs.quarry += NEUTRAL_QUARRY * step;
       if (vs.quarry >= 2) {
         vs.quarry = 0;
@@ -172,7 +187,8 @@ export class Projects {
         g.fx.dust(site.pos.x, site.pos.y + 1, site.pos.z, 6, 0.7, 0xb8b1a4);
       }
     }
-    if (site.full && !site.complete) this.finish(vs);
+    // It rises past the totem only with your help: a neighbour's dream it built without you waits for your hand.
+    if (site.full && !site.complete && (v.owner === 'player' || site.given > 0)) this.finish(vs);
   }
 
   // ------------------------------------------------------- starting a project
@@ -239,6 +255,7 @@ export class Projects {
     g.add(site);
     v.projectSite = site;
     vs.site = site;
+    vs.startedAt = g.time;
     vs.prayer = this.prayers.spawnProject(v, def.icon, pick(def.prayer), def.thanks);
     g.events.emit('projectStarted', { village: v, project: id });
     g.message(
@@ -585,6 +602,8 @@ export class Projects {
         nextAt: r(vs.nextAt),
         done: [...vs.done],
         quarry: r(vs.quarry),
+        startedAt: r(vs.startedAt),
+        reached: vs.reached,
         festival: vs.festivalAt && vs.festivalUntil ? r(Math.max(0, vs.festivalUntil - g.time)) : 0,
       };
     });
@@ -600,6 +619,9 @@ export class Projects {
       vs.index = s.index;
       vs.nextAt = s.nextAt;
       vs.quarry = s.quarry;
+      // Older saves: their dreams quarry as before, and every village counts as reached.
+      vs.startedAt = typeof s.startedAt === 'number' ? s.startedAt : -1e9;
+      vs.reached = typeof s.reached === 'boolean' ? s.reached : true;
       vs.done.clear();
       for (const id of s.done) vs.done.add(id);
     });

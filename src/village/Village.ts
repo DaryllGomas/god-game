@@ -7,6 +7,7 @@ import type { Pile, Tree } from '../entities/Nature';
 import { INFLUENCE, PLAYER, VILLAGE, type Owner, type VillageSite } from '../config';
 import { Rng, rng } from '../util/rng';
 import type { Site } from '../projects/Site';
+import { circle, type LightShape } from '../reach/Light';
 import { SHRINE_CLEARANCE, SHRINE_STAGES, type ShrineStage } from '../shrines/stages';
 
 /** Half-size of the pad a house gets (a cottage is up to 5.4 x 4.6, plus its margin). */
@@ -32,6 +33,8 @@ export interface VillageSave {
   houses: [number, number, number, number, number, number][];
   /** [x, z, rotY, growth, scorched] */
   fields: [number, number, number, number, number][];
+  /** Your light's growth: [grown, still to flow out] in metres (2026-10-14; missing in older saves). */
+  light?: [number, number];
 }
 
 let villagerSeed = 1;
@@ -79,6 +82,11 @@ export class Village {
   beliefHeldUntil = 0;
   /** Belief after the last update, to notice rises from any source (impress, prayers, projects). */
   private lastBelief = Infinity;
+  /** Your light: metres it has grown by tending (see `grow`), and metres earned but not yet flowed out. */
+  ringGrowth = 0;
+  ringPending = 0;
+  /** Families that came to believe at the last check (for the moment a household joins or leaves). */
+  private joinedLast = -1;
 
   private roleTimer = 0;
   private birthTimer = 0;
@@ -105,6 +113,10 @@ export class Village {
     this.owner = d.owner;
     this.belief = d.belief;
     this.worshipFraction = d.worship;
+    if (Array.isArray(d.light)) {
+      this.ringGrowth = Number(d.light[0]) || 0;
+      this.ringPending = Number(d.light[1]) || 0;
+    } else this.ringGrowth = -1; // an older save: grown to its stage's cap (see fillLightFromOldSave)
     const c = this.center;
     this.store = new Store(this, c.x, c.y, c.z);
     this.store.food = d.food;
@@ -219,11 +231,103 @@ export class Village {
     return this.houses.filter((h) => h.complete).length;
   }
 
-  get influenceRadius(): number {
-    return Math.min(INFLUENCE.max, INFLUENCE.base + INFLUENCE.perHouse * this.completedHouses + INFLUENCE.perStage * Math.max(0, SHRINE_STAGES.indexOf(this.shrineStage)));
+  // ------------------------------------------------------------ your light
+
+  private get stageIndex(): number {
+    return Math.max(0, SHRINE_STAGES.indexOf(this.shrineStage));
   }
 
-  contains(x: number, z: number, scale = 1.25): boolean {
+  /** The most this village's light can reach at its prayer place's age (INFLUENCE.stageCap). */
+  get ringCap(): number {
+    const caps = INFLUENCE.stageCap;
+    return caps[Math.min(caps.length - 1, this.stageIndex)];
+  }
+
+  /** The light a village has without any tending: its homes and its prayer place. */
+  get ringBase(): number {
+    return Math.min(this.ringCap, INFLUENCE.base + INFLUENCE.perHouse * this.completedHouses + INFLUENCE.perStage * this.stageIndex);
+  }
+
+  /** How far this village's light reaches (along the road toward the next village; see `lightShape`). */
+  get influenceRadius(): number {
+    return Math.min(this.ringCap, this.ringBase + Math.max(0, this.ringGrowth));
+  }
+
+  /** The round part of the light: it grows only a share of what the leaning tip grows. */
+  get roundRadius(): number {
+    return Math.min(this.influenceRadius, this.ringBase + Math.max(0, this.ringGrowth) * INFLUENCE.roundShare);
+  }
+
+  /** A deed in or for this village: its light will grow by `m` metres (flowing out over a few seconds). */
+  grow(m: number) {
+    if (m > 0) this.ringPending = Math.min(INFLUENCE.bank + m, this.ringPending + m);
+  }
+
+  /** An older save had no growth: a village of yours keeps the reach it had (its stage's full light). */
+  fillLightFromOldSave() {
+    if (this.ringGrowth >= 0) return;
+    this.ringGrowth = this.owner === 'player' ? Math.max(0, this.ringCap - this.ringBase) : 0;
+  }
+
+  private flowLight(dt: number) {
+    if (this.ringPending <= 0) return;
+    const room = this.ringCap - (this.ringBase + this.ringGrowth);
+    const d = Math.min(this.ringPending, INFLUENCE.flow * dt, Math.max(0, room));
+    if (d > 0) {
+      this.ringGrowth += d;
+      this.ringPending -= d;
+    }
+    this.ringPending = Math.min(this.ringPending, INFLUENCE.bank);
+  }
+
+  /**
+   * This village's light on the ground: a circle, or an egg leaning toward `toward` (the nearest village that
+   * isn't yours) with its tip at the full reach.
+   */
+  lightShape(toward: Village | null): LightShape {
+    const c = this.center;
+    const reach = this.influenceRadius;
+    const round = this.roundRadius;
+    if (!toward || reach - round < 3) return circle(c.x, c.z, toward ? reach : round);
+    const rb = Math.max(14, round * INFLUENCE.tipShare);
+    const dx = toward.center.x - c.x;
+    const dz = toward.center.z - c.z;
+    const d = Math.max(1, Math.hypot(dx, dz));
+    const h = reach - rb;
+    return { ax: c.x, az: c.z, ra: round, bx: c.x + (dx / d) * h, bz: c.z + (dz / d) * h, rb };
+  }
+
+  // --------------------------------------------------------- households
+
+  /** Homes whose families can come to believe: finished, standing houses, nearest the prayer place first. */
+  households(): House[] {
+    const w = this.worship.pos;
+    return this.houses
+      .filter((h) => h.complete)
+      .sort((a, b) => Math.hypot(a.pos.x - w.x, a.pos.z - w.z) - Math.hypot(b.pos.x - w.x, b.pos.z - w.z));
+  }
+
+  /** Families that must believe before the village is yours ("most of them": VILLAGE.joinShare). */
+  familiesNeeded(n = this.households().length): number {
+    return Math.max(1, Math.ceil(n * VILLAGE.joinShare));
+  }
+
+  /** Families with you: every one in a village of yours; in another, belief fills them one by one. */
+  familiesWithYou(): number {
+    const n = this.households().length;
+    if (this.owner === 'player') return n;
+    if (this.owner === 'rival') return 0;
+    return Math.min(n, Math.floor((Math.max(0, this.belief) / VILLAGE.convertAt) * this.familiesNeeded(n) + 1e-6));
+  }
+
+  /** How far the next family is toward believing (0..1), for the segmented bar. */
+  nextFamilyProgress(): number {
+    if (this.owner !== null) return 0;
+    const f = (Math.max(0, this.belief) / VILLAGE.convertAt) * this.familiesNeeded();
+    return f - Math.floor(f);
+  }
+
+    contains(x: number, z: number, scale = 1.25): boolean {
     return Math.hypot(x - this.center.x, z - this.center.z) < this.radius * scale;
   }
 
@@ -304,7 +408,7 @@ export class Village {
     this.roleTimer -= dt;
     if (this.roleTimer <= 0) {
       this.roleTimer = 1;
-      this.assignRoles();
+      this.assignRoles(game);
     }
 
     this.dancers = 0;
@@ -325,28 +429,67 @@ export class Village {
       if (this.belief <= 0 && !this.isHome) this.abandon(game);
       this.belief = Math.max(this.isHome ? 5 : 0, this.belief);
     } else {
-      this.prayerRate = 0;
+      // Families that have come to believe dance for you at the totem, and their prayer reaches you (half strength).
+      this.prayerRate = this.owner === null ? this.dancers * PLAYER.powerPerWorshipper * 0.5 : 0;
+      if (this.prayerRate > 0) game.player.addPower(this.prayerRate * dt);
       // A deed that raised belief holds it for a while; only a long silence lets it fade, and slowly.
       if (this.belief > this.lastBelief) this.beliefHeldUntil = game.time + VILLAGE.beliefHold;
       if (game.time >= this.beliefHeldUntil) this.belief = Math.max(0, this.belief - VILLAGE.beliefDecay * dt);
       this.lastBelief = this.belief;
     }
 
+    if (this.owner === 'player') this.flowLight(dt);
     this.updateGrowth(game, dt);
   }
 
-  private assignRoles() {
-    const frac = this.festival ? 1 : this.owner === 'player' ? this.worshipFraction : VILLAGE.neutralWorship;
+  /** Each household that comes to believe glows gold; the moment one joins (or leaves) is marked. */
+  private updateHouseholds(game: Game) {
+    const homes = this.households();
+    const neutral = this.owner === null;
+    const joined = neutral ? this.familiesWithYou() : 0;
+    homes.forEach((h, i) => h.setBelieving(neutral && i < joined));
+    for (const h of this.houses) if (!h.complete) h.setBelieving(false);
+    if (this.joinedLast >= 0 && neutral && joined !== this.joinedLast) {
+      const h = homes[Math.min(joined, this.joinedLast)];
+      if (h) {
+        if (joined > this.joinedLast) {
+          game.fx.sparkle(h.pos.x, h.pos.y + 4, h.pos.z, 26, 0xfff0b0, 3);
+          game.audio.chime(h.pos, 1.4);
+        }
+        game.events.emit('householdJoined', { village: this, house: h, families: joined, of: homes.length, joined: joined > this.joinedLast });
+      }
+    }
+    this.joinedLast = neutral ? joined : -1;
+  }
+
+  private assignRoles(game: Game) {
+    this.updateHouseholds(game);
     const adults = this.villagers.filter((v) => !v.dead && !v.disciple);
-    const want = Math.round(adults.length * frac);
-    // The best-fed go to worship; everyone else works.
-    const sorted = [...adults].sort((a, b) => a.hunger - b.hunger);
     let slot = 0;
-    for (let i = 0; i < sorted.length; i++) {
-      const v = sorted[i];
-      const worship = i < want && v.hunger < 0.6;
-      v.role = worship ? 'worship' : 'work';
-      if (worship) v.danceSlot = slot++;
+    if (this.owner !== null || this.festival) {
+      // Yours, or his (the rival's people dance for him as they always did).
+      const frac = this.festival ? 1 : this.owner === 'player' ? this.worshipFraction : VILLAGE.neutralWorship;
+      const want = Math.round(adults.length * frac);
+      // The best-fed go to worship; everyone else works.
+      const sorted = [...adults].sort((a, b) => a.hunger - b.hunger);
+      for (let i = 0; i < sorted.length; i++) {
+        const v = sorted[i];
+        const worship = i < want && v.hunger < 0.6;
+        v.role = worship ? 'worship' : 'work';
+        if (worship) v.danceSlot = slot++;
+      }
+    } else {
+      // Not yours yet: the families that have come to believe dance for you (a few of each, so the work goes on).
+      const believing = new Set(this.households().slice(0, this.familiesWithYou()));
+      const perHome = new Map<House, number>();
+      for (const v of adults) {
+        const h = v.home;
+        const n = h ? perHome.get(h) ?? 0 : 0;
+        const worship = !!h && believing.has(h) && n < 2 && v.hunger < 0.6;
+        if (h && worship) perHome.set(h, n + 1);
+        v.role = worship ? 'worship' : 'work';
+        if (worship) v.danceSlot = slot++;
+      }
     }
     for (const v of this.villagers) {
       if (!v.disciple || v.dead) continue;
@@ -398,7 +541,7 @@ export class Village {
     if (
       !this.constructionSite() &&
       this.capacity - this.population <= 1 &&
-      this.houses.length < VILLAGE.maxHouses &&
+      this.houses.length < (this.owner === 'player' ? VILLAGE.maxHouses : VILLAGE.neutralMaxHouses) &&
       this.store.wood >= 10
     ) {
       const spot = this.findSpot(game, 0.4, 1.0, 6.5, HOUSE_PAD);
@@ -412,6 +555,8 @@ export class Village {
 
   convert(game: Game) {
     this.owner = 'player';
+    this.joinedLast = -1;
+    for (const h of this.houses) h.setBelieving(false, true);
     this.belief = 70;
     this.worshipFraction = VILLAGE.defaultWorship;
     game.onVillageConverted(this);

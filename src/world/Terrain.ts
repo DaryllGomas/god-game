@@ -5,6 +5,7 @@ import { SEA_LEVEL, TERRAIN_RES, WORLD_SIZE, type VillageSite } from '../config'
 import { GROUND_NOISE_GLSL } from './groundNoise';
 import { BALANCE_TINT, BALANCE_TINT_GLSL } from './balanceTint';
 import { LAND_LOOK_GLSL, LAND_SAMPLE_GLSL, LAND_UNIFORMS } from '../land/groundLook';
+import { LIGHT_SDF_GLSL, type LightShape } from '../reach/Light';
 
 const MAX_INFLUENCE = 8;
 const MAX_RIVAL = 4;
@@ -62,7 +63,9 @@ export class Terrain {
   readonly heightHalfTexture: THREE.DataTexture;
 
   private readonly uniforms = {
+    // Your light (src/reach/Light.ts): each shape is a circle (x, z, r) joined to a tip circle in uInfluenceB (rb < 0: none).
     uInfluence: { value: Array.from({ length: MAX_INFLUENCE }, () => new THREE.Vector3()) },
+    uInfluenceB: { value: Array.from({ length: MAX_INFLUENCE }, () => new THREE.Vector3(0, 0, -1)) },
     uInfluenceCount: { value: 0 },
     // The rival god's villages (see src/rival): a violet ring with an ember edge.
     uRival: { value: Array.from({ length: MAX_RIVAL }, () => new THREE.Vector3()) },
@@ -257,7 +260,9 @@ export class Terrain {
           ${BALANCE_TINT_GLSL}
           ${LAND_SAMPLE_GLSL}
           uniform vec3 uInfluence[${MAX_INFLUENCE}];
+          uniform vec3 uInfluenceB[${MAX_INFLUENCE}];
           uniform int uInfluenceCount;
+          ${LIGHT_SDF_GLSL}
           uniform vec3 uRival[${MAX_RIVAL}];
           uniform int uRivalCount;
           uniform float uRingWidth;
@@ -273,7 +278,7 @@ export class Terrain {
             float sd = 1e5;
             for (int i = 0; i < ${MAX_INFLUENCE}; i++) {
               if (i >= uInfluenceCount) break;
-              sd = min(sd, length(vWorldPos.xz - uInfluence[i].xy) - uInfluence[i].z);
+              sd = min(sd, lightSdf(vWorldPos.xz, uInfluence[i], uInfluenceB[i]));
             }
             if (uInfluenceCount > 0) {
               float ring = 1.0 - smoothstep(0.0, uRingWidth, abs(sd));
@@ -426,9 +431,14 @@ export class Terrain {
 
   // ------------------------------------------------------------ shader state
 
-  setInfluence(circles: { x: number; z: number; r: number }[]) {
-    const n = Math.min(circles.length, MAX_INFLUENCE);
-    for (let i = 0; i < n; i++) this.uniforms.uInfluence.value[i].set(circles[i].x, circles[i].z, circles[i].r);
+  /** Your light: circles, or eggs leaning toward the next village (see src/reach/Light.ts). */
+  setInfluence(shapes: LightShape[]) {
+    const n = Math.min(shapes.length, MAX_INFLUENCE);
+    for (let i = 0; i < n; i++) {
+      const s = shapes[i];
+      this.uniforms.uInfluence.value[i].set(s.ax, s.az, s.ra);
+      this.uniforms.uInfluenceB.value[i].set(s.bx, s.bz, s.rb);
+    }
     this.uniforms.uInfluenceCount.value = n;
   }
 

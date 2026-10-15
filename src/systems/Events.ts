@@ -36,6 +36,8 @@ export interface GameEvents {
   houseDestroyed: { house: House; byPlayer: boolean };
   fieldHarvested: { field: Field; food: number };
   villageConverted: { village: Village };
+  /** A family in a village that isn't yours came to believe (`joined`) or let go again; `families` of `of` now believe. */
+  householdJoined: { village: Village; house: House; families: number; of: number; joined: boolean };
   villageLost: { village: Village };
   /** The golem ate something; `key` is its learning key (e.g. 'eat:rock'). */
   creatureAte: { key: string };

@@ -25,7 +25,7 @@ import { MAT } from './art/Models';
 import { Audio, type SoundscapeInput } from './audio/Audio';
 import { EventBus } from './systems/Events';
 import { DAY_LENGTH, INFLUENCE, PLAYER, SEA_LEVEL, START_TIME_OF_DAY, VILLAGE, VILLAGE_SITES, WORLD_SEED, WORLD_SIZE } from './config';
-import { SHRINE_STAGES } from './shrines/stages';
+import { circle, edgeToward, lightSdf, lightSdfAll, type LightShape } from './reach/Light';
 import { Rng } from './util/rng';
 import { Noise2D } from './util/noise';
 import { SaveSystem, loadPlugins, quarantine, readSave, restoreWorld } from './systems/Save';
@@ -35,6 +35,9 @@ import type { Chronicle } from './chronicle/Chronicle';
  * A plugin is a self-contained feature (prayers, seasons, rival...). Drop a file in
  * src/plugins/ that exports `install(game)` and it is loaded automatically.
  */
+/** A gift's worth to a village not yet yours, as a share of the old v0.4 worth (food 0.28/unit, wood 0.15/unit). */
+const NEUTRAL_GIFT_SHARE = 0.4;
+
 export interface GamePlugin {
   name: string;
   /** Simulation step (scaled by game speed, not called while paused). */
@@ -141,6 +144,14 @@ export class Game {
     this.creaturePanel = new CreaturePanel(this, this.creature, this.hud.root);
     this.installPlugins();
     if (saved) loadPlugins(this, saved);
+    // Older saves had no light growth: villages keep the reach their prayer place gave them (needs the stages, loaded above).
+    for (const v of this.villages) v.fillLightFromOldSave();
+    // Your light grows as you tend (INFLUENCE.grow): answered prayers, gifts and finished dreams.
+    this.events.on('prayerAnswered', ({ kind, village }) => {
+      if (kind !== 'project') this.growLight(village, INFLUENCE.grow.prayer);
+    });
+    this.events.on('gift', ({ village }) => this.growLight(village, INFLUENCE.grow.gift));
+    this.events.on('projectCompleted', ({ village }) => this.growLight(village, INFLUENCE.grow.dream));
 
     const home = this.villages.find((v) => v.isHome)!;
     this.godCam.jumpTo(home.center.x, home.center.z + 20, this.terrain);
@@ -398,26 +409,90 @@ export class Game {
     return (e as unknown as { village?: Village }).village ?? null;
   }
 
-  inInfluence(x: number, z: number): boolean {
-    for (const v of this.villages) {
-      if (v.owner === 'player' && Math.hypot(v.center.x - x, v.center.z - z) < v.influenceRadius) return true;
-      if (v.owner !== 'player' && Math.hypot(v.center.x - x, v.center.z - z) < v.radius * INFLUENCE.neighbourScale && this.withinReach(v)) return true;
+  // ------------------------------------------------------------ your light
+
+  /** The nearest village that isn't yours (from `v`): the way its light leans. */
+  leanTarget(v: Village): Village | null {
+    let best: Village | null = null;
+    let bd = Infinity;
+    for (const o of this.villages) {
+      if (o === v || o.owner === 'player') continue;
+      const d = Math.hypot(o.center.x - v.center.x, o.center.z - v.center.z);
+      if (d < bd) {
+        bd = d;
+        best = o;
+      }
     }
-    return false;
+    return best;
+  }
+
+  /** Each village of yours casts its light: an egg leaning toward the nearest village not yet yours. */
+  ownLight(): { village: Village; shape: LightShape }[] {
+    return this.villages.filter((v) => v.owner === 'player').map((v) => ({ village: v, shape: v.lightShape(this.leanTarget(v)) }));
+  }
+
+  /** A reached village's own patch of light, widening with its belief (INFLUENCE.neighbourScale .. neighbourScaleMax). */
+  neighbourGlow(v: Village): LightShape {
+    const k = Math.min(1, Math.max(0, v.belief / VILLAGE.convertAt));
+    return circle(v.center.x, v.center.z, v.radius * (INFLUENCE.neighbourScale + (INFLUENCE.neighbourScaleMax - INFLUENCE.neighbourScale) * k));
+  }
+
+  /** All the gold on the ground: your villages' light and the patches of the villages it touches. */
+  lightShapes(): LightShape[] {
+    const own = this.ownLight().map((l) => l.shape);
+    const reached = this.villages.filter((v) => v.owner !== 'player' && this.touchedBy(own, v));
+    return [...own, ...reached.map((v) => this.neighbourGlow(v))];
+  }
+
+  private touchedBy(own: readonly LightShape[], v: Village): boolean {
+    return lightSdfAll(own, v.center.x, v.center.z) <= v.radius * INFLUENCE.touch;
+  }
+
+  /** The hand works here: inside the gold. */
+  inInfluence(x: number, z: number): boolean {
+    return lightSdfAll(this.lightShapes(), x, z) < 0;
   }
 
   /**
-   * A village that isn't yours, but your light carries to it: one of your villages within INFLUENCE.neighbour
-   * has raised its standing stones. The hand works there, and its people pray to you.
+   * A village that isn't yours, but your light touches its lands (2026-10-14: your light grows as you tend, and leans
+   * toward the next village). The hand works inside its patch, and its people pray to you.
    */
   withinReach(v: Village): boolean {
     if (v.owner === 'player') return false;
-    for (const o of this.villages) {
-      if (o === v || o.owner !== 'player') continue;
-      if (SHRINE_STAGES.indexOf(o.shrineStage) < INFLUENCE.neighbourFromStage) continue;
-      if (Math.hypot(o.center.x - v.center.x, o.center.z - v.center.z) <= INFLUENCE.neighbour) return true;
+    return this.touchedBy(
+      this.ownLight().map((l) => l.shape),
+      v,
+    );
+  }
+
+  /** The village of yours whose light reaches `v` best (for paths, and for crediting a deed done there). */
+  lightSource(v: Village): Village | null {
+    let best: Village | null = null;
+    let bd = Infinity;
+    for (const l of this.ownLight()) {
+      if (l.village === v) continue;
+      const d = lightSdf(l.shape, v.center.x, v.center.z);
+      if (d < bd) {
+        bd = d;
+        best = l.village;
+      }
     }
-    return false;
+    return best;
+  }
+
+  /** How far from `src`'s centre its light ends, walking toward (x, z). */
+  lightEdgeToward(src: Village, x: number, z: number): number {
+    return edgeToward(src.lightShape(this.leanTarget(src)), x, z);
+  }
+
+  /**
+   * A deed for village `v` grows your light (INFLUENCE.grow): its own if it is yours, else half of it goes to the
+   * village of yours whose light reaches it.
+   */
+  growLight(v: Village, m: number) {
+    if (m <= 0) return;
+    if (v.owner === 'player') v.grow(m);
+    else if (this.canReach(v)) this.lightSource(v)?.grow(m * 0.5);
   }
 
   /** The hand can act in this village: it is yours, or your light reaches it. */
@@ -438,11 +513,7 @@ export class Game {
   }
 
   private updateInfluence() {
-    this.terrain.setInfluence([
-      ...this.villages.filter((v) => v.owner === 'player').map((v) => ({ x: v.center.x, z: v.center.z, r: v.influenceRadius })),
-      // Where your light carries (withinReach): the neighbour's own patch joins your ring.
-      ...this.villages.filter((v) => this.withinReach(v)).map((v) => ({ x: v.center.x, z: v.center.z, r: v.radius * INFLUENCE.neighbourScale })),
-    ]);
+    this.terrain.setInfluence(this.lightShapes());
     // The rival god's villages get a violet ring of their own.
     this.terrain.setRivalInfluence(
       this.villages.filter((v) => v.owner === 'rival').map((v) => ({ x: v.center.x, z: v.center.z, r: v.influenceRadius })),
@@ -479,6 +550,8 @@ export class Game {
     for (const v of this.villages) {
       const d = Math.hypot(v.center.x - x, v.center.z - z);
       if (d > VILLAGE.impressRange) continue;
+      // A village beyond your light can't see you yet (progression, 2026-10-14: neighbours wait for you).
+      if (v.owner !== 'player' && !this.canReach(v)) continue;
       const fall = 1 - d / VILLAGE.impressRange;
       const gain = amount * fall * fall;
       if (gain < 0.5) continue;
@@ -490,7 +563,7 @@ export class Game {
       if (gain >= 3) this.audio.chime(v.center, 1.25);
       // No "+N belief" text: the village's belief ring pulses and fills instead (src/village/BeliefRing.ts).
       if (v.belief >= VILLAGE.convertAt) v.convert(this);
-      else if (gain >= 3) this.message(`${v.name}: “${reason}!” (belief ${Math.floor(v.belief)}%)`, 'divine', `imp-${v.name}`);
+      else if (gain >= 3) this.message(`${v.name}: “${reason}!” (${v.familiesWithYou()} of ${v.households().length} families believe)`, 'divine', `imp-${v.name}`);
     }
   }
 
@@ -504,7 +577,8 @@ export class Game {
       return;
     }
     this.player.shiftAlignment(0.012);
-    this.impress(v.center.x, v.center.z, worth, 0, `A gift of ${kind}`);
+    // Less than half of what it once was (2026-10-14): a village is won family by family, not by one big Food miracle.
+    this.impress(v.center.x, v.center.z, worth * NEUTRAL_GIFT_SHARE, 0, `A gift of ${kind}`);
   }
 
   /** First landing after a throw: onlookers are impressed by distance and heft. */
@@ -880,7 +954,7 @@ export class Game {
 
     this.influenceTimer -= dt;
     if (this.influenceTimer <= 0) {
-      this.influenceTimer = 0.5;
+      this.influenceTimer = 0.25;
       this.updateInfluence();
     }
 

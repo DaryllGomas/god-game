@@ -220,6 +220,41 @@ canvas {
   background: linear-gradient(90deg, #b9964a, #f4cf73);
   transition: width 0.3s ease;
 }
+/* Families with you: one segment per home; a believing family's is gold, the next fills as belief grows. */
+.v-bar:has(.v-segs:not([style*='none'])) {
+  background: none;
+  overflow: visible;
+}
+.v-segs {
+  display: flex;
+  gap: 3px;
+  height: 100%;
+}
+.v-seg {
+  flex: 1;
+  height: 100%;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.v-seg > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: rgba(244, 207, 115, 0.45);
+  transition: width 0.4s ease;
+}
+.v-seg.on > i {
+  background: linear-gradient(90deg, #d9b45e, #f4cf73);
+  box-shadow: 0 0 6px rgba(244, 207, 115, 0.55);
+}
+.vl-bar:has(.v-segs:not([style*='none'])) {
+  background: none;
+  overflow: visible;
+}
+.vl-bar .v-seg {
+  background: rgba(0, 0, 0, 0.5);
+}
 
 /* ---------------------------------------------------------------- clock */
 

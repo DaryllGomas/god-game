@@ -23,8 +23,9 @@ const SIZE = { width: 1600, height: 900 };
 const PROFILES = {
   attentive: { react: 15, siteReact: 20, base: 8, pan: 20, giftEvery: 60 },
   relaxed: { react: 45, siteReact: 60, base: 14, pan: 12, giftEvery: Infinity },
-  // A first-timer who answers prayers (slowly) but never works out that dreams want boulders: villages build alone.
-  newcomer: { react: 60, siteReact: Infinity, base: 15, pan: 10, giftEvery: Infinity },
+  // A first-timer who answers prayers (slowly) and doesn't work out that dreams want boulders until Ora has said so
+  // twice (2026-10-14: neighbours no longer build alone, so a player who never carries stone can't raise them).
+  newcomer: { react: 60, siteReact: Infinity, base: 15, pan: 10, giftEvery: Infinity, learnsStone: { afterLines: 2, siteReact: 90 } },
   // Stays at Ashford for the first 25 game minutes (answers home prayers, builds home dreams, ignores the neighbours),
   // then plays like the attentive player: what a player who takes their time at home finds next door.
   homebody: { react: 30, siteReact: 30, base: 10, pan: 15, giftEvery: 60, homeUntil: 1500 },
@@ -98,8 +99,13 @@ await p.evaluate((CFG) => {
   // ---- the voices
   const ora = g.ora;
   const og = ora.guide.bind(ora);
+  let stoneLines = 0;
   ora.guide = (t) => {
     ev('ora', t, { how: 'guide' });
+    if (CFG.learnsStone && /stone/i.test(t) && ++stoneLines === CFG.learnsStone.afterLines) {
+      CFG.siteReact = CFG.learnsStone.siteReact;
+      ev('learn', `the newcomer takes Ora's word: dreams want stone (now helps dreams after ${CFG.siteReact} s)`);
+    }
     return og(t);
   };
   const orr = ora.raise.bind(ora);
@@ -150,11 +156,14 @@ await p.evaluate((CFG) => {
   });
   E.on('prayerAnswered', ({ kind, village: v }) => {
     ev('answered', `${kind} prayer answered in ${v.name} (${v.owner === 'player' ? 'yours' : `belief now ${Math.floor(v.belief)}%`})`, { village: v.name, kind });
-    if (v.owner !== 'player') src(v.name, `prayer:${kind}`, 28);
+    if (v.owner !== 'player') src(v.name, `prayer:${kind}`, 10);
   });
   E.on('gift', ({ village: v, kind, amount }) => {
-    if (v.owner !== 'player') src(v.name, `storehouse ${kind}`, kind === 'food' ? amount * 0.28 : amount * 0.15);
+    if (v.owner !== 'player') src(v.name, `storehouse ${kind}`, (kind === 'food' ? amount * 0.28 : amount * 0.15) * 0.4);
   });
+  E.on('householdJoined', ({ village: v, families, of, joined }) =>
+    ev('household', `${v.name}: a family ${joined ? 'comes to believe' : 'lets go'} (${families} of ${of} families with you, belief ${Math.floor(v.belief)})`, { village: v.name, families, of }),
+  );
   E.on('rivalArrived', () => ev('vexahl', 'Vexahl arrives / stirs (rivalArrived)'));
   E.on('villagerBorn', ({ villager }) => (B.born[name(villager.village)] = (B.born[name(villager.village)] ?? 0) + 1));
   E.on('villagerDied', ({ villager, cause }) => {
@@ -298,14 +307,24 @@ await p.evaluate((CFG) => {
         return;
       }
     }
+    // 4. Carry: Ora says every gift carries the light further; a gift to the village whose light is growing.
+    if (!home && goal.id === 'carry' && goal.via && goal.via.influenceRadius < goal.via.ringCap - 1 && g.time - B.lastGiftAt > CFG.giftEvery) {
+      const s = goal.via.store.pos;
+      const t = tree(s.x, s.z);
+      if (t && carry(t, s.x, s.z, `gift: a tree on ${goal.via.name}'s storehouse (to grow the light)`)) {
+        B.lastGiftAt = g.time;
+        return;
+      }
+    }
     note(`idle on goal ${goal.id}`);
   };
 
   // ---- the timeline row (every game minute)
+  // Metres between the edge of your light and the edge of the village's lands (radius x 2): <= 0 means in reach.
   const light = (v) => {
     const mine = g.villages.filter((o) => o.owner === 'player' && o !== v);
     if (!mine.length) return null;
-    return Math.round(Math.min(...mine.map((o) => Math.hypot(o.center.x - v.center.x, o.center.z - v.center.z) - o.influenceRadius)));
+    return Math.round(Math.min(...mine.map((o) => Math.hypot(o.center.x - v.center.x, o.center.z - v.center.z) - g.lightEdgeToward(o, v.center.x, v.center.z) - v.radius * 2)));
   };
   B.row = () => {
     const st = g.story.state();
@@ -342,7 +361,10 @@ await p.evaluate((CFG) => {
         [`${k}_houses`]: v.houses.length,
         [`${k}_worshippers`]: v.worshipperCount,
         [`${k}_stage`]: v.shrineStage,
-        [`${k}_ring_m`]: v.owner === 'player' ? v.influenceRadius : Math.round(v.radius * 1.35),
+        [`${k}_families`]: `${v.familiesWithYou()}/${v.households().length}`,
+        [`${k}_ring_m`]: v.owner === 'player' ? Math.round(v.influenceRadius) : g.canReach(v) ? Math.round(g.neighbourGlow(v).ra) : 0,
+        [`${k}_round_m`]: v.owner === 'player' ? Math.round(v.roundRadius) : '',
+        [`${k}_cap_m`]: v.owner === 'player' ? v.ringCap : '',
         [`${k}_can_reach`]: g.canReach(v),
         [`${k}_gap_to_light_m`]: v.owner === 'player' ? 0 : light(v),
         [`${k}_project`]: site ? `${site.def.id} ${Math.round(site.fraction * 100)}%` : '',
@@ -373,9 +395,16 @@ await p.evaluate((CFG) => {
     once('01-start', () => true, at(A));
     once('02-first-prayer-answered', () => ps.answered >= 1, at(A));
     once('03-ashford-stones', () => A.shrineStage !== 'totem', at(A));
+    // Ashford's light leaning toward Brambleholt (its tip well past its round part), before it touches.
+    once('03b-ring-leaning-toward-brambleholt', () => A.influenceRadius - A.roundRadius > 22 && !g.withinReach(Br) && Br.owner !== 'player', between(A, Br, 380));
     once('04-brambleholt-in-reach', () => g.withinReach(Br) || Br.owner === 'player', between(A, Br));
+    // Half-joined: some of its families glow gold, not yet most.
+    once('04b-brambleholt-half-joined', () => Br.owner === null && Br.familiesWithYou() >= Math.max(1, Br.familiesNeeded() - 1), { x: Br.center.x, z: Br.center.z, distance: 120 });
     once('05-brambleholt-converted', () => Br.owner === 'player', at(Br));
     once('06-stonemere-in-reach', () => g.withinReach(S) || S.owner === 'player', between(Br, S));
+    // Stonemere's own glow, grown with its belief, meets your ring.
+    once('06b-stonemere-glow-joins', () => S.owner === null && g.withinReach(S) && Math.min(...g.ownLight().map((l) => Math.hypot(l.shape.ax - S.center.x, l.shape.az - S.center.z) - g.lightEdgeToward(l.village, S.center.x, S.center.z))) <= g.neighbourGlow(S).ra, between(Br, S, 380));
+    once('06c-stonemere-half-joined', () => S.owner === null && S.familiesWithYou() >= Math.max(1, S.familiesNeeded() - 1), { x: S.center.x, z: S.center.z, distance: 120 });
     once('07-stonemere-converted', () => S.owner === 'player', at(S));
     for (const v of g.villages) once(`08-temple-${v.name}`, () => v.shrineStage === 'temple' && v.owner === 'player', at(v, 150));
     // Stuck: more than 10 game minutes on one goal.
@@ -433,15 +462,25 @@ const timeline = [];
 const shotsTaken = [];
 const fmt = (t) => `${String(Math.floor(t / 60)).padStart(3, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
+// Milestone shots are taken in daylight (DAYLIGHT_SHOTS=0 keeps the game's own hour): the clock is set to late
+// morning for the shot and put back after, so judging a look never depends on whether it happened at night.
+const DAYLIGHT = process.env.DAYLIGHT_SHOTS !== '0';
 async function shoot(key, focus) {
-  await p.evaluate((f) => {
-    delete game.render;
-    game.godCam.setPose({ x: f.x, z: f.z, distance: f.distance, pitch: 0.82, yaw: 0.5 }, true);
-  }, focus);
+  const keep = await p.evaluate(
+    ({ f, day }) => {
+      delete game.render;
+      game.godCam.setPose({ x: f.x, z: f.z, distance: f.distance, pitch: 0.82, yaw: 0.5 }, true);
+      const was = game.dayTime;
+      if (day) game.dayTime = 0.42;
+      return was;
+    },
+    { f: focus, day: DAYLIGHT },
+  );
   await p.waitForTimeout(1600);
   const file = `${key}.png`;
   await p.screenshot({ path: `${OUT}/${file}` });
   shotsTaken.push(file);
+  if (DAYLIGHT) await p.evaluate((was) => (game.dayTime = was), keep);
 }
 
 async function flush() {

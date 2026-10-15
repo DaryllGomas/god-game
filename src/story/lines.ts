@@ -28,6 +28,11 @@ export interface Ctx {
   again: boolean;
   /** Spoken after a reload: a gentle reminder of where things stand. */
   reminder: boolean;
+  /** For 'carry': the light stands at its prayer place's limit; only the next age (`next`) carries it on. */
+  capped?: boolean;
+  /** For 'win': families that believe in you, of the homes in the village. */
+  families?: number;
+  homes?: number;
 }
 
 export type StepId = 'answer' | 'stones' | 'win' | 'carry' | 'raise' | 'tune';
@@ -40,11 +45,16 @@ export const LEAD: Record<StepId, (c: Ctx) => string> = {
       : `They were heard. Now ${c.home} will dream of something that lasts. Watch for it.`,
   win: (c) =>
     c.turned
-      ? `${c.v} has turned its face away. It could still turn back.`
+      ? `${c.v} has turned its face away. It could still turn back, one family at a time.`
       : c.again
-        ? `Your light reaches ${c.v} now. They are watching, to see who you are.`
-        : `The old stones stand, and your light reaches ${c.v}. They believe in a god who answers: hear their prayers, and drop what they need on their storehouse.`,
-  carry: (c) => `${c.v} is beyond your light. If ${c.via} raised its stones, the light would carry.`,
+        ? `Your light touches ${c.v}. Family by family, they will decide who you are.`
+        : `Your light touches ${c.v}. Each family that comes to believe lights its home gold. Hear their prayers, bring what they need, and win most of them.`,
+  carry: (c) =>
+    c.capped
+      ? c.dreaming
+        ? `${c.via}'s light has grown as far as it can. Raise ${c.next} there, and it will carry on toward ${c.v}.`
+        : `${c.via}'s light has grown as far as it can. When ${c.via} dreams of ${c.next}, help it, and the light carries on toward ${c.v}.`
+      : `See the gold leaning toward ${c.v}? Every prayer you answer in ${c.via}, every gift, every dream carries it further.`,
   raise: (c) =>
     c.dreaming
       ? `${c.v} is reaching for ${c.next}. Stone, carried from the hills, will lift it.`
@@ -61,11 +71,14 @@ export const NUDGE: Record<StepId, (c: Ctx, i: number) => string> = {
   win: (c, i) =>
     pick(
       c.dreaming
-        ? [`${c.v} is building a dream of its own. Help them raise it, and see what grows.`, `A gift, a rain, a kindness. ${c.v} is watching.`]
-        : [`${c.v} has needs of its own. Answer their prayers, and their belief grows.`, `A tree, food, a rain on their fields. Each gift to ${c.v} is a little more belief.`],
+        ? [`${c.v} is building a dream of its own. It cannot rise without your stone.`, `A gift, a rain, a kindness. ${c.families ?? 0} of ${c.homes ?? 0} families in ${c.v} believe.`]
+        : [`${c.v} has needs of its own. Answer their prayers, and another family may believe.`, `A tree, food, a rain on their fields. Each gift to ${c.v} warms another home.`],
       i,
     ),
-  carry: (c, i) => pick([`${c.via}'s stones would carry your light to ${c.v}.`, `${c.via} needs stone, if the light is to reach ${c.v}.`], i),
+  carry: (c, i) =>
+    c.capped
+      ? pick([`${c.via} needs ${c.next} before its light can reach ${c.v}.`, `Stone for ${c.via}'s dream would carry your light to ${c.v}.`], i)
+      : pick([`The light creeps toward ${c.v} as ${c.via} is tended.`, `Answer ${c.via}, feed it, help its dreams. The gold is nearly at ${c.v}.`], i),
   raise: (c, i) =>
     c.dreaming
       ? pick([`${c.v} is still waiting for stone.`, `Half a dream stands in ${c.v}. Stone finishes dreams.`], i)

@@ -188,7 +188,7 @@ export class HUD {
 
   private addVillage(v: Village) {
     const row = el('div', 'v-row');
-    row.innerHTML = `<span class="v-dot"></span><span class="v-name">${v.name}</span><span class="v-status"></span><div class="v-bar"><div class="v-fill"></div></div>`;
+    row.innerHTML = `<span class="v-dot"></span><span class="v-name">${v.name}</span><span class="v-status"></span><div class="v-bar"><div class="v-fill"></div><div class="v-segs"></div></div>`;
     row.querySelector<HTMLSpanElement>('.v-dot')!.style.background = hex(v.color);
     row.onclick = () => {
       this.game.selectVillage(v);
@@ -198,7 +198,7 @@ export class HUD {
     this.villageRows.set(v, row);
 
     const label = el('div', 'v-label');
-    label.innerHTML = `<div class="vl-name">${v.name}</div><div class="vl-bar"><div class="vl-fill"></div></div>`;
+    label.innerHTML = `<div class="vl-name">${v.name}</div><div class="vl-bar"><div class="vl-fill"></div><div class="v-segs"></div></div>`;
     this.labelLayer.appendChild(label);
     this.labels.set(v, label);
   }
@@ -396,7 +396,12 @@ export class HUD {
       label.classList.toggle('owned', owned);
       label.classList.toggle('rival', rival);
       fill.style.width = `${Math.min(100, v.belief)}%`;
-      name.textContent = owned ? `${v.name} ✦` : rival ? `☾ ${v.name}  ${Math.floor(v.belief)}%` : `${v.name}  ${Math.floor(v.belief)}%`;
+      const neutral = !owned && !rival;
+      const n = neutral ? v.households().length : 0;
+      const f = neutral ? v.familiesWithYou() : 0;
+      fill.style.display = neutral ? 'none' : '';
+      segments(label.querySelector<HTMLDivElement>('.v-segs')!, neutral ? n : 0, f, neutral ? v.nextFamilyProgress() : 0);
+      name.textContent = owned ? `${v.name} ✦` : rival ? `☾ ${v.name}  ${Math.floor(v.belief)}%` : `${v.name}  ${f}/${n} ✦`;
     }
   }
 
@@ -423,8 +428,16 @@ export class HUD {
       row.classList.toggle('owned', owned);
       row.classList.toggle('rival', rival);
       row.classList.toggle('selected', this.game.selectedVillage === v);
-      row.querySelector('.v-status')!.textContent = owned ? `${v.population} ✦` : rival ? `☾ ${Math.floor(v.belief)}%` : `${Math.floor(v.belief)}%`;
-      row.querySelector<HTMLDivElement>('.v-fill')!.style.width = `${Math.min(100, v.belief)}%`;
+      // Families with you (2026-10-14: households join one by one): a segment per home, gold as each family believes.
+      const neutral = !owned && !rival;
+      const n = v.households().length;
+      const f = v.familiesWithYou();
+      row.querySelector('.v-status')!.textContent = owned ? `${n}/${n} ✦` : rival ? `☾ ${Math.floor(v.belief)}%` : `${f}/${n} ✦`;
+      row.title = owned ? 'Families with you' : neutral ? `Families with you: ${f} of ${n} (most must believe)` : '';
+      const fill = row.querySelector<HTMLDivElement>('.v-fill')!;
+      fill.style.width = `${Math.min(100, v.belief)}%`;
+      fill.style.display = neutral ? 'none' : '';
+      segments(row.querySelector<HTMLDivElement>('.v-segs')!, neutral ? n : 0, f, neutral ? v.nextFamilyProgress() : 0);
     }
   }
 
@@ -455,7 +468,7 @@ export class HUD {
                <div class="d-note">More worshippers → more power, but fewer hands in the fields.</div>`
             : rival
               ? `<div class="d-note">Their hearts were turned. Win them back: feed them, water their crops, throw wonders into their midst, and answer their prayers.</div>`
-              : `<div class="d-note">Impress them: feed them, water their crops, throw wonders into their midst... or frighten them with fire.</div>`
+              : `<div class="d-note">Win them family by family: answer their prayers, help their dreams, bring food and timber. Each home that believes glows gold.</div>`
         }`;
       this.detail.querySelector<HTMLButtonElement>('.d-close')!.onclick = () => this.game.selectVillage(null);
       const slider = this.detail.querySelector<HTMLInputElement>('.d-worship');
@@ -471,7 +484,11 @@ export class HUD {
       : rival
         ? `☾ Holds to ${rivalName}`
         : 'Neutral. Not yet a believer';
-    this.detail.querySelector('.d-belief-label')!.textContent = owned ? `Faith ${Math.floor(v.belief)}%` : `Belief in you ${Math.floor(v.belief)}%`;
+    this.detail.querySelector('.d-belief-label')!.textContent = owned
+      ? `Faith ${Math.floor(v.belief)}%`
+      : rival
+        ? `Belief in you ${Math.floor(v.belief)}%`
+        : `Families with you ${v.familiesWithYou()} of ${v.households().length} · most must believe`;
     this.detail.querySelector<HTMLDivElement>('.d-belief .v-fill')!.style.width = `${Math.min(100, v.belief)}%`;
     const hungry = v.villagers.filter((x) => x.hunger > 0.7).length;
     this.detail.querySelector('.d-grid')!.innerHTML = `
@@ -484,5 +501,24 @@ export class HUD {
       ${owned ? `<div><span>Prayer</span><b>${v.prayerRate.toFixed(1)}/s</b></div><div><span>Influence</span><b>${Math.round(v.influenceRadius)}m</b></div>` : ''}`;
     const w = this.detail.querySelector('.d-wval');
     if (w) w.textContent = `${Math.round(v.worshipFraction * 100)}%`;
+  }
+}
+
+/** A bar of `n` segments, `full` of them gold and the next one filled to `part` (0..1). Rebuilt only when n changes. */
+function segments(box: HTMLDivElement, n: number, full: number, part: number) {
+  if (box.childElementCount !== n) {
+    box.replaceChildren(...Array.from({ length: n }, () => {
+      const seg = document.createElement('div');
+      seg.className = 'v-seg';
+      seg.appendChild(document.createElement('i'));
+      return seg;
+    }));
+  }
+  box.style.display = n ? '' : 'none';
+  for (let i = 0; i < n; i++) {
+    const seg = box.children[i] as HTMLDivElement;
+    const w = i < full ? 1 : i === full ? part : 0;
+    seg.classList.toggle('on', i < full);
+    (seg.firstChild as HTMLElement).style.width = `${Math.round(w * 100)}%`;
   }
 }

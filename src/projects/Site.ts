@@ -3,7 +3,7 @@ import type { Game } from '../Game';
 import type { Village } from '../village/Village';
 import { Entity, ownedMesh, sharedMesh } from '../entities/Entity';
 import { MAT, foodHeapGeometry, logStackGeometry } from '../art/Models';
-import { VILLAGE } from '../config';
+import { INFLUENCE, VILLAGE } from '../config';
 import { clamp, damp } from '../util/math';
 import {
   CARRY,
@@ -318,6 +318,7 @@ export class Site extends Entity {
   private rewardGift(game: Game, amount: number) {
     const v = this.village;
     game.player.shiftAlignment(0.004);
+    game.growLight(v, amount * INFLUENCE.grow.stone);
     if (v.owner === 'player') {
       v.belief = Math.min(100, v.belief + amount * 0.05);
       return;
