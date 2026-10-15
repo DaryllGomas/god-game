@@ -19,14 +19,16 @@ npm run build      # typecheck + production build into dist/
 
 ## Play it online
 
-**https://studio.bigpicsolutions.com/the-first-world/**, the address the studio page links to (a copy of the build in the `bigpic-studio` repo, folder `the-first-world/`). The old address, daryllgomas.github.io/god-game/, redirects there (the `gh-pages` branch holds only `scripts/redirect/`).
+**https://studio.bigpicsolutions.com/the-first-world/** is the game's landing page (trailer, screenshots, the devlog and the bug / idea / feedback form); the game itself is at **/the-first-world/play/** (a copy of the build in the `bigpic-studio` repo, folder `the-first-world/play/`). The landing page lives only in the studio repo (`the-first-world/index.html`, `devlog.json`, `media/`) and forwards old game links (`?from=thepath&initials=`, `?unlock=`, `?shot=`) to `play/`. The old address, daryllgomas.github.io/god-game/, redirects to the landing page (the `gh-pages` branch holds only `scripts/redirect/`).
+
+**The devlog** (What's new on the landing page) is `the-first-world/devlog.json` in the studio repo: player-facing words only, no machines, paths, people or money. `npm run deploy` refuses to publish unless `node tools/hub/check-devlog.mjs the-first-world/devlog.json` passes there.
 
 To publish a new version, push the source and then deploy. Do this as the DaryllGomas account, which owns the repo:
 
 ```bash
 gh auth switch --user DaryllGomas
 git push                 # the source, to main
-npm run deploy           # builds, copies it into the studio repo and pushes that; refreshes the gh-pages redirect
+npm run deploy           # builds, copies it into the studio repo's the-first-world/play/ and pushes that; refreshes the gh-pages redirect
 gh auth switch --user Namkuzu-da-OS
 ```
 

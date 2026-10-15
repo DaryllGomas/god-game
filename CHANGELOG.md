@@ -4,6 +4,9 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Changed (publishing, 2026-10-15)
+- **The game has a front door.** https://studio.bigpicsolutions.com/the-first-world/ is now THE FIRST WORLD's landing page (the intro film, screenshots, what's new, what we're building, and a form to report a bug, ask for a feature or leave feedback). The game itself moved to `/the-first-world/play/`; `npm run deploy` publishes there and never touches the landing page. Old links that carry game settings (`?from=thepath&initials=`, `?unlock=`, `?shot=`) are forwarded to `play/` with the same query. Saves and island codes are unaffected (same site).
+
 ### Changed (progression, 2026-10-14: Daryll: "by the time I got to the next town there was already a temple built ... we would want to be able to expand as we go into each one")
 - **Villages join house by house.** A neighbour's belief fills family by family: each home whose family comes to believe gets a soft gold ring on the ground, gold windows and a small light over its roof, and a few of its people dance for you at the totem (their prayer reaches you at half strength). The village is yours once most homes believe (70%: 3 of 4, 4 of 5, 7 of 10), with the usual fanfare. Families can let go again if belief fades. The village list and the label over each village show families with you ("2/5 ✦") as a bar with one segment per home.
 - **Smaller lumps.** An answered prayer gives a neighbour 10 belief (was 28), a finished dream you helped 15 (was 40), material on its dream 0.12 per unit (was 0.25), and storehouse gifts count at 40%. One miracle answers one prayer: Water answers the rain prayer, else the call for a sign; Food on a storehouse feeds the hunger, else counts as a sign.
