@@ -88,6 +88,8 @@ export class Rival {
   private snapIsle = true;
   /** The view to come back to while the camera is out at sea (x, z, distance, yaw, pitch). */
   private cam: { x: number; z: number; dist: number; dyaw: number; dpitch: number } | null = null;
+  /** Where the glance put the camera, to tell whether the player moved it before the glance ends. */
+  private camAt: { x: number; z: number; distance: number; yaw: number } | null = null;
   /** Story mode: he has noticed you (his rising at your first pyramid; see notice()). */
   noticed = false;
   /** His isle has risen from the sea (your first pyramid, or the world fell first). */
@@ -508,6 +510,10 @@ export class Rival {
     const isle = this.isle.group.position;
     if (on) {
       if (this.cam) return; // already out at sea
+      // Never swing the view while the player is holding something or dragging (2026-10-15 playtest: the camera
+      // lurched out to sea mid-miracle and the orb ended up over the water). His lines and his card still come, and
+      // his isle still rises (or grows) out at sea.
+      if (this.game.hand.held || this.game.controls.mode !== 'none') return;
       const was = cam.getPose();
       this.cam = { x: was.x, z: was.z, dist: was.distance, dyaw: was.yaw, dpitch: was.pitch };
       let pose;
@@ -523,9 +529,14 @@ export class Rival {
       if (dy < -Math.PI) dy += Math.PI * 2;
       pose.yaw = was.yaw + dy;
       cam.glideTo(pose, shot ? 2.6 : 1.8);
+      this.camAt = { x: pose.x, z: pose.z, distance: pose.distance, yaw: pose.yaw };
     } else if (this.cam) {
       const c = this.cam;
       this.cam = null;
+      // The player took the camera during the glance (Space, a drag, the wheel): leave it with them.
+      const now = cam.getPose();
+      const at = this.camAt;
+      if (at && (Math.hypot(now.x - at.x, now.z - at.z) > 2 || Math.abs(now.distance - at.distance) > 2 || Math.abs(now.yaw - at.yaw) > 0.05)) return;
       cam.glideTo({ x: c.x, z: c.z, distance: c.dist, yaw: c.dyaw, pitch: c.dpitch }, 2.4);
     }
   }

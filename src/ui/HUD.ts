@@ -4,7 +4,22 @@ import type { Village } from '../village/Village';
 import { MIRACLE_INFO, type MiracleId } from '../miracles/Miracles';
 import { mountCloudPanel } from '../cloud/CloudPanel';
 import { getLink } from '../cloud/Cloud';
+import { SHRINE_STAGES, STAGE_OF_PROJECT, stageIndex, type ShrineStage } from '../shrines/stages';
+import type { Entity } from '../entities/Entity';
 import './hud.css';
+
+/** The prayer place's ages, as the village list and labels name them (Totem 1/4 ... Temple 4/4). */
+const AGE_NAME: Record<ShrineStage, string> = { totem: 'Totem', stone_circle: 'Stones', pyramid: 'Pyramid', temple: 'Temple' };
+
+/** How far an owned village has climbed: the age it stands at (1-based), and how far the next age's dream has come (0..1). */
+function ageOf(v: Village): { n: number; name: string; next: ShrineStage | null; part: number } {
+  const i = stageIndex(v.shrineStage);
+  const next = SHRINE_STAGES[i + 1] ?? null;
+  const site = v.projectSite as { def?: { id?: string }; fraction?: number } | null;
+  const building = site?.def?.id ? STAGE_OF_PROJECT[site.def.id as keyof typeof STAGE_OF_PROJECT] : undefined;
+  const part = next && building === next ? Math.max(0, Math.min(0.98, site?.fraction ?? 0)) : 0;
+  return { n: i + 1, name: AGE_NAME[v.shrineStage], next, part };
+}
 
 type Tone = 'good' | 'bad' | 'info' | 'warn' | 'divine';
 
@@ -41,6 +56,9 @@ export class HUD {
   private readonly help: HTMLDivElement;
   private readonly win: HTMLDivElement;
   private readonly banner: HTMLDivElement;
+  /** "Storehouse: drop gifts here", over a storehouse the hand is over (or carrying something toward). */
+  private readonly storeTip: HTMLDivElement;
+  private storeTipFor: Entity | null = null;
   private readonly floats: FloatText[] = [];
   private readonly lastMsg = new Map<string, number>();
   private readonly proj = new THREE.Vector3();
@@ -145,13 +163,18 @@ export class HUD {
     this.root.appendChild(this.messages);
     this.banner = el('div', 'banner');
     this.root.appendChild(this.banner);
+    this.storeTip = el('div', 'store-tip', '<b>Storehouse</b><span>drop gifts here</span>');
+    this.labelLayer.appendChild(this.storeTip);
 
     // --- Help overlay (also the title screen)
-    this.help = el('div', 'overlay help');
+    // On the title screen only the essentials show (a name, Begin); the controls wait behind a small link and are
+    // open in the ? screen (playtest 2026-10-15: "a wall of controls").
+    this.help = el('div', 'overlay help title');
     this.help.innerHTML = `
       <div class="overlay-card">
         <h1>THE FIRST WORLD</h1>
         <p class="tagline">An island of villagers awaits a god. What kind of god will you be?</p>
+        <div class="help-more">
         <div class="help-grid">
           <div><b>Grab</b><span>Left-click a villager, tree, rock or food</span></div>
           <div><b>Drag the land</b><span>Left-drag the ground</span></div>
@@ -170,12 +193,20 @@ export class HUD {
           throws, or terrifying fire. Your hand only works inside your golden ring of influence, but you can throw anything beyond it.
           Kindness and cruelty both work. The island will remember which you chose.
         </div>
+        <div class="hint">Press <b>H</b> any time for this screen · <b>Space</b> returns home · <b>P</b> pauses · <b>M</b> mutes · <b>N</b> music</div>
+        </div>
         <div class="save-summary hidden"></div>
         <button class="begin">Begin</button>
         <div class="new-island"></div>
-        <div class="hint">Press <b>H</b> any time for this screen · <b>Space</b> returns home · <b>P</b> pauses · <b>M</b> mutes · <b>N</b> music</div>
+        <button class="help-toggle" type="button" aria-expanded="false">controls</button>
       </div>`;
     this.help.querySelector<HTMLButtonElement>('.begin')!.onclick = () => this.toggleHelp(false);
+    const more = this.help.querySelector<HTMLButtonElement>('.help-toggle')!;
+    more.onclick = () => {
+      const open = this.help.classList.toggle('show-controls');
+      more.setAttribute('aria-expanded', String(open));
+      more.textContent = open ? 'hide controls' : 'controls';
+    };
     this.root.appendChild(this.help);
     this.setupSaveControls();
     mountCloudPanel(game, this.help);
@@ -187,18 +218,30 @@ export class HUD {
   }
 
   private addVillage(v: Village) {
+    // A row is a way there: click (or Enter) flies to the village and opens what it needs. It looks like one
+    // (hover, a chevron, a focus ring): the playtest of 2026-10-15 found it only by accident.
     const row = el('div', 'v-row');
-    row.innerHTML = `<span class="v-dot"></span><span class="v-name">${v.name}</span><span class="v-status"></span><div class="v-bar"><div class="v-fill"></div><div class="v-segs"></div></div>`;
+    row.innerHTML = `<span class="v-dot"></span><span class="v-name">${v.name}</span><span class="v-status"></span><span class="v-go" aria-hidden="true">›</span><div class="v-bar"><div class="v-fill"></div><div class="v-segs"></div></div>`;
     row.querySelector<HTMLSpanElement>('.v-dot')!.style.background = hex(v.color);
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
     row.onclick = () => {
       this.game.selectVillage(v);
       this.game.godCam.flyTo(v.center.x, v.center.z);
     };
+    row.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      e.stopPropagation();
+      row.click();
+    });
+    // A click must not leave the row focused (Space and the number keys belong to the game), but Tab still reaches it.
+    row.addEventListener('mousedown', (e) => e.preventDefault());
     this.villageList.appendChild(row);
     this.villageRows.set(v, row);
 
     const label = el('div', 'v-label');
-    label.innerHTML = `<div class="vl-name">${v.name}</div><div class="vl-bar"><div class="vl-fill"></div><div class="v-segs"></div></div>`;
+    label.innerHTML = `<div class="vl-name">${v.name}</div><div class="vl-bar"><div class="vl-fill"></div><div class="v-segs"></div></div><div class="vl-age"></div>`;
     this.labelLayer.appendChild(label);
     this.labels.set(v, label);
   }
@@ -216,6 +259,8 @@ export class HUD {
       // Closing the title screen starts (or continues) the island: from here on it is autosaved.
       this.game.saves.arm();
       this.begun = true;
+      // From now on this is the ? screen: the controls are the point of it.
+      this.help.classList.remove('title');
       const begin = this.help.querySelector<HTMLButtonElement>('.begin');
       if (begin && begin.textContent !== 'Resume') begin.textContent = 'Resume';
       this.showNewIsland(false);
@@ -351,6 +396,7 @@ export class HUD {
     this.clock.textContent = `${icon} Day ${g.day}  ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 
     this.updateLabels();
+    this.updateStoreTip();
     this.updateFloats(dt);
 
     this.slowTimer -= dt;
@@ -399,10 +445,53 @@ export class HUD {
       const neutral = !owned && !rival;
       const n = neutral ? v.households().length : 0;
       const f = neutral ? v.familiesWithYou() : 0;
-      fill.style.display = neutral ? 'none' : '';
-      segments(label.querySelector<HTMLDivElement>('.v-segs')!, neutral ? n : 0, f, neutral ? v.nextFamilyProgress() : 0);
+      fill.style.display = neutral || owned ? 'none' : '';
+      // Yours: the prayer place's ages (a segment per age, the next one filling as its dream is built).
+      // Being won: a segment per family. Rival-held: belief in you.
+      const age = owned ? ageOf(v) : null;
+      const segs = label.querySelector<HTMLDivElement>('.v-segs')!;
+      if (age) segments(segs, SHRINE_STAGES.length, age.n, age.part);
+      else segments(segs, neutral ? n : 0, f, neutral ? v.nextFamilyProgress() : 0);
+      label.querySelector<HTMLDivElement>('.vl-age')!.textContent = age ? `${age.name} · ${age.n}/${SHRINE_STAGES.length}` : '';
       name.textContent = owned ? `${v.name} ✦` : rival ? `☾ ${v.name}  ${Math.floor(v.belief)}%` : `${v.name}  ${f}/${n} ✦`;
     }
+  }
+
+  /**
+   * Over a storehouse (or carrying something over one) a small label says what it is for: the playtest of
+   * 2026-10-15 never learned which building was the storehouse.
+   */
+  private updateStoreTip() {
+    const g = this.game;
+    const hand = g.hand;
+    let store: Entity | null = g.hoverBuilding?.kind === 'store' ? g.hoverBuilding : null;
+    if (!store && hand.valid && !this.helpOpen && g.input.inside) {
+      // The game's own building hover gives way to anything grabbable (a villager, the food heap by the door), which
+      // is nearly always there at a storehouse: so look for one under the cursor on screen, as the hover does.
+      const cam = g.godCam.camera;
+      const focal = window.innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+      let best = 1;
+      for (const v of g.villages) {
+        const st = v.store;
+        if (!st?.alive) continue;
+        const s = this.project(this.proj.set(st.pos.x, st.pos.y + Math.min(st.topHeight * 0.5, 3), st.pos.z).clone());
+        if (!s.visible) continue;
+        const r = Math.max(((st.radius * 1.1) / s.dist) * focal, 18);
+        const score = Math.hypot(s.x - g.input.x, s.y - g.input.y) / r;
+        if (score < best) {
+          best = score;
+          store = st;
+        }
+      }
+    }
+    if (store !== this.storeTipFor) {
+      this.storeTipFor = store;
+      this.storeTip.classList.toggle('show', !!store);
+    }
+    if (!store) return;
+    const s = this.project(new THREE.Vector3(store.pos.x, store.pos.y + store.topHeight + 1.2, store.pos.z));
+    this.storeTip.style.visibility = s.visible ? '' : 'hidden';
+    this.storeTip.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
   }
 
   private updateFloats(dt: number) {
@@ -428,16 +517,26 @@ export class HUD {
       row.classList.toggle('owned', owned);
       row.classList.toggle('rival', rival);
       row.classList.toggle('selected', this.game.selectedVillage === v);
-      // Families with you (2026-10-14: households join one by one): a segment per home, gold as each family believes.
+      // Being won (2026-10-14: households join one by one): a segment per home, gold as each family believes.
+      // Yours (2026-10-15, Daryll: "5 of 5, 6 of 6 ... it's got to be like 1 of 6, then 2 of 6"): every family
+      // already believes, so the row shows the climb instead: the prayer place's age, Totem 1/4 to Temple 4/4.
       const neutral = !owned && !rival;
       const n = v.households().length;
       const f = v.familiesWithYou();
-      row.querySelector('.v-status')!.textContent = owned ? `${n}/${n} ✦` : rival ? `☾ ${Math.floor(v.belief)}%` : `${f}/${n} ✦`;
-      row.title = owned ? 'Families with you' : neutral ? `Families with you: ${f} of ${n} (most must believe)` : '';
+      const age = owned ? ageOf(v) : null;
+      const total = SHRINE_STAGES.length;
+      row.querySelector('.v-status')!.textContent = age ? `${age.name} · ${age.n}/${total}` : rival ? `☾ ${Math.floor(v.belief)}%` : `${f}/${n} ✦`;
+      row.title = age
+        ? `${v.name}: ${age.name}, age ${age.n} of ${total}${age.next ? `. Next: ${AGE_NAME[age.next]}${age.part > 0 ? ` (${Math.round(age.part * 100)}% built)` : ''}` : '. Every age raised'}`
+        : neutral
+          ? `${v.name}: families with you ${f} of ${n} (most must believe)`
+          : `${v.name}: belief in you ${Math.floor(v.belief)}%`;
       const fill = row.querySelector<HTMLDivElement>('.v-fill')!;
       fill.style.width = `${Math.min(100, v.belief)}%`;
-      fill.style.display = neutral ? 'none' : '';
-      segments(row.querySelector<HTMLDivElement>('.v-segs')!, neutral ? n : 0, f, neutral ? v.nextFamilyProgress() : 0);
+      fill.style.display = neutral || owned ? 'none' : '';
+      const segs = row.querySelector<HTMLDivElement>('.v-segs')!;
+      if (age) segments(segs, total, age.n, age.part);
+      else segments(segs, neutral ? n : 0, f, neutral ? v.nextFamilyProgress() : 0);
     }
   }
 

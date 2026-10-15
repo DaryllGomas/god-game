@@ -143,16 +143,25 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 24px color-mix(in srgb, var(--rv-deep) 70%, transparent), inset 0 -2px 0 var(--rv-ember);
   backdrop-filter: blur(6px);
   cursor: pointer;
-  pointer-events: auto;
+  /* Hidden, it neither catches clicks at the top centre nor reads out (2026-10-15). */
+  pointer-events: none;
+  visibility: hidden;
   opacity: 0;
   transform: translate(-50%, -10px);
   transition:
     opacity 0.45s ease,
-    transform 0.45s ease;
+    transform 0.45s ease,
+    visibility 0s linear 0.45s;
 }
 .rv-card.show {
+  pointer-events: auto;
+  visibility: visible;
   opacity: 1;
   transform: translate(-50%, 0);
+  transition:
+    opacity 0.45s ease,
+    transform 0.45s ease,
+    visibility 0s;
 }
 .rv-face {
   flex: none;

@@ -13,6 +13,10 @@ const RUB_PER_STROKE = 140;
 const LEARNING_RUBS = 4;
 /** Hand speed → throw speed. Below 1 so ordinary flicks land on the island. */
 const THROW_GAIN = 0.65;
+/** One wheel event zooms at most this much (a hard flick or a line-mode wheel used to jump the view far in or out). */
+const WHEEL_MAX = 240;
+/** A double-click flies the camera only when neither of its clicks did anything else for this long (seconds). */
+const FLY_QUIET = 0.7;
 
 /**
  * Mouse scheme (B&W-flavoured):
@@ -21,7 +25,8 @@ const THROW_GAIN = 0.65;
  *   LMB click on land   put the held thing down there
  *   RMB flick+release   throw what you're holding (a still click just drops it)
  *   RMB / MMB drag      rotate & tilt (with an empty hand)
- *   Wheel               zoom to cursor, double-click to fly there
+ *   Wheel               zoom to cursor (capped per notch)
+ *   Double-click bare land with an empty hand   fly there (not when either click grabbed, placed or picked something)
  *   MMB / Shift+LMB on the golem, hold   leash: it follows where the hand points
  */
 export class Controls {
@@ -29,6 +34,8 @@ export class Controls {
   private dragDist = 0;
   private rub = 0;
   private rubs = 0;
+  /** realTime of the last click that did something (grab, set down, throw, pick a building, pat). */
+  private actedAt = -1e9;
   private readonly ray = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
   private readonly v = new THREE.Vector3();
@@ -109,6 +116,7 @@ export class Controls {
             if (hand.blocked) g.message('That is outside your area of influence.', 'warn', 'influence');
             else {
               hand.grab(g, target);
+              this.actedAt = realTime;
               return;
             }
           }
@@ -131,27 +139,37 @@ export class Controls {
         if (ev.button === 0 && this.mode === 'stroke') {
           this.mode = 'none';
           if (click) g.creature.pat(g);
+          this.actedAt = realTime;
           return;
         }
         if (ev.button === 0 && this.mode === 'pan') {
           cam.endGrab();
           this.mode = 'none';
           if (!click) return;
-          if (hand.held) this.placeHeld();
-          else g.clickEntity(g.hoverBuilding);
+          if (hand.held) {
+            this.placeHeld();
+            this.actedAt = realTime;
+          } else {
+            if (g.hoverBuilding) this.actedAt = realTime;
+            g.clickEntity(g.hoverBuilding);
+          }
         } else if (ev.button === 2 && this.mode === 'throw') {
           this.mode = 'none';
           this.release(realTime);
+          this.actedAt = realTime;
         } else if ((ev.button === 2 || ev.button === 1) && this.mode === 'rotate') {
           this.mode = 'none';
         }
         break;
       }
       case 'wheel':
-        cam.zoom(Math.pow(1.0013, ev.delta), hand.valid ? hand.ground : undefined);
+        cam.zoom(Math.pow(1.0013, Math.max(-WHEEL_MAX, Math.min(WHEEL_MAX, ev.delta))), hand.valid ? hand.ground : undefined);
         break;
       case 'dblclick':
-        if (hand.valid && !hand.held) cam.flyTo(hand.ground.x, hand.ground.z);
+        // Fly-to is a deliberate gesture: two clicks on bare land with an empty hand. Two quick clicks that set
+        // something down, grabbed, or picked a building (2026-10-15 playtest) leave the camera where it is.
+        if (hand.valid && !hand.held && !hand.hover && !g.hoverBuilding && realTime - this.actedAt > FLY_QUIET)
+          cam.flyTo(hand.ground.x, hand.ground.z);
         break;
       case 'key':
         this.onKey(ev.code);
@@ -164,7 +182,7 @@ export class Controls {
     const hand = g.hand;
     if (!hand.valid) return;
     if (hand.blocked) {
-      g.message('You can only set things down inside your influence. Try throwing it!', 'warn', 'influence');
+      g.handHint('Only inside your light. Throw it!', 'You can only set things down inside your influence. Try throwing it!', 'influence');
       return;
     }
     // A miracle orb set down is simply cast on the spot.

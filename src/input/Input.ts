@@ -49,7 +49,16 @@ export class Input {
     );
     el.addEventListener('dblclick', (e) => this.queue.push({ type: 'dblclick', x: e.clientX, y: e.clientY }));
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Space is "home". A HUD button keeps focus after it is clicked, and Space would press it again (re-picking a
+    // miracle, toggling the sound): blur it and keep the key for the game.
+    const spaceOnButton = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || !(e.target instanceof HTMLButtonElement)) return;
+      e.preventDefault();
+      e.target.blur();
+    };
+    window.addEventListener('keyup', spaceOnButton, true);
     window.addEventListener('keydown', (e) => {
+      spaceOnButton(e);
       if (e.target instanceof HTMLInputElement) return;
       if (!e.repeat) this.queue.push({ type: 'key', key: e.key, code: e.code });
       this.keys.add(e.code);
