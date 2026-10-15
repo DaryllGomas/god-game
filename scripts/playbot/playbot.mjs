@@ -34,6 +34,11 @@ const PROFILES = {
 const PROFILE = process.argv[2] ?? process.env.PROFILE ?? 'attentive';
 if (!PROFILES[PROFILE]) throw new Error(`unknown profile ${PROFILE}`);
 const CFG = PROFILES[PROFILE];
+// Vexahl's ring (2026-10-15): the bot turns it down (refuse, the default), or takes it the first time (take1). The
+// second argument after the out-dir (atlas-run), or RING=... (thor-run).
+const RING = process.argv[3] ?? process.env.RING ?? 'refuse';
+if (!['refuse', 'take1'].includes(RING)) throw new Error(`unknown ring policy ${RING}`);
+CFG.ring = RING;
 const realStart = Date.now();
 const realS = () => (Date.now() - realStart) / 1000;
 
@@ -138,9 +143,9 @@ await p.evaluate((CFG) => {
       return rs(lines, o);
     };
     const sr = rv.ui.showRival.bind(rv.ui);
-    rv.ui.showRival = (text) => {
-      ev('vexahl-shown', text);
-      return sr(text);
+    rv.ui.showRival = (text, ...rest) => {
+      ev('vexahl-shown', `${text}${rest[1] && rest[1] !== 'speak' ? ` [${rest[1]} portrait]` : ''}`);
+      return sr(text, ...rest);
     };
     const rb = rv.ui.banner.bind(rv.ui);
     rv.ui.banner = (t, s) => {
@@ -216,6 +221,34 @@ await p.evaluate((CFG) => {
     ev('scheme', `Vexahl's ${kind} on ${v.name} ends: ${outcome.toUpperCase()}${courting ? ' (story move)' : ''} (${v.name} belief ${Math.floor(v.belief)}%, owner ${v.owner ?? 'nobody'})`, { village: v.name, kind, outcome });
     B.shots.push({ key: `10-scheme${B.schemeN}-${kind}-${v.name}-${outcome}`, focus: { x: v.center.x, z: v.center.z, distance: 200 } });
   });
+  // His ring: a screenshot of the offer, an answer after a player's few seconds of thought, and the result.
+  B.ring = null;
+  E.on('ringOffered', ({ moment, village: v }) => {
+    const take = CFG.ring === 'take1' && g.rival.ring.taken === 0;
+    B.ring = { at: g.time + 6, take, n: g.rival.ring.offered };
+    ev('ring', `Vexahl offers his ring (${moment}${v ? `, ${v.name}` : ''}; balance ${g.balance.value.toFixed(3)}, alignment ${g.player.alignment.toFixed(2)}): the bot will ${take ? 'TAKE it' : 'turn it down'}`, { moment, village: v?.name });
+    B.shots.push({ key: `30-ring${B.ring.n}-offer-${moment}`, focus: null, wait: 1800 });
+  });
+  E.on('ringTaken', ({ moment, village: v }) => {
+    const r = g.rival.state();
+    ev('ring', `TOOK the ring (${moment}${v ? `; ${v.name} owner ${v.owner}, fear ${v.fear}, belief ${Math.floor(v.belief)}` : ''}); balance ${g.balance.value.toFixed(3)}, alignment ${g.player.alignment.toFixed(2)}, his tier ${r.tier}/${r.maxTier}, ring steps ${r.ring.steps}`);
+    B.shots.push({ key: `31-ring${g.rival.ring.offered}-taken-card`, focus: null, wait: 3500 });
+    if (v) B.shots.push({ key: `32-ring${g.rival.ring.offered}-taken-${v.name}-fear`, focus: { x: v.center.x, z: v.center.z, distance: 110, hour: 0.8 }, wait: 2200 });
+    B.shots.push({ key: `33-ring${g.rival.ring.offered}-taken-citadel`, focus: { ...g.rival.shotPose(r.maxTier), pose: true }, wait: 5200 });
+  });
+  E.on('ringRefused', ({ moment, timedOut }) => {
+    ev('ring', `turned the ring down (${moment}${timedOut ? ', by letting it time out' : ''}); balance ${g.balance.value.toFixed(3)}, alignment ${g.player.alignment.toFixed(2)}`);
+    B.shots.push({ key: `31-ring${g.rival.ring.offered}-refused`, focus: null, wait: 2500 });
+  });
+  B.answerRing = () => {
+    const o = B.ring;
+    if (!o || g.time < o.at) return;
+    B.ring = null;
+    // The real buttons, as a player would click them.
+    const btn = document.querySelector(o.take ? '.rv-tempt.show .rt-take' : '.rv-tempt.show .rt-refuse');
+    if (btn) btn.click();
+    else ev('ring', 'the ring card was gone before the bot answered (timed out)');
+  };
   E.on('villagerBorn', ({ villager }) => (B.born[name(villager.village)] = (B.born[name(villager.village)] ?? 0) + 1));
   E.on('villagerDied', ({ villager, cause }) => {
     const k = `${name(villager.village)}:${cause}`;
@@ -409,6 +442,11 @@ await p.evaluate((CFG) => {
       rival_scheme_village: r.scheme?.village ?? '',
       rival_scheme_phase: r.scheme?.phase ?? '',
       rival_scheme_repel: r.scheme?.repel ?? '',
+      ring_offered: r.ring?.offered ?? '',
+      ring_taken: r.ring?.taken ?? '',
+      ring_refused: r.ring?.refused ?? '',
+      ring_fear: (r.ring?.fear ?? []).join('|'),
+      alignment: +g.player.alignment.toFixed(3),
       temples_stand: g.allTemplesStand(),
       tune_days: +(g.endings.tuneDays ?? 0).toFixed(3),
       day_clock: +(g.day + g.dayTime).toFixed(3),
@@ -502,6 +540,7 @@ await p.evaluate((CFG) => {
     g.render = () => {};
     for (let i = 0; i < seconds; i++) {
       g.advance(1);
+      B.answerRing();
       B.tick();
       B.milestones();
       B.watchRival();
@@ -600,7 +639,7 @@ async function writeOut(final = false) {
   await fs.writeFile(`${OUT}/timeline.csv`, csv);
   await fs.writeFile(`${OUT}/timeline.json`, JSON.stringify(timeline));
   await fs.writeFile(`${OUT}/events.json`, JSON.stringify(events));
-  const label = { ora: 'Ora', 'ora-shown': 'Ora (on screen)', advisor: '', vexahl: 'Vexahl', 'vexahl-shown': 'Vexahl (card on screen)', scheme: 'SCHEME' };
+  const label = { ora: 'Ora', 'ora-shown': 'Ora (on screen)', advisor: '', vexahl: 'Vexahl', 'vexahl-shown': 'Vexahl (card on screen)', scheme: 'SCHEME', ring: 'THE RING' };
   const lines = events
     .filter((e) => e.type !== 'act' || final)
     .map((e) => {
@@ -611,7 +650,7 @@ async function writeOut(final = false) {
   const md = [
     '# THE FIRST WORLD: bot run, events',
     '',
-    `Profile: **${PROFILE}** ${JSON.stringify(CFG)}`,
+    `Profile: **${PROFILE}** ${JSON.stringify(CFG)} · ring: **${RING}**`,
     '',
     `Game time is mm:ss of game time (\`advance()\` steps), real is seconds since the bot started. Bot hand actions (\`ACT\`) are listed too.`,
     '',

@@ -7,6 +7,7 @@ import { GOLD_LOOK, HandTint, VIOLET_LOOK, makeHand, type HandLook } from './Han
 import { aoSkip, type CityLights } from './CityLights';
 import type { Stage } from './Collapse';
 import { beginFinalBattle, type FinalBattle } from './FinalBattle';
+import { Reveal } from './Reveal';
 import { clamp, lerp, smoothstep } from '../util/math';
 
 // ------------------------------------------------------------------ tuning knobs
@@ -45,6 +46,8 @@ const DEPTH = 75;
 /** Size of each hand, as a share of the half-height of the view at DEPTH. */
 const HAND_SCALE = 0.42;
 const SPIRE_NEAR = 0.95;
+/** Seconds into Whole where the sequence holds while the reveal plays (his spire already near). */
+const REVEAL_HOLD = 0.8;
 /** Ora's one line in Whole. */
 export const WHOLE_LINE = 'There you are.';
 
@@ -133,6 +136,8 @@ export class Ascension {
   private readonly look2: HandLook = { ...GOLD_LOOK };
   /** The final battle (src/endings/FinalBattle.ts), asked for once as Whole begins. */
   private battle: FinalBattle | null = null;
+  /** The reveal (src/endings/Reveal.ts): after the battle, his hood falls and the face is yours; then the hands meet. */
+  reveal: Reveal | null = null;
 
   constructor(
     private readonly s: Stage,
@@ -284,6 +289,13 @@ export class Ascension {
         this.t = WHOLE_AT;
         this.battle.frame(dt);
         return false;
+      }
+      // THE REVEAL (Daryll, 2026-10-15): the battle won, his hood falls and the face under it is yours. The sequence
+      // holds just after Whole begins (his spire has come in close, the sky over the lit city) until it has played.
+      this.reveal ??= new Reveal(s);
+      if (!this.reveal.done) {
+        this.t = Math.min(this.t, WHOLE_AT + REVEAL_HOLD);
+        this.reveal.frame(dt);
       }
     }
     const t = this.t;
@@ -462,6 +474,11 @@ export class Ascension {
       m.transparent = true;
       const std = m as THREE.MeshStandardMaterial;
       if (std.isMeshStandardMaterial) {
+        // His obsidian's ember veins (an emissive map): the whole stone turns to light, not only the veins.
+        if (std.emissiveMap) {
+          std.emissiveMap = null;
+          std.needsUpdate = true;
+        }
         std.emissive.lerp(new THREE.Color(0xffc870), Math.min(1, k * 1.6));
         std.emissiveIntensity = Math.max(std.emissiveIntensity, 2.2 * Math.sin(Math.min(1, k * 1.3) * Math.PI));
         std.opacity = opacity * (1 - smoothstep(0.35, 1, k));
@@ -560,6 +577,7 @@ export class Ascension {
   }
 
   dispose() {
+    this.reveal?.dispose();
     const g = this.s.game;
     g.scene.remove(this.light);
     for (const h of this.hands) g.scene.remove(h.holder, h.aura);

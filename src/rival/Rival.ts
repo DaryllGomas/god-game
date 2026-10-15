@@ -20,11 +20,12 @@ import { stageIndex } from '../shrines/stages';
 import { RivalIsle, TurnedMark } from './RivalVisuals';
 import { GraspingHand, Blight, VioletStorm, Whispers, type Fading, type Outcome, type Scheme } from './Schemes';
 import { RivalUI } from './RivalUI';
+import { Ring } from './Ring';
 
 const STORE_KEY = 'godgame.rival.difficulty';
 const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
 const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
-const fill = (l: Line, village: string): Line => ({ who: l.who, text: l.text.replace(/\{village\}/g, village) });
+const fill = (l: Line, village: string): Line => ({ ...l, text: l.text.replace(/\{village\}/g, village) });
 const fillAll = (ls: Line[], village: string) => ls.map((l) => fill(l, village));
 /** How long the camera lingers on his isle at the arrival, in real seconds. */
 const GLANCE = 9;
@@ -69,6 +70,8 @@ export class Rival {
   cursorOverHand = false;
   readonly ui: RivalUI;
   readonly isle: RivalIsle;
+  /** His ring: the temptation (see Ring.ts). */
+  readonly ring: Ring;
   readonly marks = new Map<Village, TurnedMark>();
   private readonly fading: Fading[] = [];
   private readonly abducted: Abducted[] = [];
@@ -124,6 +127,7 @@ export class Rival {
     this.ui.onDifficulty = () => this.setDifficulty(this.difficulty === 'gentle' ? 'steady' : this.difficulty === 'steady' ? 'cunning' : 'gentle');
     this.ui.onScheme = () => this.lookAtScheme();
     this.isle = new RivalIsle(game);
+    this.ring = new Ring(this);
     // There from the first day: far out at sea, small and still while the world is in tune.
     this.isle.setPresent(true, true);
     this.isle.setBalance(this.balance, true);
@@ -196,7 +200,7 @@ export class Rival {
     }
   }
 
-  private setMood(m: Mood, seconds = 45) {
+  setMood(m: Mood, seconds = 45) {
     this.mood = m;
     this.moodT = seconds;
   }
@@ -265,6 +269,25 @@ export class Rival {
   // ------------------------------------------------------------ story mode
 
   /** Story mode is on and the island is in play (src/story). Free play keeps the balance-only rules. */
+  get story(): boolean {
+    return this.storyMode;
+  }
+
+  /** The camera is out at sea for one of his glances. */
+  get glancing(): boolean {
+    return !!this.cam;
+  }
+
+  /** End the scheme in play (the ring: taking it lifts his scheme). */
+  endScheme(outcome: Outcome) {
+    this.finish(outcome);
+  }
+
+  /** Ora's guide line (text only; Ora is "it"), the first time it says this. */
+  oraSay(text: string) {
+    this.ora?.guide(text, { first: true });
+  }
+
   private get storyMode(): boolean {
     const st = (this.game as unknown as { story?: { active: boolean } }).story;
     return !!st?.active;
@@ -288,7 +311,9 @@ export class Rival {
    */
   tierNow(): number {
     if (!this.risen) return 0;
-    return clamp(this.ages() - 1, 1, this.maxTier);
+    // Each ring you took is one more step (2026-10-15); only every temple standing brings his final form.
+    const cap = this.game.villages.every((v) => v.shrineStage === 'temple') ? this.maxTier : this.maxTier - 1;
+    return clamp(this.ages() - 1 + this.ring.steps, 1, cap);
   }
 
   private pyramidStands(): boolean {
@@ -703,6 +728,7 @@ export class Rival {
   private onTurned(v: Village) {
     const g = this.game;
     this.turned++;
+    v.fear = false;
     v.belief = TURNED_BELIEF;
     v.rivalPressure = 0;
     v.worshipFraction = 0.5;
@@ -842,6 +868,8 @@ export class Rival {
       if (this.pendingWait >= ARRIVE_DELAY && (dismissed || this.pendingWait >= ARRIVE_PATIENCE)) this.arriveNow();
     }
     for (const m of this.marks.values()) m.step(dt);
+    // His ring: offered at moments of impatience once he has risen (see Ring.ts).
+    this.ring.update(dt);
     if (this.stage !== 'present') return;
 
     this.watchPrayers();
@@ -1027,6 +1055,7 @@ export class Rival {
       courted: [...this.courted],
       farewell: this.farewell,
       risen: this.risen,
+      ring: this.ring.save(),
       // Villagers he carried off still wash up on a beach (time left, in game seconds).
       abducted: this.abducted.map((a) => ({ v: g.villages.indexOf(a.village), in: Math.round(Math.max(0, a.at - g.time)), name: a.name })),
     };
@@ -1051,6 +1080,7 @@ export class Rival {
     // Before 2026-10-15 his isle stood from the first day: an island where he had shown himself keeps him risen.
     this.risen = typeof d.risen === 'boolean' ? d.risen : d.stage !== 'dormant';
     this.settle = true;
+    this.ring.load(d.ring);
     this.courted.clear();
     for (const n of d.courted ?? []) if (typeof n === 'string') this.courted.add(n);
     this.abducted.length = 0;
@@ -1116,6 +1146,7 @@ export class Rival {
       rising: +this.isle.risingFor.toFixed(1),
       beats: [...this.beats],
       glancing: !!this.cam,
+      ring: this.ring.state(),
     };
   }
 

@@ -25,6 +25,8 @@ const WINDOW_WARM = new THREE.MeshStandardMaterial({ color: 0x4a3418, emissive: 
 const WINDOW_DARK = new THREE.MeshStandardMaterial({ color: 0x2a2218, roughness: 0.8 });
 /** A family that has come to believe in you (a village not yet yours): its windows take the gold of your light. */
 const WINDOW_GOLD = new THREE.MeshStandardMaterial({ color: 0x5a4418, emissive: 0xffd37a, emissiveIntensity: 0.75, roughness: 0.6 });
+/** A family ruled by fear (they knelt when you took Vexahl's ring): cold ember windows, not gold. */
+const WINDOW_FEAR = new THREE.MeshStandardMaterial({ color: 0x2a1018, emissive: 0xff4a3a, emissiveIntensity: 0.6, roughness: 0.6 });
 const scaffoldGeo = scaffoldGeometry();
 
 // ------------------------------------------------------------- believing home
@@ -35,11 +37,16 @@ const HALO_PEAK = 0.85;
 /** Seconds to fade in or out, and the swell when the whole village joins you. */
 const HALO_FADE = 1.6;
 const HALO_FLARE = 3.5;
-let haloTex: THREE.Texture | null = null;
+const haloTexs = new Map<string, THREE.Texture>();
 const haloGeo = new THREE.PlaneGeometry(HALO_SIZE, HALO_SIZE).rotateX(-Math.PI / 2);
-/** A faint gold wash inside, a thin bright ring near the edge, soft on both sides of it (alpha only; colour is gold). */
-function haloTexture(): THREE.Texture {
-  if (haloTex) return haloTex;
+/** Gold (believing), or a cold violet ring for a family ruled by fear. */
+const HALO_RGB = { gold: [255, 214, 128], fear: [150, 80, 230] } as const;
+type HaloLook = keyof typeof HALO_RGB;
+/** A faint wash inside, a thin bright ring near the edge, soft on both sides of it (gold, or violet for fear). */
+function haloTexture(look: HaloLook = 'gold'): THREE.Texture {
+  const have = haloTexs.get(look);
+  if (have) return have;
+  const [cr, cg, cb] = HALO_RGB[look];
   const N = 256;
   const c = document.createElement('canvas');
   c.width = c.height = N;
@@ -53,33 +60,41 @@ function haloTexture(): THREE.Texture {
       const wash = 0.3 * (1 - smooth(0.5, 0.85, r));
       const a = Math.min(1, ring + glow + wash) * (1 - smooth(0.9, 1, r));
       const k = (j * N + i) * 4;
-      img.data[k] = 255;
-      img.data[k + 1] = 214;
-      img.data[k + 2] = 128;
+      img.data[k] = cr;
+      img.data[k + 1] = cg;
+      img.data[k + 2] = cb;
       img.data[k + 3] = Math.round(a * 255);
     }
   x.putImageData(img, 0, 0);
-  haloTex = new THREE.CanvasTexture(c);
-  haloTex.colorSpace = THREE.SRGBColorSpace;
-  return haloTex;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  haloTexs.set(look, tex);
+  return tex;
 }
-/** A small soft light that hangs over a believing home's roof, so it reads from afar (gold, gently breathing). */
-let moteTex: THREE.Texture | null = null;
-function moteTexture(): THREE.Texture {
-  if (moteTex) return moteTex;
+/** A small soft light that hangs over a believing home's roof, so it reads from afar (gold, gently breathing; an ember for fear). */
+const moteTexs = new Map<string, THREE.Texture>();
+const MOTE_STOPS: Record<HaloLook, string[]> = {
+  gold: ['rgba(255,246,220,1)', 'rgba(255,224,150,0.85)', 'rgba(255,205,110,0.22)', 'rgba(255,200,110,0)'],
+  fear: ['rgba(255,220,200,1)', 'rgba(255,96,58,0.85)', 'rgba(170,60,150,0.25)', 'rgba(120,40,160,0)'],
+};
+function moteTexture(look: HaloLook = 'gold'): THREE.Texture {
+  const have = moteTexs.get(look);
+  if (have) return have;
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const x = c.getContext('2d')!;
   const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,246,220,1)');
-  g.addColorStop(0.18, 'rgba(255,224,150,0.85)');
-  g.addColorStop(0.5, 'rgba(255,205,110,0.22)');
-  g.addColorStop(1, 'rgba(255,200,110,0)');
+  const st = MOTE_STOPS[look];
+  g.addColorStop(0, st[0]);
+  g.addColorStop(0.18, st[1]);
+  g.addColorStop(0.5, st[2]);
+  g.addColorStop(1, st[3]);
   x.fillStyle = g;
   x.fillRect(0, 0, 64, 64);
-  moteTex = new THREE.CanvasTexture(c);
-  moteTex.colorSpace = THREE.SRGBColorSpace;
-  return moteTex;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  moteTexs.set(look, tex);
+  return tex;
 }
 const MOTE_SIZE = 5;
 const MOTE_PEAK = 1;
@@ -109,6 +124,9 @@ export class House extends Entity {
   readonly footD: number;
   /** Its family believes in you (a village not yet yours): glows gold (see setBelieving). */
   believing = false;
+  /** Its family is ruled by fear (the village knelt when you took Vexahl's ring): a cold violet-ember glow (see setFear). */
+  fear = false;
+  private look: HaloLook = 'gold';
   private glow = 0;
   private flare = 0;
   private halo: THREE.Mesh | null = null;
@@ -147,8 +165,24 @@ export class House extends Entity {
     if (flare && this.complete) this.flare = HALO_FLARE;
   }
 
+  /**
+   * The ring (2026-10-15): a family that knelt out of fear glows cold violet and ember instead of gold. `flare`: the
+   * moment the village kneels.
+   */
+  setFear(on: boolean, flare = false) {
+    this.fear = on;
+    if (flare && this.complete) this.flare = HALO_FLARE;
+  }
+
   private updateGlow(dt: number) {
-    const want = this.believing && this.complete ? 1 : 0;
+    // Fear wins over the gold (a village of yours is never "believing"; the two never both hold).
+    const look: HaloLook = this.fear ? 'fear' : 'gold';
+    if (look !== this.look) {
+      this.look = look;
+      if (this.halo) (this.halo.material as THREE.MeshBasicMaterial).map = haloTexture(look);
+      if (this.mote) (this.mote.material as THREE.SpriteMaterial).map = moteTexture(look);
+    }
+    const want = (this.believing || this.fear) && this.complete ? 1 : 0;
     this.glow += Math.sign(want - this.glow) * Math.min(Math.abs(want - this.glow), dt / HALO_FADE);
     if (this.flare > 0) this.flare = Math.max(0, this.flare - dt);
     const f = this.flare > 0 ? Math.sin((this.flare / HALO_FLARE) * Math.PI) * 1.6 : 0;
@@ -160,7 +194,7 @@ export class House extends Entity {
     }
     if (!this.halo) {
       const mat = new THREE.MeshBasicMaterial({
-        map: haloTexture(),
+        map: haloTexture(this.look),
         transparent: true,
         depthWrite: false,
         polygonOffset: true,
@@ -175,7 +209,7 @@ export class House extends Entity {
       this.object.add(this.halo);
     }
     if (!this.mote) {
-      this.mote = new THREE.Sprite(new THREE.SpriteMaterial({ map: moteTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      this.mote = new THREE.Sprite(new THREE.SpriteMaterial({ map: moteTexture(this.look), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
       this.mote.scale.setScalar(MOTE_SIZE);
       this.mote.renderOrder = 5;
       this.object.add(this.mote);
@@ -263,7 +297,7 @@ export class House extends Entity {
     }
     // A lived-in home keeps its windows warm from late afternoon on (even with everyone out at work).
     const lit = game.sky.daylight < 0.7 && this.complete && this.residents.length > 0;
-    this.windows.material = this.believing && this.complete ? WINDOW_GOLD : lit ? WINDOW_LIT : this.complete && this.residents.length > 0 ? WINDOW_WARM : WINDOW_DARK;
+    this.windows.material = this.fear && this.complete ? WINDOW_FEAR : this.believing && this.complete ? WINDOW_GOLD : lit ? WINDOW_LIT : this.complete && this.residents.length > 0 ? WINDOW_WARM : WINDOW_DARK;
     this.updateGlow(dt);
     if (this.complete && !this.burning && this.health < 1 && !game.sky.isNight) {
       this.health = Math.min(1, this.health + dt * 0.01);

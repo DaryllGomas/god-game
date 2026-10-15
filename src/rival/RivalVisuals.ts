@@ -8,7 +8,7 @@ import { ProceduralHand } from '../hand/ProceduralHand';
 import { assets } from '../assets';
 import { clamp, damp, lerp, smoothstep } from '../util/math';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { EMBER, ISLE_DRIFT, ISLE_GROW, ISLE_HAZE, ISLE_NEAR, ISLE_STORM, LEVEL_SECONDS, RISE, VIOLET, VIOLET_LIGHT } from './data';
+import { EMBER, EMBER_GLOW, EMBER_RED, ISLE_DRIFT, ISLE_GROW, ISLE_HAZE, ISLE_NEAR, ISLE_STORM, LEVEL_SECONDS, OBSIDIAN, RISE, VIOLET, VIOLET_LIGHT } from './data';
 
 // ------------------------------------------------------------------ shared bits
 
@@ -28,6 +28,55 @@ export function glowTexture(): THREE.CanvasTexture {
   glowTex = new THREE.CanvasTexture(c);
   glowTex.colorSpace = THREE.SRGBColorSpace;
   return glowTex;
+}
+
+let crackTex: THREE.CanvasTexture | null = null;
+/**
+ * Ember veins for his obsidian (an emissive map: black stone, glowing cracks). Jagged branching lines, brighter at
+ * their hearts, tiled round his rock and spires.
+ */
+function crackTexture(): THREE.CanvasTexture {
+  if (crackTex) return crackTex;
+  const S = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d')!;
+  x.fillStyle = '#000';
+  x.fillRect(0, 0, S, S);
+  let seed = 7;
+  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const vein = (px: number, py: number, a: number, len: number, w: number, depth: number) => {
+    x.beginPath();
+    x.moveTo(px, py);
+    for (let i = 0; i < len; i++) {
+      a += (r() - 0.5) * 1.1;
+      px += Math.cos(a) * (8 + r() * 14);
+      py += Math.sin(a) * (8 + r() * 14);
+      x.lineTo(px, py);
+      if (depth < 2 && r() < 0.12) {
+        x.stroke();
+        vein(px, py, a + (r() < 0.5 ? -1 : 1) * (0.6 + r() * 0.6), 3 + Math.floor(r() * 5), w * 0.6, depth + 1);
+        x.beginPath();
+        x.moveTo(px, py);
+      }
+    }
+    x.lineWidth = w;
+    x.stroke();
+  };
+  x.lineCap = x.lineJoin = 'round';
+  // A soft glow, then the hot core of each vein.
+  for (const pass of [0, 1]) {
+    seed = 7;
+    x.strokeStyle = pass ? 'rgb(255,150,80)' : 'rgb(200,40,12)';
+    x.shadowColor = 'rgb(255,50,10)';
+    x.shadowBlur = pass ? 2 : 7;
+    for (let i = 0; i < 18; i++) vein(r() * S, r() * S, (r() - 0.5) * 1.6 + (i % 2 ? Math.PI / 2 : 0), 6 + Math.floor(r() * 10), pass ? 1 : 2.6, 0);
+  }
+  crackTex = new THREE.CanvasTexture(c);
+  crackTex.colorSpace = THREE.SRGBColorSpace;
+  crackTex.wrapS = crackTex.wrapT = THREE.RepeatWrapping;
+  crackTex.repeat.set(3, 2);
+  return crackTex;
 }
 
 let discTex: THREE.CanvasTexture | null = null;
@@ -96,11 +145,12 @@ function disposeGroup(g: THREE.Object3D) {
 // ----------------------------------------------------------------------- his isle
 
 /**
- * Where his isle rests: out on the sea off Ashford's shore, a little past the top-left sea edge of the view the game
- * starts on, hidden under the water until your first pyramid stands (2026-10-15; before, it stood 312 m out from the
- * first day). ISLE_GROW sets how far out along this line it stands as it grows.
+ * Where his isle rests: out on the open sea beyond the island's far shore, upper left in the full-island view, hidden
+ * under the water until your first pyramid stands. 2026-10-15: moved round from (-349, 129), where after the rising he
+ * sat at the far left edge of the full-island view, half behind the Villages panel; here he reads on the sea, clear of
+ * the panel and of the island (scripts/probe-isle-spot.mjs). ISLE_GROW sets how far out along this line he stands.
  */
-export const ISLE_POS = new THREE.Vector3(-349, 0, 129);
+export const ISLE_POS = new THREE.Vector3(Math.cos((200 * Math.PI) / 180) * 400, 0, Math.sin((200 * Math.PI) / 180) * 400);
 /** How far behind a turned village's prayer place his banner stands (z), clear of the pyramid (v0.5 shrines). */
 const BANNER_BACK = -12;
 const ISLE_DIR = new THREE.Vector2(ISLE_POS.x, ISLE_POS.z).normalize();
@@ -192,6 +242,7 @@ export class RivalIsle {
   private cloudMats: THREE.SpriteMaterial[] = [];
   private crownMats: THREE.SpriteMaterial[] = [];
   private readonly darkSea: THREE.Mesh;
+  private readonly emberSea: THREE.Mesh;
   private readonly rings: { m: THREE.Mesh; t: number; dur: number; r: [number, number]; o: number }[] = [];
   private readonly mist: { s: THREE.Sprite; a: number; r: number; h: number; size: number; ph: number }[] = [];
   private t = Math.random() * 10;
@@ -208,11 +259,16 @@ export class RivalIsle {
     g.position.copy(ISLE_POS);
     g.rotation.y = FACING;
 
-    const rockMat = this.track(new THREE.MeshStandardMaterial({ color: 0x0d0a14, roughness: 1, flatShading: true, envMapIntensity: 0.25 }));
-    const spireMat = this.track(new THREE.MeshStandardMaterial({ color: 0x130d1e, roughness: 0.8, flatShading: true, emissive: 0x24093f, emissiveIntensity: 0.3, envMapIntensity: 0.3 }));
-    const wallMat = this.track(new THREE.MeshStandardMaterial({ color: 0x120e1c, roughness: 0.95, flatShading: true, emissive: 0x14082c, emissiveIntensity: 0.3, envMapIntensity: 0.25 }));
-    const emberMat = this.track(new THREE.MeshBasicMaterial({ color: EMBER }));
-    const shardMat = this.track(new THREE.MeshStandardMaterial({ color: 0x4a2a8a, emissive: VIOLET, emissiveIntensity: 1.5, roughness: 0.3, flatShading: true }));
+    // Black glassy obsidian with ember veins (2026-10-15: his portraits and the franchise banner; before, violet-grey
+    // stone that read pale lavender from afar). Facets catch the sky like glass; the veins glow through the black.
+    const veins = crackTexture();
+    const rockMat = this.track(new THREE.MeshStandardMaterial({ color: OBSIDIAN, roughness: 0.42, metalness: 0.25, flatShading: true, envMapIntensity: 0.7, emissive: EMBER_RED, emissiveMap: veins, emissiveIntensity: 0.7 }));
+    const spireMat = this.track(new THREE.MeshStandardMaterial({ color: 0x0a0708, roughness: 0.3, metalness: 0.3, flatShading: true, emissive: EMBER_RED, emissiveMap: veins, emissiveIntensity: 0.9, envMapIntensity: 0.85 }));
+    const wallMat = this.track(new THREE.MeshStandardMaterial({ color: 0x0d090a, roughness: 0.5, metalness: 0.2, flatShading: true, emissive: EMBER_RED, emissiveMap: veins, emissiveIntensity: 0.45, envMapIntensity: 0.6 }));
+    const emberMat = this.track(new THREE.MeshBasicMaterial({ color: new THREE.Color(EMBER_RED).multiplyScalar(1.15) }));
+    // The shards: ember-red glass, hot at the core; a faint cold violet sheen is all that is left of the violet.
+    const shardMat = this.track(new THREE.MeshStandardMaterial({ color: 0x2a0806, emissive: EMBER_RED, emissiveIntensity: 1.5, roughness: 0.25, metalness: 0.2, flatShading: true }));
+    void VIOLET;
     this.spireMat = spireMat;
     this.shardMat = shardMat;
     // Far out at sea it must still read as a dark citadel on the horizon, not vanish into the haze.
@@ -347,10 +403,10 @@ export class RivalIsle {
     g.add(this.crown);
 
     // ---- the storm-eye: a slow ring of dark violet cloud round the spire that gathers as the world falls (balance).
-    const cloudMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x1e1236, transparent: true, opacity: 0, depthWrite: false }));
-    const litMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x6a3cc0, transparent: true, opacity: 0, depthWrite: false }));
-    capFog(cloudMat, 0.5);
-    capFog(litMat, 0.5);
+    const cloudMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x140b0c, transparent: true, opacity: 0, depthWrite: false }));
+    const litMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x9a2410, transparent: true, opacity: 0, depthWrite: false }));
+    capFog(cloudMat, 0.3);
+    capFog(litMat, 0.3);
     this.cloudMats = [cloudMat, litMat];
     for (let i = 0; i < 46; i++) {
       const a = (i / 46) * Math.PI * 2 * 2.3 + rand(-0.1, 0.1);
@@ -367,10 +423,11 @@ export class RivalIsle {
     g.add(this.eye);
 
     // ---- the crown of dark cloud above him (step 4, full at his final form): his progress, not his temper.
-    const crownDark = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x150c26, transparent: true, opacity: 0, depthWrite: false }));
-    const crownLit = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x6a3cc0, transparent: true, opacity: 0, depthWrite: false }));
-    capFog(crownDark, 0.5);
-    capFog(crownLit, 0.5);
+    // Black cloud, lit red from beneath (the burning city's glow on the underside of its smoke).
+    const crownDark = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x0e0909, transparent: true, opacity: 0, depthWrite: false }));
+    const crownLit = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xa82a12, transparent: true, opacity: 0, depthWrite: false }));
+    capFog(crownDark, 0.3);
+    capFog(crownLit, 0.3);
     this.crownMats = [crownDark, crownLit];
     for (let i = 0; i < 44; i++) {
       const a = (i / 44) * Math.PI * 2 * 1.6 + rand(-0.12, 0.12);
@@ -379,7 +436,7 @@ export class RivalIsle {
       const s = new THREE.Sprite(lit ? crownLit : crownDark);
       const w = rand(70, 120) * (lit ? 0.7 : 1);
       const size = new THREE.Vector3(w, w * rand(0.4, 0.6), 1);
-      const base = new THREE.Vector3(Math.cos(a) * r - 12, rand(330, 372) - (lit ? 12 : 0) - (r > 95 ? 14 : 0), Math.sin(a) * r);
+      const base = new THREE.Vector3(Math.cos(a) * r - 12, rand(330, 372) - (lit ? 20 : 0) - (r > 95 ? 14 : 0), Math.sin(a) * r);
       s.scale.copy(size);
       s.position.copy(base);
       this.cloudCrown.add(s);
@@ -389,23 +446,23 @@ export class RivalIsle {
 
     // ---- glows: in the storm-eye, the eye in his cloud crown (final form), the light that runs up the spire at the rising.
     const glowMat = this.track(
-      new THREE.SpriteMaterial({ map: glowTexture(), color: 0x8a50ff, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
+      new THREE.SpriteMaterial({ map: glowTexture(), color: EMBER_GLOW, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
     );
     this.glow = new THREE.Sprite(glowMat);
     this.glow.scale.set(260, 260, 1);
     this.glow.position.y = 200;
     g.add(this.glow);
-    const eyeMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x7a40e0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    const eyeMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xff3010, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
     this.eyeGlow = new THREE.Sprite(eyeMat);
     this.eyeGlow.scale.set(90, 60, 1);
     this.eyeGlow.position.set(-14, 350, 0);
     g.add(this.eyeGlow);
-    const runMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xa070ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    const runMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xff7a3a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
     this.runner = new THREE.Sprite(runMat);
     this.runner.scale.set(46, 70, 1);
     g.add(this.runner);
     const beamMat = this.track(
-      new THREE.MeshBasicMaterial({ color: 0x9060ff, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
+      new THREE.MeshBasicMaterial({ color: 0xff4a1e, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
     );
     this.beam = new THREE.Mesh(new THREE.CylinderGeometry(3, 16, 380, 14, 1, true), beamMat);
     this.beam.position.y = 380;
@@ -414,21 +471,28 @@ export class RivalIsle {
     // A bolt from the eye to the spire's tip, flashed now and then.
     const pts: THREE.Vector3[] = [];
     for (let i = 0; i <= 9; i++) pts.push(new THREE.Vector3(0, 0, 0));
-    const boltMat = this.track(new THREE.LineBasicMaterial({ color: 0xd9c4ff, transparent: true, opacity: 0, fog: false }));
+    const boltMat = this.track(new THREE.LineBasicMaterial({ color: 0xffcbb0, transparent: true, opacity: 0, fog: false }));
     this.bolt = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), boltMat);
     g.add(this.bolt);
 
     // ---- the sea round him: darkened water, the rising's shockwave rings and mist.
-    const darkMat = this.track(new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0x080312, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-    capFog(darkMat, 0.3);
+    const darkMat = this.track(new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0x0a0304, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    capFog(darkMat, 0.2);
     this.darkSea = new THREE.Mesh(new THREE.CircleGeometry(1, 48), darkMat);
     this.darkSea.rotation.x = -Math.PI / 2;
     this.darkSea.renderOrder = 2;
     this.sea.add(this.darkSea);
+    // A red-black sea: the ember glow of his city on the water round his foot.
+    const emberSea = this.track(new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0xc81e08, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    capFog(emberSea, 0.2);
+    this.emberSea = new THREE.Mesh(new THREE.CircleGeometry(1, 48), emberSea);
+    this.emberSea.rotation.x = -Math.PI / 2;
+    this.emberSea.renderOrder = 3;
+    this.sea.add(this.emberSea);
     for (let i = 0; i < 3; i++) {
       const m = new THREE.Mesh(
         new THREE.RingGeometry(0.93, 1, 96),
-        this.track(new THREE.MeshBasicMaterial({ color: 0xd6cbff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })),
+        this.track(new THREE.MeshBasicMaterial({ color: 0xffb48a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })),
       );
       m.rotation.x = -Math.PI / 2;
       m.position.y = 0.4;
@@ -437,7 +501,7 @@ export class RivalIsle {
       this.sea.add(m);
       this.rings.push({ m, t: -1, dur: 3, r: [10, 200], o: 0.5 });
     }
-    const mistMat = new THREE.SpriteMaterial({ map: glowTexture(), color: 0x9a92b4, transparent: true, opacity: 0, depthWrite: false });
+    const mistMat = new THREE.SpriteMaterial({ map: glowTexture(), color: 0x4e4446, transparent: true, opacity: 0, depthWrite: false });
     for (let i = 0; i < 20; i++) {
       const m = this.track(mistMat.clone());
       capFog(m, 0.35);
@@ -651,7 +715,7 @@ export class RivalIsle {
     this.group.position.set(ISLE_DIR.x * dist, ISLE_POS.y - sink * SUNK * scale, ISLE_DIR.y * dist);
     this.group.scale.setScalar(scale);
     this.haze.value = ISLE_HAZE * (1 - 0.5 * grow) * (1 - clamp(n, 0, 1));
-    this.fogCap.value = lerp(0.24, 0.15, grow) * (1 - 0.5 * clamp(n, 0, 1));
+    this.fogCap.value = lerp(0.1, 0.05, grow) * (1 - 0.5 * clamp(n, 0, 1));
 
     // The parts that climb out of the rock (or the sea) as he grows; none before the isle has surfaced.
     for (const p of this.parts) {
@@ -693,7 +757,8 @@ export class RivalIsle {
       this.runner.material.opacity = 0.75 * Math.sin(run * Math.PI);
     }
     const surge = rt < 0 ? 0 : Math.exp(-Math.pow((rt - (RISE.light[0] + RISE.light[1]) / 2) / 1.1, 2));
-    this.spireMat.emissiveIntensity = 0.3 + 1.1 * surge + 0.12 * grow;
+    // The veins: smouldering, flaring as the light runs up at the rising, a little hotter as he grows.
+    this.spireMat.emissiveIntensity = 0.6 + 1.4 * surge + 0.3 * grow + 0.25 * st;
     this.shardMat.emissiveIntensity = 0.5 + 1.3 * st + 0.8 * surge + 0.3 * finalK;
 
     this.crown.rotation.y = this.t * (0.1 + 0.2 * st);
@@ -744,6 +809,9 @@ export class RivalIsle {
     const r = lerp(85, 150, grow) * (0.3 + 0.7 * dk) * (s / lerp(ISLE_GROW.scale[0], ISLE_GROW.scale[1], grow));
     this.darkSea.scale.set(r * 1.7, r * 1.7, 1);
     (this.darkSea.material as THREE.MeshBasicMaterial).opacity = dk * e * lerp(0.85, 1, grow);
+    // Faint: a red cast on the black water close round his foot, not a disc of colour.
+    this.emberSea.scale.set(r * 0.62, r * 0.62, 1);
+    (this.emberSea.material as THREE.MeshBasicMaterial).opacity = dk * e * (0.07 + 0.04 * grow) * (0.9 + 0.1 * Math.sin(this.t * 0.6));
     if (rt >= 0 && rt < RISE.surface[1] + 2) {
       for (let i = 0; i < RISE.rings.length; i++) {
         const at = RISE.rings[i];

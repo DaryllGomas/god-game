@@ -5,10 +5,17 @@ import { SEASON_DAYS } from '../seasons/data';
 
 export const RIVAL_NAME = 'Vexahl';
 export const RIVAL_TITLE = 'Lord of the Far Shore';
-/** Deep violet with an ember edge. */
+/** Deep violet with an ember edge (his schemes and marks on your villages). */
 export const VIOLET = 0x5b2a9a;
 export const VIOLET_LIGHT = 0xb48cff;
 export const EMBER = 0xff7a2a;
+/**
+ * His citadel (2026-10-15, to match his portraits and the franchise banner): black glassy obsidian, ember-red veins and
+ * windows, a dark cloud crown with a red underglow, a red-black sea; violet only as a faint edge.
+ */
+export const OBSIDIAN = 0x0b0809;
+export const EMBER_RED = 0xff3a14;
+export const EMBER_GLOW = 0xff4a1e;
 
 /** Seconds after the Wonder is complete before he shows up (the win card has to have its moment first). */
 export const ARRIVE_DELAY = 14;
@@ -64,17 +71,17 @@ export const SCHEME_MIN_PRESSURE: Record<SchemeKind, number> = { whispers: 0, bl
  * His isle rises with you (Daryll, 2026-10-15: "Vexahl's spire, I don't think should be there at first. Let's move it
  * a little further off coast and have it trigger ... when you get the pyramid, that's when it rises. Like in Breath
  * of the Wild ... they're leveling up together"). Until the first pyramid stands anywhere it lies hidden under the sea,
- * out past the top-left sea edge of the default view (ISLE_POS in RivalVisuals); then it surfaces (RISE) and from then
+ * out on the open sea, upper left in the full-island view (ISLE_POS in RivalVisuals); then it surfaces (RISE) and from then
  * on its citadel grows one step for every age you raise (TIER): its SIZE follows your progress, not the balance.
  * - dist: metres from the island's centre (along ISLE_POS) at the rising, and in his final form (a little further out
  *   as it grows, so its foot stays in deep water).
  * - scale: the citadel's size at the rising, and in his final form.
  */
-export const ISLE_GROW = { dist: [372, 392] as [number, number], scale: [0.17, 0.3] as [number, number] };
+export const ISLE_GROW = { dist: [400, 420] as [number, number], scale: [0.17, 0.3] as [number, number] };
 /** Where the endings bring him when they hold him near (`RivalIsle.hold` 1): src/endings Collapse and Ascension. */
 export const ISLE_NEAR = { dist: 420, scale: 0.6 };
 /** How strongly his isle is veiled in sea haze (0 = none) at the rising; thins as he grows, gone when held near. */
-export const ISLE_HAZE = 0.07;
+export const ISLE_HAZE = 0.03;
 /** Balance at which his isle is still, and at its stormiest (the violet storm-eye, glow, beam, bolts): his temper, not his size. */
 export const ISLE_STORM: [number, number] = [0.62, 0.15];
 /** Real seconds for his storm to follow the balance. */
@@ -146,12 +153,22 @@ export const MOOD_TEXT: Record<Mood, string> = {
 
 /** Theatrical, jealous, a little petty; never grim. */
 export type RivalSpeaker = 'rival' | 'spirit' | 'imp';
+/**
+ * Which of his portraits his card shows (Daryll, 2026-10-15: "different things use different images of him"): D, the
+ * hooded shadow with ember eyes, when he speaks; E, the hand offering the smoking ring, when he tempts; F, turning away
+ * and dissolving, when he is foiled or refused. The Atlas-face portraits (A2, B, C) are only for the reveal in Whole.
+ */
+export type RivalFace = 'speak' | 'tempt' | 'foiled';
 export interface Line {
   who: RivalSpeaker;
   text: string;
+  /** His portrait for this line (his lines only; 'speak' when unset). */
+  face?: RivalFace;
 }
 
 const L = (who: RivalSpeaker, text: string): Line => ({ who, text });
+/** His lines when he is foiled, refused or leaves: the F portrait. */
+const F = (text: string): Line => ({ who: 'rival', text, face: 'foiled' });
 
 export const ARRIVAL_LINES: Line[] = [
   L('rival', 'So THIS is the little island everyone keeps whispering about. How... quaint.'),
@@ -170,8 +187,8 @@ export const SCHEME_LINES: Record<SchemeKind, { start: Line[]; foiled: Line[]; s
       L('rival', 'Listen to the whispers, {village}. They are so much more interesting than your god.'),
     ],
     foiled: [
-      L('rival', 'Tch! The mist was a perfectly good mist! Who taught them to ignore me?'),
-      L('rival', 'Fine. FINE. They can have a nice day. See if I care.'),
+      F('Tch! The mist was a perfectly good mist! Who taught them to ignore me?'),
+      F('Fine. FINE. They can have a nice day. See if I care.'),
     ],
     success: [L('rival', 'Whispers always win in the end, you know.')],
   },
@@ -181,8 +198,8 @@ export const SCHEME_LINES: Record<SchemeKind, { start: Line[]; foiled: Line[]; s
       L('rival', 'Violet suits {village}\'s fields. Do try to appreciate it.'),
     ],
     foiled: [
-      L('rival', 'Rain? RAIN?! That was a very expensive blight!'),
-      L('rival', 'Oh, how very wet of you.'),
+      F('Rain? RAIN?! That was a very expensive blight!'),
+      F('Oh, how very wet of you.'),
     ],
     success: [L('rival', 'Bare fields. A bare god. I see a theme.')],
   },
@@ -192,8 +209,8 @@ export const SCHEME_LINES: Record<SchemeKind, { start: Line[]; foiled: Line[]; s
       L('rival', 'Look up, {village}. Something wants to hold a small person.'),
     ],
     foiled: [
-      L('rival', 'Ow! That was my GOOD hand!'),
-      L('rival', 'Rude. So rude. Nobody slaps a deity. Well, you did. Rude.'),
+      F('Ow! That was my GOOD hand!'),
+      F('Rude. So rude. Nobody slaps a deity. Well, you did. Rude.'),
     ],
     success: [L('rival', 'Do not fret. I will return them... eventually. They are dreadful company.')],
   },
@@ -203,8 +220,8 @@ export const SCHEME_LINES: Record<SchemeKind, { start: Line[]; foiled: Line[]; s
       L('rival', 'A little violet weather for {village}. Do let me know if it frightens you.'),
     ],
     foiled: [
-      L('rival', 'A sign, a sign... everyone is so FOND of signs. Honestly.'),
-      L('rival', 'The clouds were going to be magnificent. You have no taste.'),
+      F('A sign, a sign... everyone is so FOND of signs. Honestly.'),
+      F('The clouds were going to be magnificent. You have no taste.'),
     ],
     success: [L('rival', 'Storm-frightened and faithless. My favourite combination.')],
   },
@@ -241,13 +258,13 @@ export const TURN_LINES: Line[] = [
   L('rival', 'Lovely, lovely {village}. Violet is the new gold.'),
 ];
 export const WON_BACK_LINES: Line[] = [
-  L('rival', 'You took {village} back?! They were just warming up for me!'),
-  L('rival', 'Fickle. Villages are so fickle. It is not me, it is them.'),
+  F('You took {village} back?! They were just warming up for me!'),
+  F('Fickle. Villages are so fickle. It is not me, it is them.'),
 ];
 export const RETREAT_LINES: Line[] = [
-  L('rival', 'Enough! You have the dancers and the weather, the golem and the good luck.'),
-  L('rival', 'I am going home to sulk. Beautifully. For a very long time.'),
-  L('rival', 'But mark my words, little god: I\'ll be back... on the next island!'),
+  F('Enough! You have the dancers and the weather, the golem and the good luck.'),
+  F('I am going home to sulk. Beautifully. For a very long time.'),
+  F('But mark my words, little god: I\'ll be back... on the next island!'),
 ];
 export const ADVISOR_RETREAT: Line[] = [
   L('spirit', 'He is leaving! Oh, listen to the whole island breathe out.'),
@@ -262,8 +279,8 @@ export const STIR_LINES: Line[] = [
 ];
 /** The world recovered: he goes quiet. */
 export const QUIET_LINES: Line[] = [
-  L('rival', 'Fine. Tend your little garden. I can wait. I am very good at waiting.'),
-  L('rival', 'Everyone looks so content. It is unbearable. I shall brood somewhere far away.'),
+  F('Fine. Tend your little garden. I can wait. I am very good at waiting.'),
+  F('Everyone looks so content. It is unbearable. I shall brood somewhere far away.'),
 ];
 /** It tipped again: he wakes. */
 export const RESUME_LINES: Line[] = [
@@ -299,5 +316,83 @@ export const IDLE_TAUNTS: Line[] = [
   L('rival', 'I have a spire. A BIG spire. Have you seen it? You can see it from here.'),
   L('rival', 'Your golem is adorable. I am not jealous. Is it available for borrowing?'),
 ];
+
+// ------------------------------------------------- the ring (Daryll, 2026-10-15)
+
+/**
+ * The ring: a temptation, not a scheme. Daryll: "if you ruled with an iron fist and with power ... he could be holding
+ * up the ring. And so it's your job to turn it down." At a moment of impatience (a village you are winning has
+ * stalled, one of his schemes is draining a village, or you have been cruel) he appears with the E portrait on a
+ * larger card and offers it: "Take the ring" or "Turn it down". Taking it gives you what you wanted now (the village
+ * kneels: yours at once, but ruled by fear) and costs alignment and balance, and his citadel grows a step: the first
+ * step toward becoming him (CANON ruling 8). Turning it down steadies the world a little.
+ * - story / free: most offers in one game (fewer in free play).
+ * - gap: game seconds between offers; firstAfter: game seconds after his rising before the first. (The story road is
+ *   about 25 game minutes for an attentive player, longer for most, so 2-3 offers fit.)
+ * - stall: game seconds a neutral village in your light must have gone without its belief rising by `stallRise` (while
+ *   it is at least `stallBelief` along) before he offers to make it kneel; stallFar: game seconds the story's next
+ *   village has waited for your light to reach it.
+ * - drain: game seconds one of his schemes must have been draining a village (and its faith down to `drainFaith`).
+ * - cruel: the cruelty that draws him (Balance echo of burning + throwing + neglect, which fades like the deeds).
+ * - wait: real seconds the card waits for an answer; unanswered counts as turned down.
+ */
+export const RING = {
+  story: 3,
+  free: 2,
+  gap: 300,
+  firstAfter: 60,
+  stall: 75,
+  stallBelief: 15,
+  stallRise: 6,
+  stallFar: 140,
+  drain: 40,
+  drainFaith: 55,
+  cruel: 3,
+  wait: 20,
+  /** Taking it: alignment toward cruel, deed points off the balance and a jolt to it now, power when no village kneels. */
+  take: { alignment: -0.14, deed: -9, jolt: 0.05, power: 500 },
+  /** Turning it down: alignment toward kind, deed points onto the balance. */
+  refuse: { alignment: 0.04, deed: 3 },
+  /**
+   * Ruled by fear: they dance and pray at these shares, their faith starts at `faith`; if the balance stays below
+   * `slipBelow` for `slipAfter` game seconds they slip away to him; after `liftAfter` game seconds in tune the fear lifts
+   * (no hell, anyone can come back: CANON ruling 8).
+   */
+  fear: { dance: 0.45, prayer: 0.5, faith: 45, slipBelow: 0.4, slipAfter: 300, liftAfter: 900 },
+};
+export type RingMoment = 'stall' | 'drain' | 'cruel';
+const E = (text: string): Line => ({ who: 'rival', text, face: 'tempt' });
+/** His offers, by the moment that draws him (all recorded). */
+export const RING_OFFERS: Record<RingMoment, Line[]> = {
+  stall: [
+    E('Such patience. Such a waste of it. Take my ring, and they will kneel before the sun goes down.'),
+    E('Why ask them so sweetly? Wear this, and they will never say no to you again.'),
+  ],
+  drain: [E('My mist is so heavy on them. Take the ring, and I lift it. A small price. Hardly a price at all.')],
+  cruel: [E('Ah. A firm hand. I do admire a firm hand. Take the ring... and stop pretending to be gentle.')],
+};
+/** Turned down: he turns away and dissolves (F). */
+export const RING_REFUSED: Line[] = [
+  F('No? How... noble. It will still be here when you are tired.'),
+  F('As you wish. I am very patient. I have had a long time to practise.'),
+  F('You disappoint me. Beautifully. Another time, then.'),
+];
+/** Taken: his satisfaction. */
+export const RING_TAKEN: Line[] = [
+  L('rival', 'There. Was that so hard? It suits you. It always did.'),
+  L('rival', 'Look at them kneel. Do you feel it? That is what you were made for.'),
+  L('rival', 'Good. Wear it well. We are a little closer now, you and I.'),
+];
+/** Lumi, warm, when you turn him down: a new line the first time, then her kind-god line (both recorded). */
+export const LUMI_REFUSED: Line[] = [
+  L('spirit', 'You said no to him. That was the strong thing, not the easy one.'),
+  L('spirit', 'You are becoming such a kind god. The whole island feels warmer.'),
+];
+/** Lumi when you take it (recorded). */
+export const LUMI_TAKEN: Line = L('spirit', 'Oh no. Please be gentler with them.');
+/** Ora names the stakes once, on his first offer (text only; Ora is "it"). */
+export const ORA_RING = 'Every gift from him is a little more of him.';
+/** The reveal in Whole: the hood falls, and the face under it is yours (recorded). */
+export const REVEAL_LINE = 'You know this face. You have always known it.';
 
 export const CHILD_NAMES = ['Pip', 'Wren', 'Moss', 'Tilly', 'Bram', 'Nettle', 'Posy', 'Fennel', 'Dot', 'Barley'];

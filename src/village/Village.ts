@@ -9,6 +9,7 @@ import { Rng, rng } from '../util/rng';
 import type { Site } from '../projects/Site';
 import { circle, type LightShape } from '../reach/Light';
 import { SHRINE_CLEARANCE, SHRINE_STAGES, type ShrineStage } from '../shrines/stages';
+import { RING } from '../rival/data';
 
 /** Half-size of the pad a house gets (a cottage is up to 5.4 x 4.6, plus its margin). */
 const HOUSE_PAD = { hx: 3.4, hz: 3.1 };
@@ -78,6 +79,11 @@ export class Village {
   prayerRate = 0;
   /** > 0 while the rival god is pressing on this village (set by src/rival): if its faith hits 0 it turns to him instead of drifting away. */
   rivalPressure = 0;
+  /**
+   * Ruled by fear (src/rival Ring, 2026-10-15): it knelt when you took Vexahl's ring. Its homes glow cold violet and
+   * ember instead of gold, fewer of its people dance and their prayer is weaker (RING.fear); it lifts in a world in tune.
+   */
+  fear = false;
   /** Not yours: belief holds (no fading) until this game time, set whenever a deed raises it (VILLAGE.beliefHold). */
   beliefHeldUntil = 0;
   /** Belief after the last update, to notice rises from any source (impress, prayers, projects). */
@@ -420,7 +426,7 @@ export class Village {
     }
 
     if (this.owner === 'player') {
-      const faithMult = 0.5 + this.belief / 200;
+      const faithMult = (0.5 + this.belief / 200) * (this.fear ? RING.fear.prayer : 1);
       this.prayerRate = this.dancers * PLAYER.powerPerWorshipper * faithMult;
       game.player.addPower(this.prayerRate * dt);
       // Faith: slips while people starve, slowly recovers otherwise.
@@ -449,7 +455,10 @@ export class Village {
     const neutral = this.owner === null;
     const joined = neutral ? this.familiesWithYou() : 0;
     homes.forEach((h, i) => h.setBelieving(neutral && i < joined));
-    for (const h of this.houses) if (!h.complete) h.setBelieving(false);
+    for (const h of this.houses) {
+      if (!h.complete) h.setBelieving(false);
+      if (h.fear !== (this.fear && this.owner === 'player')) h.setFear(this.fear && this.owner === 'player');
+    }
     if (this.joinedLast >= 0 && neutral && joined !== this.joinedLast) {
       const h = homes[Math.min(joined, this.joinedLast)];
       if (h) {
@@ -469,7 +478,7 @@ export class Village {
     let slot = 0;
     if (this.owner !== null || this.festival) {
       // Yours, or his (the rival's people dance for him as they always did).
-      const frac = this.festival ? 1 : this.owner === 'player' ? this.worshipFraction : VILLAGE.neutralWorship;
+      const frac = this.festival ? 1 : this.owner === 'player' ? this.worshipFraction * (this.fear ? RING.fear.dance : 1) : VILLAGE.neutralWorship;
       const want = Math.round(adults.length * frac);
       // The best-fed go to worship; everyone else works.
       const sorted = [...adults].sort((a, b) => a.hunger - b.hunger);

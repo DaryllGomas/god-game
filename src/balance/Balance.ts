@@ -198,6 +198,12 @@ export class Balance {
     };
   }
 
+  /** A sudden drop the world feels at once (taking Vexahl's ring), on top of the deed it leaves in the memory. */
+  jolt(amount: number) {
+    if (this.forced !== null) return;
+    this.value = clamp(this.value - amount, 0, 1);
+  }
+
   /** Debug: pin the balance at `v` (0..1), or `null` to let the world decide again. */
   force(v: number | null) {
     this.forced = v === null ? null : clamp(v, 0, 1);

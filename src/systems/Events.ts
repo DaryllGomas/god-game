@@ -68,6 +68,12 @@ export interface GameEvents {
   villageTurned: { village: Village };
   /** He gave up and left (the next island awaits). */
   rivalRetreated: Record<string, never>;
+  /** He offered his ring (src/rival/Ring.ts): the moment that drew him, and the village it is about. */
+  ringOffered: { moment: 'stall' | 'drain' | 'cruel'; village: Village | null };
+  /** You took his ring (`village`: the one that knelt, or the one it was about). */
+  ringTaken: { moment: 'stall' | 'drain' | 'cruel'; village: Village | null };
+  /** You turned his ring down (`timedOut`: you let it go by without an answer). */
+  ringRefused: { moment: 'stall' | 'drain' | 'cruel'; village: Village | null; timedOut: boolean };
   /** A village's prayer place grew into a new age (see src/shrines): stone circle, pyramid, temple. */
   shrineRaised: { village: Village; stage: ShrineStage };
   /** You answered a prayer (any kind, including a finished project's). */
