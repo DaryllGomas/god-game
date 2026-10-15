@@ -4,6 +4,19 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Changed (screen and words, 2026-10-15: a first-time player's playtest, and Daryll: "it's got to be like 1 of 6, then 2 of 6")
+- **Your villages show how high their prayer place has climbed**, not a count that is always full (5/5, 6/6). The village list and the label over the village read the age and step, "Totem · 1/4", "Stones · 2/4", "Pyramid · 3/4", "Temple · 4/4", over four segments, and the next segment fills softly as that age's dream is built. Hover a row for the next age and how far it has come. Villages you are still winning keep families with you ("2/5 ✦"); villages Vexahl holds are as before.
+- **The village list rows look clickable**: they light up on hover, a small chevron leans in, and they have a focus ring (Tab, then Enter, flies there too). Clicking one still flies to the village and shows what it needs.
+- **Ora's goal lines stay longer**: at least 7.5 seconds and up to 12 for long ones, always in real seconds, so 2× and 4× no longer rush them.
+- **A small Ora rests at the top centre in story mode.** Hover or click it and Ora says the current goal again. It glows softly for a while after the goal changes, then sits quietly. No checklist, no text of its own.
+- **The first goal says what to do.** Ora's first line names the first prayer and how to answer it ("Listen. Ashford is asking for timber. Lift a tree and set it down on their storehouse.") instead of a riddle, and that prayer isn't explained a second time. If no prayer has risen yet, Ora waits for it a few seconds before speaking. A returning player hears "Where were we?" and the same instruction.
+- **The intro shows a way out**: a faint "skip ›" settles into the bottom-right corner two seconds into the film. Click it to skip (Escape still works, and a click anywhere still brightens it first).
+- **The welcome screen is just a name and Begin.** The controls and the goal paragraph wait behind a small "controls" link (they are always open in the ? screen). "Play without a name" is gone: the name is optional, so Begin with the field empty does the same. Enter in the name field begins. "Lost your code?" moved inside "Have an island code?".
+- **Storehouses are labelled**: with the hand over one (or carrying something to it), a small "Storehouse · drop gifts here" tag appears above it.
+
+### Fixed (2026-10-15)
+- Lumi's name no longer lingers on the page after the speech bubble fades. The hidden bubble kept "LUMI" and the last line, so it read as if Ora's words were Lumi's. The faded bubble is now emptied, and it and Vexahl's card are hidden properly once faded, so neither catches clicks at the top centre.
+
 ### Changed (progression, 2026-10-14: Daryll: "by the time I got to the next town there was already a temple built ... we would want to be able to expand as we go into each one")
 - **Villages join house by house.** A neighbour's belief fills family by family: each home whose family comes to believe gets a soft gold ring on the ground, gold windows and a small light over its roof, and a few of its people dance for you at the totem (their prayer reaches you at half strength). The village is yours once most homes believe (70%: 3 of 4, 4 of 5, 7 of 10), with the usual fanfare. Families can let go again if belief fades. The village list and the label over each village show families with you ("2/5 ✦") as a bar with one segment per home.
 - **Smaller lumps.** An answered prayer gives a neighbour 10 belief (was 28), a finished dream you helped 15 (was 40), material on its dream 0.12 per unit (was 0.25), and storehouse gifts count at 40%. One miracle answers one prayer: Water answers the rain prayer, else the call for a sign; Food on a storehouse feeds the hunger, else counts as a sign.

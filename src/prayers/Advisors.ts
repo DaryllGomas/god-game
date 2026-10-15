@@ -168,6 +168,8 @@ export class Advisors {
 
     this.card = document.createElement('div');
     this.card.className = 'adv-card';
+    this.card.setAttribute('role', 'status');
+    this.card.setAttribute('aria-live', 'polite');
     this.card.innerHTML = '<div class="adv-face"></div><div class="adv-body"><div class="adv-name"></div><div class="adv-text"></div></div>';
     this.faceEl = this.card.querySelector('.adv-face')!;
     this.nameEl = this.card.querySelector('.adv-name')!;
@@ -322,6 +324,13 @@ export class Advisors {
     if (!keepArgument) {
       this.card.classList.remove('show');
       this.argument = false;
+      // Once it has faded, empty it: its name must not linger next to whoever speaks next (Ora was read as "LUMI").
+      const gen = this.generation;
+      window.setTimeout(() => {
+        if (gen !== this.generation || this.showing || this.card.classList.contains('show')) return;
+        this.nameEl.textContent = '';
+        this.textEl.textContent = '';
+      }, 450);
     }
   }
 

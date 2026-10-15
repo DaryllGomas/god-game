@@ -15,6 +15,8 @@ const NUDGE_AFTER = 150;
 const NUDGE_SLOW_AFTER = 3;
 /** A new goal must hold this long (real seconds) before Ora speaks it (no flicker when two things change at once). */
 const SETTLE = 1.5;
+/** Before home's first prayer appears, Ora waits up to this long (real seconds) for it, so the first goal can name it. */
+const WAIT_FIRST_PRAYER = 12;
 /** Chance a nudge also gets a word from Lumi or Fizz. */
 const ADVISOR_NUDGE_CHANCE = 0.5;
 /** Balance below this counts as out of tune for the last goal's words. */
@@ -80,8 +82,8 @@ export class Story {
     return (this.game as unknown as { prayerSystem?: { advisors?: Advisors } }).prayerSystem?.advisors ?? null;
   }
 
-  private get ora(): { guide(t: string, o?: { clear?: boolean }): void; guideBusy: boolean } | null {
-    return (this.game as unknown as { ora?: { guide(t: string, o?: { clear?: boolean }): void; guideBusy: boolean } }).ora ?? null;
+  private get ora(): { guide(t: string, o?: { clear?: boolean; goal?: boolean }): void; guideBusy: boolean } | null {
+    return (this.game as unknown as { ora?: { guide(t: string, o?: { clear?: boolean; goal?: boolean }): void; guideBusy: boolean } }).ora ?? null;
   }
 
   /** Story mode is on and the island is in play (not an ending, not the first question). */
@@ -113,7 +115,8 @@ export class Story {
     const answered = (g as unknown as { prayerSystem?: { answered?: number } }).prayerSystem?.answered ?? 0;
     const at = (v: Village) => (v.projectSite ? v.projectSite.pos : v.worship.pos);
 
-    if (answered < 1) return { id: 'answer', key: 'answer', village: home, pos: home.center };
+    // The first goal is the first prayer at home: its kind is in the key, so Ora names it once it is there.
+    if (answered < 1) return { id: 'answer', key: `answer:${this.firstAsk(home)?.kind ?? 'none'}`, village: home, pos: home.center };
     if (home.owner === 'player' && stageIndex(home.shrineStage) < stageIndex('stone_circle')) {
       return { id: 'stones', key: `stones:${home.projectSite ? 'site' : 'wait'}`, village: home, pos: at(home) };
     }
@@ -140,6 +143,20 @@ export class Story {
     return { id: 'tune', key: 'tune', village: home, pos: home.worship.pos };
   }
 
+  /** The prayer at `v` the first goal is about: the oldest one still waiting (not a dream). */
+  private firstAsk(v: Village): { kind: string } | null {
+    const ps = (this.game as unknown as { prayerSystem?: { active?: { kind: string; village: Village; bornAt: number }[] } }).prayerSystem;
+    const mine = (ps?.active ?? []).filter((p) => p.village === v && p.kind !== 'project');
+    return mine.sort((a, b) => a.bornAt - b.bornAt)[0] ?? null;
+  }
+
+  /** The current goal in Ora's words, worded fresh from the world (the reminder orb says it again). */
+  goalLine(): string | null {
+    const goal = this.goal;
+    if (!goal || !this.spokenKey) return null;
+    return LEAD[goal.id](this.ctx(goal, false, true));
+  }
+
   /** `v`'s light has grown as far as its prayer place lets it (only a new age carries it further). */
   private capped(v: Village): boolean {
     return v.influenceRadius >= v.ringCap - 1;
@@ -155,7 +172,8 @@ export class Story {
     return new THREE.Vector3(x, g.terrain.heightAt(x, z), z);
   }
 
-  private ctx(goal: Goal, reminder: boolean): Ctx {
+  /** `peek`: wording only (the reminder), so asking how to answer the first prayer doesn't mark it explained. */
+  private ctx(goal: Goal, reminder: boolean, peek = false): Ctx {
     const g = this.game;
     const home = g.villages.find((v) => v.isHome) ?? g.villages[0];
     const v = goal.village;
@@ -175,7 +193,16 @@ export class Story {
       capped: goal.id === 'carry' && !!goal.via && this.capped(goal.via),
       families: v.familiesWithYou(),
       homes: v.households().length,
+      ask: goal.id === 'answer' ? this.askLine(v, peek) : undefined,
     };
+  }
+
+  /** How to answer home's first prayer, in Ora's words (src/plugins/prayers.ts HOW). */
+  private askLine(v: Village, peek: boolean): string | undefined {
+    const ps = (this.game as unknown as { prayerSystem?: { howFor?(p: unknown, mark?: boolean): string } }).prayerSystem;
+    const p = this.firstAsk(v);
+    if (!p || !ps?.howFor) return undefined;
+    return ps.howFor(p, !peek) || undefined;
   }
 
   // ------------------------------------------------------------- per frame
@@ -204,7 +231,8 @@ export class Story {
         this.settle = 0;
       }
       this.settle += dt;
-      if (this.settle < SETTLE) return;
+      // The very first goal before home's first prayer has risen: wait for it a while, so Ora can name it.
+      if (this.settle < (goal.key === 'answer:none' ? WAIT_FIRST_PRAYER : SETTLE)) return;
       const prev = this.spokenKey.split(':');
       const first = this.spokenKey === '';
       // A new kind of goal, or the same kind at another village (not just a dream announced where we already were).
@@ -214,7 +242,7 @@ export class Story {
       this.nudges = 0;
       const c = this.ctx(goal, first && this.led.has(goal.id));
       // The tune step: every temple stands, so any goal line still waiting is stale; Ora's closing line goes now.
-      this.ora?.guide(LEAD[goal.id](c), { clear: goal.id === 'tune' });
+      this.ora?.guide(LEAD[goal.id](c), { clear: goal.id === 'tune', goal: true });
       const say = ADVISORS_ON[goal.id];
       if (say && fresh && !first) this.advisors?.say(say(c), { pri: 'important', topic: `story-${goal.id}`, cooldown: 120, argument: true });
       this.led.add(goal.id);

@@ -367,14 +367,20 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 26px color-mix(in srgb, var(--adv, #fff) 28%, transparent);
   backdrop-filter: blur(8px);
   cursor: pointer;
-  pointer-events: auto;
+  /* Hidden, the card neither catches clicks at the top centre nor keeps reading out its last speaker: a stale
+     "LUMI" sat in the page next to Ora's line (playtest 2026-10-15). */
+  pointer-events: none;
+  visibility: hidden;
   opacity: 0;
   transform: translate(-50%, -10px) scale(0.96);
-  transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.3s ease, box-shadow 0.3s ease, visibility 0s linear 0.4s;
 }
 .adv-card.show {
+  pointer-events: auto;
+  visibility: visible;
   opacity: 1;
   transform: translate(-50%, 0);
+  transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.3s ease, box-shadow 0.3s ease, visibility 0s;
 }
 .adv-card.spirit {
   --adv: #bfe6ff;

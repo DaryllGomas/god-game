@@ -63,12 +63,44 @@ body.intro-hud-in .hud {
   pointer-events: none;
   transition: opacity 0.4s ease, border-color 0.2s ease;
 }
+/* A moment after the film starts: faint, no pill, just the words in the corner. Hover or a click brightens it. */
+.intro.skip-faint .intro-skip {
+  opacity: 0.42;
+  pointer-events: auto;
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+  transition:
+    opacity 1.6s ease,
+    border-color 0.3s ease,
+    background 0.3s ease;
+}
+.intro.skip-faint .intro-skip:hover,
+.intro.skip-faint .intro-skip:focus-visible {
+  opacity: 0.95;
+  border-color: rgba(234, 247, 255, 0.35);
+  background: rgba(6, 10, 20, 0.45);
+  outline: none;
+  transition-duration: 0.25s;
+}
 .intro.skippable .intro-skip {
   opacity: 1;
   pointer-events: auto;
+  border-color: rgba(234, 247, 255, 0.35);
+  background: rgba(6, 10, 20, 0.45);
 }
 .intro-skip:hover {
   border-color: rgba(234, 247, 255, 0.7);
+}
+.intro-skip span {
+  display: inline-block;
+  margin-left: 2px;
+  letter-spacing: 0;
+  font-size: 14px;
+  transition: transform 0.25s ease;
+}
+.intro-skip:hover span {
+  transform: translateX(3px);
 }
 
 /* As the world fades up, the title card rises a beat later. */

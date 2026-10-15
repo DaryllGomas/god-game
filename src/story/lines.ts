@@ -33,12 +33,22 @@ export interface Ctx {
   /** For 'win': families that believe in you, of the homes in the village. */
   families?: number;
   homes?: number;
+  /** For 'answer': what home is asking for and how to answer it, in Ora's words (from the prayer on screen). */
+  ask?: string;
 }
 
 export type StepId = 'answer' | 'stones' | 'win' | 'carry' | 'raise' | 'tune';
 
 export const LEAD: Record<StepId, (c: Ctx) => string> = {
-  answer: (c) => (c.reminder ? `${c.home} is still asking. Can you hear it?` : `Listen. Someone in ${c.home} is asking for something. Can you hear it?`),
+  // The first goal names the prayer and what to do (playtest 2026-10-15: "Can you hear it?" was a riddle).
+  answer: (c) =>
+    c.ask
+      ? c.reminder
+        ? `Where were we? ${c.ask}`
+        : `Listen. ${c.ask}`
+      : c.reminder
+        ? `${c.home} is still waiting to be heard. Watch for the prayer rising over it.`
+        : `Listen. Soon someone in ${c.home} will ask you for something. Watch for the prayer rising over the village.`,
   stones: (c) =>
     c.dreaming
       ? `${c.home} dreams of a well. Stone from the hills would raise it, and old stones round their prayer place with it.`
@@ -63,7 +73,7 @@ export const LEAD: Record<StepId, (c: Ctx) => string> = {
 };
 
 export const NUDGE: Record<StepId, (c: Ctx, i: number) => string> = {
-  answer: (c, i) => pick([`Their wish is still hanging in the air over ${c.home}.`, `${c.home} is still waiting to be heard.`], i),
+  answer: (c, i) => pick([c.ask ? `Their wish is still hanging in the air. ${c.ask}` : `Their wish is still hanging in the air over ${c.home}.`, `${c.home} is still waiting to be heard.`], i),
   stones: (c, i) =>
     c.dreaming
       ? pick([`The well is waiting for stone. The hills have plenty.`, `A stone carried with care becomes something they can gather round.`], i)
