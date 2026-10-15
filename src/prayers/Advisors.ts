@@ -332,6 +332,11 @@ export class Advisors {
     const clip = await this.game.audio.advisorClip(q.line.text);
     if (token !== this.generation) return;
     this.loading = false;
+    // Vexahl's card took the top centre while this line's voice loaded: wait for it, then say this line.
+    if (this.game.hud.root.querySelector('.rv-card.show')) {
+      this.queue.unshift(q);
+      return;
+    }
     const { who, text } = q.line;
     this.argument = q.argument;
     const wasUp = this.card.classList.contains('show');

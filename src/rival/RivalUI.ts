@@ -197,9 +197,9 @@ export class RivalUI {
     if (!q) return;
     if (q.line.who === 'rival') {
       // Lumi's and Fizz's cards share the top centre with his: let a card of theirs that is up finish first.
-      if (this.game.hud.root.querySelector('.adv-card.show') && ++q.tries < 600) return;
+      if (this.game.hud.root.querySelector('.adv-card.show') && ++q.tries < 1800) return;
       this.queue.shift();
-      void this.showRival(q.line.text);
+      void this.showRival(q.line.text, q);
     } else {
       if (!this.advisors || this.advisors.muted) {
         this.queue.shift();
@@ -221,7 +221,7 @@ export class RivalUI {
   }
 
   /** His card, with his recorded voice when there is one (the synth motif otherwise). The card stays up for the clip plus 0.6s. */
-  private async showRival(text: string) {
+  private async showRival(text: string, q?: (typeof this.queue)[number]) {
     this.loading = true;
     this.silence();
     let clip: AudioBuffer | null = null;
@@ -231,6 +231,11 @@ export class RivalUI {
       clip = null;
     }
     this.loading = false;
+    // A Lumi or Fizz card came up while his voice loaded: never stack on it; wait and try again.
+    if (q && this.game.hud.root.querySelector('.adv-card.show') && q.tries < 1800) {
+      this.queue.unshift(q);
+      return;
+    }
     this.cardText.textContent = text;
     void this.card.offsetWidth;
     this.card.classList.add('show');

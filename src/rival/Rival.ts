@@ -495,7 +495,7 @@ export class Rival {
     this.isle.pulse(1.2);
     const f = s.focus();
     const y = g.terrain.heightAt(f.x, f.z);
-    g.floatText(f.x, y + 16, f.z, `${info.icon} ${info.name}!`, '#cfb2ff');
+    g.floatText(f.x, y + 30, f.z, `${info.icon} ${info.name}!`, '#cfb2ff'); // starts above the village name label, not through it
     const lines = SCHEME_LINES[s.kind];
     this.ui.say(fill(pick(lines.start), s.village.name));
     if (s.kind !== 'hand' && s.kind !== 'storm') this.ui.say(fillAll(pick(ADVISOR_START[s.kind]), s.village.name));
@@ -522,7 +522,7 @@ export class Rival {
       g.player.shiftAlignment(0.01);
       g.audio.schemeFoiled();
       g.fx.sparkle(f.x, y + 6, f.z, 90, 0xfff0b0, 7);
-      g.floatText(f.x, y + 20, f.z, 'Foiled!', '#bff0c0');
+      g.floatText(f.x, y + 30, f.z, 'Foiled!', '#bff0c0');
       g.message(`You foiled ${RIVAL_NAME}'s ${SCHEME_INFO[s.kind].name.toLowerCase()}! (+${FOIL_POWER} power) · ${this.foiled}/${FOIL_GOAL}`, 'good', 'scheme-foiled');
       this.ui.say(fill(pick(lines.foiled), s.village.name), { delay: 0.8 });
       if (Math.random() < 0.7) this.ui.say(fillAll(pick(ADVISOR_FOILED), s.village.name));
