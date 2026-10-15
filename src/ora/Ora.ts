@@ -348,6 +348,7 @@ export class Ora {
     this.el.classList.remove('show');
     void this.el.offsetWidth; // restart the entrance
     this.el.classList.add('show');
+    void this.game.audio.oraTone();
   }
 
   /** Keep out of Lumi's and Fizz's way, and count their cards (for the "two sides" insight). */

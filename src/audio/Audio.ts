@@ -1142,6 +1142,31 @@ export class Audio {
     return clip;
   }
 
+  private oraOm: Promise<AudioBuffer | null> | null = null;
+  private oraOmAt = -1e9;
+
+  /**
+   * Ora has no voice (Daryll, 2026-10-14): when it speaks, a deep singing bowl over a low Om hum
+   * (public/sfx/ora-om.mp3, sketch C1 in NAS THE FIRST WORLD/Voices/Ora sound). Kept subtle, under the
+   * music, and never stacked: a second line within a few seconds stays silent.
+   */
+  async oraTone() {
+    const ctx = this.ctx;
+    if (!ctx || ctx.currentTime - this.oraOmAt < 7) return;
+    this.oraOm ??= fetch(`${import.meta.env.BASE_URL}sfx/ora-om.mp3`)
+      .then(async (r) => r.ok ? ctx.decodeAudioData(await r.arrayBuffer()) : null)
+      .catch(() => null);
+    const clip = await this.oraOm;
+    const out = clip && this.out(null, 0.32);
+    if (!clip || !out) return;
+    this.oraOmAt = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = clip;
+    src.connect(out);
+    src.onended = () => { src.disconnect(); out.disconnect(); };
+    src.start();
+  }
+
   /** Dry speech stays clear, through the same SFX/master volume and mute as other effects. */
   playAdvisorClip(clip: AudioBuffer): (() => void) | null {
     const out = this.out(null, 1);
