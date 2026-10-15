@@ -6,6 +6,7 @@ import { along, ease, easeOut, span, type Shot } from './Cine';
 import { GOLD_LOOK, HandTint, VIOLET_LOOK, makeHand, type HandLook } from './HandTint';
 import { aoSkip, type CityLights } from './CityLights';
 import type { Stage } from './Collapse';
+import { beginFinalBattle, type FinalBattle } from './FinalBattle';
 import { clamp, lerp, smoothstep } from '../util/math';
 
 // ------------------------------------------------------------------ tuning knobs
@@ -130,6 +131,8 @@ export class Ascension {
   private moteAcc = 0;
   private burst = false;
   private readonly look2: HandLook = { ...GOLD_LOOK };
+  /** The final battle (src/endings/FinalBattle.ts), asked for once as Whole begins. */
+  private battle: FinalBattle | null = null;
 
   constructor(
     private readonly s: Stage,
@@ -273,6 +276,16 @@ export class Ascension {
     const s = this.s;
     const g = s.game;
     this.t += dt;
+    // FINAL BATTLE HOOK (Daryll, 2026-10-15): the battle will be imported from the RPG lab. It begins as Whole does,
+    // before the hands meet, and holds the sequence until it is done. Today the stub is done at once. See FinalBattle.ts.
+    if (!this.fromWhole && this.t >= WHOLE_AT) {
+      this.battle ??= beginFinalBattle(s);
+      if (!this.battle.done) {
+        this.t = WHOLE_AT;
+        this.battle.frame(dt);
+        return false;
+      }
+    }
     const t = this.t;
     g.terrain.setInfluence([]);
     g.terrain.setRivalInfluence([]);

@@ -7,13 +7,13 @@ import type { PrayerBubbles } from '../prayers/PrayerBubbles';
 import type { Advisors } from '../prayers/Advisors';
 import type { Seasons } from '../seasons/Seasons';
 import { SEA_LEVEL } from '../config';
-import { lerp, smoothstep } from '../util/math';
+import { clamp, lerp, smoothstep } from '../util/math';
 import type { Balance } from '../balance/Balance';
 import {
   ADVISOR_FOILED, ADVISOR_RETREAT, ADVISOR_START, ADVISOR_TURNED, ADVISOR_WON_BACK, ARRIVAL_LINES, ARRIVE_DELAY, ARRIVE_PATIENCE, CHILD_NAMES,
   DEPTHS, DIFFICULTY, EARLY, FIRST_SCHEME_DELAY, FOIL_GOAL, FOIL_POWER, HAND, IDLE_TAUNTS, MOOD_LINE_GAP, MOOD_TEXT, PEACE_SECONDS, QUIET, QUIET_LINES,
   RESUME_LINES, RETREAT_LINES, RIVAL_NAME, SCHEME_GAP, SCHEME_INFO, SCHEME_LINES, SCHEME_MIN_PRESSURE, STIR, STIR_LINES, TURNED_BELIEF, TURN_LINES,
-  WONDER_LINES, WON_BACK_LINES, COURT, FAREWELL_LINES, NOTICE_DISTANCE, NOTICE_GLANCE, NOTICE_LINES, ORA_NOTICE,
+  WONDER_LINES, WON_BACK_LINES, COURT, FAREWELL_LINES, NOTICE_LINES, ORA_NOTICE, RISE, BEAT_GLANCE, LEVEL_SECONDS, TEMPLE_LINES, ORA_TEMPLE,
   type Difficulty, type Line, type Mood, type SchemeKind,
 } from './data';
 import { stageIndex } from '../shrines/stages';
@@ -38,17 +38,18 @@ interface Abducted {
 }
 
 /**
- * The rival god: a jealous lord from across the sea who wants hearts, not war. His spire stands far
- * out at sea from the first day, drawing nearer as the world's balance falls (see src/balance).
- * Before the Wonder he stirs only when the balance drops below STIR, and his schemes grow with how low
- * it is; above QUIET he goes quiet again. Once the Wonder is done he plays by the v0.4 rules: one
+ * The rival god: a jealous lord from across the sea who wants hearts, not war. His isle lies hidden under the sea
+ * until your first pyramid stands; then it rises, and from then on his citadel grows a step with every age you raise
+ * (Daryll, 2026-10-15: "they level up together"; see progress()). His temper follows the world's balance (see
+ * src/balance): he stirs when it drops below STIR (which also raises him early, if the world falls first), his schemes
+ * grow with how low it is, and above QUIET he goes quiet again. Once the Wonder is done he plays by the v0.4 rules: one
  * scheme at a time with breathing room between, until you foil four and keep him villageless for a
  * season. Every scheme is telegraphed and counterable; nothing is destroyed or killed; turned villages
  * can be won back.
  */
 export class Rival {
   readonly name = RIVAL_NAME;
-  /** 'dormant': only his spire on the horizon. 'present': he has shown himself (panel up). 'retreated': gone (after the Wonder). */
+  /** 'dormant': under the sea, or risen but silent (free play, a calm world). 'present': he has shown himself (panel up). 'retreated': gone (after the Wonder). */
   stage: 'dormant' | 'present' | 'retreated' = 'dormant';
   /** The Wonder woke him fully: the v0.4 rules (schemes whatever the balance; he can be driven off). */
   wonder = false;
@@ -85,9 +86,20 @@ export class Rival {
   private moodLineAt = -1e9;
   /** Put the isle straight where the balance says on the first frame (a loaded island shouldn't drift in). */
   private snapIsle = true;
+  /** The view to come back to while the camera is out at sea (x, z, distance, yaw, pitch). */
   private cam: { x: number; z: number; dist: number; dyaw: number; dpitch: number } | null = null;
-  /** Story mode: he has noticed you (the home village's standing stones; see notice()). */
+  /** Story mode: he has noticed you (his rising at your first pyramid; see notice()). */
   noticed = false;
+  /** His isle has risen from the sea (your first pyramid, or the world fell first). */
+  risen = false;
+  /** Steps his citadel has grown (one per age raised; see tierNow()). 0 before the rising. */
+  tier = 0;
+  /** The big beats already played: 'rise', 'temple' (the first temple), 'final' (every temple: his final form). */
+  private readonly beats = new Set<string>();
+  /** A big beat waiting for the camera (another glance was on). */
+  private queuedBeat: 'temple' | 'final' | null = null;
+  /** Settle his rising and growth from the world without a moment (a fresh island, or one just loaded). */
+  private settle = true;
   /** Story mode: villages he has already made his one move on. */
   private readonly courted = new Set<string>();
   /** Story mode: game seconds each neighbour has believed in you a little (see COURT.after). */
@@ -206,25 +218,29 @@ export class Rival {
     this.setMood('scheming', 60);
     this.ui.show(true);
     this.isle.setPresent(true, quick);
+    const rising = this.raise(quick);
     g.events.emit('rivalArrived', {});
     if (quick) return;
     this.isle.pulse(1.5);
     g.audio.rivalArrives();
     this.ui.banner('A shadow rises on the horizon', `Something across the sea has noticed your Wonder. ${RIVAL_NAME}, ${'Lord of the Far Shore'}, is watching.`);
     g.message(`${RIVAL_NAME} has arrived on a spire-isle across the sea.`, 'warn', 'rival-arrive');
-    this.glance(true);
-    this.later(GLANCE, () => this.glance(false));
-    this.later(4, () => this.ui.say(ARRIVAL_LINES));
+    this.glance(true, rising ? this.shotPose() : undefined);
+    this.later(rising ? RISE.back : GLANCE, () => this.glance(false));
+    this.later(rising ? RISE.speak : 4, () => this.ui.say(ARRIVAL_LINES));
   }
 
   /**
    * Before the Wonder: the world has tipped far enough that he turns his attention to it. His panel
-   * comes up and, a little later, his first small scheme. `quick` skips the camera glance and the lines.
+   * comes up and, a little later, his first small scheme. If his isle has not risen yet (no pyramid stands), the
+   * world falling raises it now. `quick` skips the camera glance and the lines.
    */
   stir(quick = false) {
     if (this.stage !== 'dormant') return;
     const g = this.game;
     this.stage = 'present';
+    this.noticed = true; // story mode: his rising has happened (here, or before), so no second one at the pyramid
+    const rising = this.raise(quick);
     this.stirring = true;
     this.pending = false;
     this.arrivedAt = g.time;
@@ -237,11 +253,11 @@ export class Rival {
     if (quick) return;
     this.isle.pulse(1.2);
     g.audio.rivalArrives();
-    this.ui.banner('Something stirs across the sea', '');
+    this.ui.banner(rising ? 'Something rises across the sea' : 'Something stirs across the sea', '');
     g.message(`${RIVAL_NAME} is watching your island from his spire across the sea.`, 'warn', 'rival-stir');
-    this.glance(true);
-    this.later(7, () => this.glance(false));
-    this.later(3, () => this.ui.say(STIR_LINES));
+    this.glance(true, rising ? this.shotPose() : undefined);
+    this.later(rising ? RISE.back : 7, () => this.glance(false));
+    this.later(rising ? RISE.speak : 3, () => this.ui.say(STIR_LINES));
   }
 
   // ------------------------------------------------------------ story mode
@@ -252,15 +268,127 @@ export class Rival {
     return !!st?.active;
   }
 
-  private homeHasStones(): boolean {
-    const home = this.game.villages.find((v) => v.isHome);
-    return !!home && home.owner === 'player' && stageIndex(home.shrineStage) >= stageIndex('stone_circle');
+  // --------------------------------------------- he rises with you (2026-10-15)
+
+  /** Ages raised across the island: every village's prayer place past its totem (stones 1, pyramid 2, temple 3). */
+  private ages(): number {
+    return this.game.villages.reduce((n, v) => n + stageIndex(v.shrineStage), 0);
+  }
+
+  /** The step his citadel stands at when every temple stands (his final form). */
+  get maxTier(): number {
+    return Math.max(2, this.game.villages.length * stageIndex('temple') - 1);
   }
 
   /**
-   * Story mode: Ashford's standing stones go up and, out at the sea's edge, he notices. The camera glances out to
-   * his isle once, he says his first line, Fizz answers, and Ora names it. From here he is present (his chip in the
-   * village list) but quiet: he moves only on the villages you are winning (court), or if the world tips (STIR).
+   * The step his citadel has reached: one per age raised anywhere on the island (your first pyramid usually makes it
+   * step 1: the home village's stones and pyramid), up to maxTier when every temple stands. 0 before the rising.
+   */
+  tierNow(): number {
+    if (!this.risen) return 0;
+    return clamp(this.ages() - 1, 1, this.maxTier);
+  }
+
+  private pyramidStands(): boolean {
+    return this.game.villages.some((v) => stageIndex(v.shrineStage) >= stageIndex('pyramid'));
+  }
+
+  /** His isle rises (visuals and sound: the RISE timeline in RivalIsle). Returns true if it rises now, animated. */
+  private raise(quick = false): boolean {
+    if (this.risen) return false;
+    this.risen = true;
+    this.beats.add('rise');
+    this.tier = this.tierNow();
+    this.isle.setTier(this.tier, this.maxTier, quick);
+    this.isle.rise(quick);
+    if (quick) return false;
+    const g = this.game;
+    // A far, low rumble as the sea darkens, then his dark swell and bells as he surfaces; the ground trembles a little.
+    g.audio.thunder(0.75);
+    this.later(1.2, () => g.audio.rivalArrives());
+    this.later(RISE.surface[0] + 0.6, () => g.shake(0.12));
+    this.later(RISE.surface[0] + 3, () => g.shake(0.1));
+    this.later(RISE.flare, () => this.isle.pulse(1.1));
+    return true;
+  }
+
+  /**
+   * Every game step: his rising at your first pyramid (anywhere), then a step of growth for every age you raise. A
+   * loaded island (or one past these points) settles without the moments. Story mode plays the big beats (the
+   * rising, the first temple, the last temple) with a glance out to sea; free play shows the same isle, no beats.
+   */
+  private progress() {
+    const g = this.game;
+    if (this.settle) {
+      // Settle once everything has loaded: a fresh island has nothing yet; a loaded one is put where it stands.
+      this.settle = false;
+      if (!this.risen && this.pyramidStands()) this.risen = true;
+      if (this.risen) {
+        this.noticed = true;
+        this.beats.add('rise');
+        this.tier = this.tierNow();
+        if (g.villages.some((v) => v.shrineStage === 'temple')) this.beats.add('temple');
+        if (this.tier >= this.maxTier) this.beats.add('final');
+        this.isle.setTier(this.tier, this.maxTier, true);
+        this.isle.rise(true);
+      }
+      return;
+    }
+    if (!this.risen) {
+      if (!this.pyramidStands()) return;
+      if (this.storyMode && this.stage === 'dormant') this.notice();
+      else {
+        this.raise();
+        if (!this.storyMode) g.message('Far out at sea, something rises from the water.', 'warn', 'rival-rise');
+      }
+      return;
+    }
+    const t = this.tierNow();
+    if (t <= this.tier) return;
+    this.tier = t;
+    this.isle.setTier(t, this.maxTier);
+    let big: 'temple' | 'final' | null = null;
+    if (t >= this.maxTier && !this.beats.has('final')) big = 'final';
+    else if (g.villages.some((v) => v.shrineStage === 'temple') && !this.beats.has('temple')) big = 'temple';
+    if (big) {
+      this.beats.add(big);
+      if (big === 'final') this.beats.add('temple');
+    }
+    // Every step: a far rumble, and as the new spires climb out of the rock a flare and a ring on the water (if in view).
+    g.audio.thunder(0.9);
+    this.later(LEVEL_SECONDS * 0.85, () => {
+      this.isle.pulse(big ? 1.1 : 0.7);
+      this.isle.ring([10, big ? 200 : 120], 2.8, big ? 0.38 : 0.26);
+    });
+    if (big && this.storyMode && this.stage === 'present') {
+      if (this.cam) this.queuedBeat = big;
+      else this.beat(big);
+    }
+  }
+
+  /** Story mode, a big step of his growth: the camera glances out to sea while it grows. */
+  private beat(kind: 'temple' | 'final') {
+    const g = this.game;
+    this.queuedBeat = null;
+    this.glance(true, this.shotPose(this.maxTier));
+    this.later(BEAT_GLANCE[kind], () => this.glance(false));
+    if (kind === 'temple') {
+      g.message(`Out at sea, ${RIVAL_NAME}'s citadel has grown with your temple.`, 'warn', 'rival-grows');
+      this.ora?.guide(ORA_TEMPLE, { first: true });
+      this.later(LEVEL_SECONDS + 0.6, () => this.ui.say(TEMPLE_LINES));
+    } else g.message(`Every temple stands, and out at sea ${RIVAL_NAME}'s citadel stands in its final form.`, 'warn', 'rival-final');
+    // 'final': his last word comes from court() (the tune step), while the camera is out there.
+  }
+
+  private get ora(): { guide(t: string, o?: { first?: boolean }): void } | null {
+    return (this.game as unknown as { ora?: { guide(t: string, o?: { first?: boolean }): void } }).ora ?? null;
+  }
+
+  /**
+   * Story mode, the rising: your first pyramid stands and, out at the sea's edge, his isle rises. The camera glides out
+   * to sea, the water darkens, the isle surfaces and his spire climbs out of the sea (RISE); Ora names it (text), then
+   * he says his first line and Fizz answers. From here he is present (his chip in the village list) but quiet: he moves
+   * only on the villages you are winning (court), or if the world tips (STIR).
    * `quick` (a loaded island, or he had already stirred) marks it without the moment.
    */
   notice(quick = false) {
@@ -272,16 +400,19 @@ export class Rival {
     this.arrivedAt = g.time;
     this.tauntT = rand(100, 160);
     this.setMood('brooding', 90);
-    this.ui.show(true);
+    const rising = this.raise(quick);
     g.events.emit('rivalArrived', {});
-    if (quick) return;
-    this.isle.pulse(1.2);
-    g.audio.rivalArrives();
-    g.message(`Out at the sea's edge, ${RIVAL_NAME} has noticed your island.`, 'warn', 'rival-notice');
-    (g as unknown as { ora?: { guide(t: string, o?: { first?: boolean }): void } }).ora?.guide(ORA_NOTICE, { first: true });
-    this.glance(true, { toward: 1, pitch: 0.3, distance: NOTICE_DISTANCE });
-    this.later(NOTICE_GLANCE, () => this.glance(false));
-    this.later(2.5, () => this.ui.say(NOTICE_LINES));
+    if (quick || !rising) {
+      this.ui.show(true);
+      return;
+    }
+    g.message(`Out at the sea's edge, something rises from the water.`, 'warn', 'rival-notice');
+    this.glance(true, this.shotPose());
+    // Ora names it at once, so its line goes ahead of the next goal's (src/story speaks that 1.5 s after the pyramid).
+    this.ora?.guide(ORA_NOTICE, { first: true });
+    this.later(RISE.speak - 0.4, () => this.ui.show(true));
+    this.later(RISE.speak, () => this.ui.say(NOTICE_LINES));
+    this.later(RISE.back, () => this.glance(false));
   }
 
   /**
@@ -351,36 +482,51 @@ export class Rival {
   }
 
   /**
-   * Swing the camera out to sea so you see his isle, then bring it back. `shot` (the story beat): how far from the
-   * view's centre toward the isle the focus moves, how low it looks, and from how far (otherwise a wide look, at
-   * least 360 m out).
+   * The camera framing for a look at his citadel as it will stand at step `tier`: from the home village's side, low
+   * over the water, his isle's foot a little below the middle of the view (the focus sits out past him) and his spires
+   * and cloud crown rising into the sky above. Also the debug/test handle for a fixed view of him.
    */
-  private glance(on: boolean, shot?: { toward: number; pitch: number; distance: number }) {
-    const toward = shot?.toward ?? 0.3;
-    const pitch = shot?.pitch ?? 0.3;
+  shotPose(tier = this.tier): { x: number; z: number; distance: number; pitch: number; yaw: number } {
+    const k = clamp((Math.max(1, tier) - 1) / Math.max(1, this.maxTier - 1), 0, 1);
+    const isle = this.isle.group.position;
+    const home = this.game.villages.find((v) => v.isHome) ?? this.game.villages[0];
+    const fx = home ? home.center.x : 0;
+    const fz = home ? home.center.z : 0;
+    const d = Math.max(1, Math.hypot(isle.x - fx, isle.z - fz));
+    const beyond = lerp(25, 95, k);
+    const x = isle.x + ((isle.x - fx) / d) * beyond;
+    const z = isle.z + ((isle.z - fz) / d) * beyond;
+    return { x, z, distance: lerp(195, 400, k), pitch: 0.23, yaw: Math.atan2(fx - x, fz - z) };
+  }
+
+  /**
+   * Swing the camera out to sea so you see his isle, then bring it back. `shot` (the story beats): a framing from
+   * shotPose(); otherwise a wide look from where you are, at least 360 m out.
+   */
+  private glance(on: boolean, shot?: { x: number; z: number; distance: number; pitch: number; yaw: number }) {
     const cam = this.game.godCam;
     const isle = this.isle.group.position;
     if (on) {
-      const t = cam.target;
-      const px = t.x + (isle.x - t.x) * toward;
-      const pz = t.z + (isle.z - t.z) * toward;
-      const dx = isle.x - px;
-      const dz = isle.z - pz;
-      const want = Math.atan2(-dx, -dz);
-      let dyaw = (want - cam.yaw) % (Math.PI * 2);
-      if (dyaw > Math.PI) dyaw -= Math.PI * 2;
-      if (dyaw < -Math.PI) dyaw += Math.PI * 2;
-      const dpitch = pitch - cam.pitch;
-      this.cam = { x: t.x, z: t.z, dist: cam.distance, dyaw, dpitch };
-      cam.flyTo(px, pz);
-      cam.rotate(dyaw, dpitch);
-      cam.setDistance(shot ? shot.distance : Math.max(cam.distance, 360));
+      if (this.cam) return; // already out at sea
+      const was = cam.getPose();
+      this.cam = { x: was.x, z: was.z, dist: was.distance, dyaw: was.yaw, dpitch: was.pitch };
+      let pose;
+      if (shot) pose = { ...shot };
+      else {
+        const px = was.x + (isle.x - was.x) * 0.3;
+        const pz = was.z + (isle.z - was.z) * 0.3;
+        pose = { x: px, z: pz, distance: Math.max(was.distance, 360), pitch: 0.3, yaw: Math.atan2(-(isle.x - px), -(isle.z - pz)) };
+      }
+      // The short way round.
+      let dy = (pose.yaw - was.yaw) % (Math.PI * 2);
+      if (dy > Math.PI) dy -= Math.PI * 2;
+      if (dy < -Math.PI) dy += Math.PI * 2;
+      pose.yaw = was.yaw + dy;
+      cam.glideTo(pose, shot ? 2.6 : 1.8);
     } else if (this.cam) {
       const c = this.cam;
       this.cam = null;
-      cam.flyTo(c.x, c.z);
-      cam.rotate(-c.dyaw, -c.dpitch);
-      cam.setDistance(c.dist);
+      cam.glideTo({ x: c.x, z: c.z, distance: c.dist, yaw: c.dyaw, pitch: c.dpitch }, 2.4);
     }
   }
 
@@ -673,9 +819,9 @@ export class Rival {
   /** Simulation step (game seconds). */
   update(dt: number) {
     const g = this.game;
-    // Story mode: the home village's standing stones catch his eye (and a loaded island past that point remembers).
-    if (!this.noticed && this.storyMode && this.homeHasStones()) this.notice();
-    // Before the Wonder, the world tipping far enough wakes him.
+    // He rises with your first pyramid and grows with every age you raise.
+    this.progress();
+    // Before the Wonder, the world tipping far enough wakes him (and raises his isle, if no pyramid has yet).
     if (this.stage === 'dormant' && !this.pending && this.balance < STIR) this.stir();
     // Waiting for the Wonder's moment to pass.
     if (this.pending) {
@@ -758,6 +904,7 @@ export class Rival {
         t.fn();
       }
     }
+    if (this.queuedBeat && !this.cam) this.beat(this.queuedBeat);
     this.isle.setBalance(this.balance, this.snapIsle);
     this.snapIsle = false;
     this.isle.setAwake(this.stage === 'present');
@@ -868,6 +1015,7 @@ export class Rival {
       noticed: this.noticed,
       courted: [...this.courted],
       farewell: this.farewell,
+      risen: this.risen,
       // Villagers he carried off still wash up on a beach (time left, in game seconds).
       abducted: this.abducted.map((a) => ({ v: g.villages.indexOf(a.village), in: Math.round(Math.max(0, a.at - g.time)), name: a.name })),
     };
@@ -889,6 +1037,9 @@ export class Rival {
     this.stirring = typeof d.stirring === 'boolean' ? d.stirring : d.stage === 'present';
     this.noticed = !!d.noticed;
     this.farewell = !!d.farewell;
+    // Before 2026-10-15 his isle stood from the first day: an island where he had shown himself keeps him risen.
+    this.risen = typeof d.risen === 'boolean' ? d.risen : d.stage !== 'dormant';
+    this.settle = true;
     this.courted.clear();
     for (const n of d.courted ?? []) if (typeof n === 'string') this.courted.add(n);
     this.abducted.length = 0;
@@ -947,6 +1098,13 @@ export class Rival {
       noticed: this.noticed,
       courted: [...this.courted],
       farewell: this.farewell,
+      risen: this.risen,
+      tier: this.tier,
+      maxTier: this.maxTier,
+      isleGrowth: +this.isle.growth.toFixed(2),
+      rising: +this.isle.risingFor.toFixed(1),
+      beats: [...this.beats],
+      glancing: !!this.cam,
     };
   }
 

@@ -61,31 +61,54 @@ export const EARLY = { pace: [0.5, 1.5] as [number, number], bite: [0.55, 1.25] 
 /** He starts small: the least pressure at which each scheme can be picked before the Wonder. */
 export const SCHEME_MIN_PRESSURE: Record<SchemeKind, number> = { whispers: 0, blight: 0.2, hand: 0.4, storm: 0.65 };
 /**
- * His isle: small and hazy at the sea edge while the world is in tune; tall and dark as it falls. Distance from the
- * island's centre (along ISLE_POS in RivalVisuals), and scale. Since 2026-10-14 the far isle sits where the default
- * top-down view catches it (top-left sea, off Ashford); it grows rather than travels, and drifts a little further
- * out as it grows so its foot stays in deep water.
+ * His isle rises with you (Daryll, 2026-10-15: "Vexahl's spire, I don't think should be there at first. Let's move it
+ * a little further off coast and have it trigger ... when you get the pyramid, that's when it rises. Like in Breath
+ * of the Wild ... they're leveling up together"). Until the first pyramid stands anywhere it lies hidden under the sea,
+ * out past the top-left sea edge of the default view (ISLE_POS in RivalVisuals); then it surfaces (RISE) and from then
+ * on its citadel grows one step for every age you raise (TIER): its SIZE follows your progress, not the balance.
+ * - dist: metres from the island's centre (along ISLE_POS) at the rising, and in his final form (a little further out
+ *   as it grows, so its foot stays in deep water).
+ * - scale: the citadel's size at the rising, and in his final form.
  */
-export const ISLE_FAR = { dist: 312, scale: 0.1 };
-export const ISLE_NEAR = { dist: 385, scale: 0.6 };
-/** How strongly the far isle is veiled in sea haze (0 = none); fades to nothing as it nears. */
-export const ISLE_HAZE = 0.14;
-/** Balance at which the isle is farthest, and nearest. */
-export const ISLE_RANGE: [number, number] = [0.85, 0.15];
-/** Balance at which his isle is still, and at its stormiest (glow, beam, the violet storm-eye, bolts). */
+export const ISLE_GROW = { dist: [372, 392] as [number, number], scale: [0.17, 0.3] as [number, number] };
+/** Where the endings bring him when they hold him near (`RivalIsle.hold` 1): src/endings Collapse and Ascension. */
+export const ISLE_NEAR = { dist: 420, scale: 0.6 };
+/** How strongly his isle is veiled in sea haze (0 = none) at the rising; thins as he grows, gone when held near. */
+export const ISLE_HAZE = 0.07;
+/** Balance at which his isle is still, and at its stormiest (the violet storm-eye, glow, beam, bolts): his temper, not his size. */
 export const ISLE_STORM: [number, number] = [0.62, 0.15];
-/** Real seconds for the isle to drift to where the balance puts it. */
+/** Real seconds for his storm to follow the balance. */
 export const ISLE_DRIFT = 6;
+/**
+ * The rising, in real seconds from the moment your first pyramid stands. The sea out there darkens, a shockwave rings
+ * out over the water, the isle surfaces and his spire climbs out of the sea through mist, violet light runs up it and
+ * flares at the tip; then he speaks (story mode). The camera glides out at 0 and back at `back`.
+ */
+export const RISE = {
+  darken: [0.2, 3] as [number, number],
+  rings: [1.7, 4.8],
+  surface: [1.9, 8.2] as [number, number],
+  mist: [1.6, 11] as [number, number],
+  light: [6.6, 8.4] as [number, number],
+  flare: 8.4,
+  /** His first line and Fizz's answer, once it stands (Ora names it, text only, as it begins). */
+  speak: 9,
+  back: 17,
+};
+/** Real seconds a new step of his citadel takes to grow (new spires climb out of the rock, the sea darkens a little more). */
+export const LEVEL_SECONDS = 4.2;
+/** Camera beats at the first temple and the last (his final, fullest form): real seconds out at sea. */
+export const BEAT_GLANCE = { temple: 11, final: 13 };
 /** Game seconds between his lines about going quiet or stirring again. */
 export const MOOD_LINE_GAP = 150;
 
 // ------------------------------------------------- story mode: he enters the road (2026-10-14)
 
 /**
- * Story mode (Daryll, 2026-10-14: "I didn't really see Vexahl come in anywhere"). When the home village raises its
- * standing stones he notices you (a glance out to sea, his first line), and from then on each neighbour your light
- * reaches (the village Ora asks you to win) draws ONE small, counterable move from him (`COURT`). Free play keeps
- * the balance-only rules above.
+ * Story mode (Daryll, 2026-10-14: "I didn't really see Vexahl come in anywhere"; 2026-10-15: he rises with your first
+ * pyramid). When your first pyramid stands his isle rises from the sea (a glance out to sea, his first line), and from
+ * then on each neighbour your light reaches (the village Ora asks you to win) draws ONE small, counterable move from
+ * him (`COURT`); before the rising he makes none. Free play keeps the balance-only rules above (and the same rising).
  * - after: game seconds a neutral village must have been within your light before he moves on it.
  *   Short on purpose: today a village can be won in under a minute, and the move should meet you while you court it.
  * - gap: game seconds after his last scheme ended before the next move.
@@ -93,10 +116,6 @@ export const MOOD_LINE_GAP = 150;
  *   about one answered prayer's worth over the whole scheme if left alone. It never turns a neutral village.
  */
 export const COURT = { after: 12, gap: 25, drain: 0.3 };
-/** Real seconds the camera lingers out at sea when he first notices you (story mode). */
-export const NOTICE_GLANCE = 7;
-/** Camera distance for that glance (centred on his isle, from above and behind the home village, over its shore). */
-export const NOTICE_DISTANCE = 125;
 
 /** The gentle difficulty knob: scales the gap between schemes, how hard they bite, and how long the warnings are. */
 export const DIFFICULTY: Record<Difficulty, { label: string; gap: number; bite: number; warn: number; turnWeight: number }> = {
@@ -258,13 +277,19 @@ export const WONDER_LINES: Line[] = [
 ];
 
 /**
- * Story mode: the home village raises its standing stones and he notices (all three lines are recorded).
- * Ora's words go to its guide line (text only; Ora is "it").
+ * Story mode, the rising: your first pyramid stands and his isle rises from the sea (all lines recorded). Ora's words
+ * go to its guide line (text only; Ora is "it").
  */
 export const NOTICE_LINES: Line[] = [ARRIVAL_LINES[0], ARRIVAL_LINES[2]];
-export const ORA_NOTICE = 'Out at the sea\'s edge, someone is watching. Someone who was always there.';
-/** Story mode, the tune step: every temple stands and he has nothing left to court (recorded). */
-export const FAREWELL_LINES: Line[] = [QUIET_LINES[1]];
+export const ORA_NOTICE = 'Out at the sea\'s edge, something rises as your people rise. Someone who was always there.';
+/** Story mode, the first temple: his citadel has grown with you (recorded), and Ora's one insight (text only). */
+export const TEMPLE_LINES: Line[] = [L('rival', 'I have a spire. A BIG spire. Have you seen it? You can see it from here.')];
+export const ORA_TEMPLE = 'Every age you raise, his rises too. Light and shadow grow together.';
+/**
+ * Story mode, the tune step: every temple stands, his citadel is in its final form, and he has nothing left to court
+ * (recorded). He doesn't brood far away any more: he is waiting for you (the final battle comes from the RPG lab).
+ */
+export const FAREWELL_LINES: Line[] = [L('rival', `I am ${RIVAL_NAME}. I will be watching. Closely. More closely every day, I think.`)];
 
 /** Occasional pettiness while he is around and nothing is scheming. */
 export const IDLE_TAUNTS: Line[] = [

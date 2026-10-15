@@ -65,7 +65,7 @@ await p.evaluate(() => {
 await p.getByText('Begin', { exact: false }).first().click({ timeout: 20000 });
 await p.evaluate(() => game.audio.setMuted(true));
 await p.waitForFunction(() => game.pace.confirmed && game.story.active, null, { timeout: 60000 });
-// The view the game starts on, untouched (his isle should sit at its top-left sea edge).
+// The view the game starts on, untouched (his isle lies hidden under the sea until the first pyramid stands).
 await p.waitForTimeout(4000);
 await p.screenshot({ path: `${process.env.OUT_DIR}/00-default-view.png` });
 
@@ -179,9 +179,31 @@ await p.evaluate((CFG) => {
   );
   E.on('rivalArrived', () => {
     const r = g.rival.state();
-    ev('vexahl', `Vexahl ${r.noticed && !r.stirring ? 'notices you (story beat)' : 'arrives / stirs'} (rivalArrived; balance ${r.balance})`);
-    if (r.noticed && !r.stirring) B.shots.push({ key: '03b-vexahl-notices-glance', focus: null, wait: 4500 });
+    ev('vexahl', `Vexahl ${r.noticed && !r.stirring ? 'rises and notices you (story beat)' : 'arrives / stirs'} (rivalArrived; balance ${r.balance})`);
   });
+  // His isle rises at the first pyramid and grows a step with every age raised (2026-10-15): frames of the rising and
+  // of each big beat's glance (the game's own camera), and every step from one fixed view for the side-by-side.
+  B.rivalTier = 0;
+  B.risen = false;
+  B.watchRival = () => {
+    const r = g.rival.state();
+    if (r.risen && !B.risen) {
+      B.risen = true;
+      const st = g.villages.map((v) => `${v.name} ${v.shrineStage}`).join(', ');
+      ev('vexahl', `RISING: his isle rises from the sea (tier ${r.tier}/${r.maxTier}, stage ${r.stage}, glancing ${r.glancing}; ${st})`);
+      B.shots.push({ key: '20-rise', focus: null, seq: [300, 1500, 3000, 4500, 6000, 7500, 9000, 11000, 14000] });
+    }
+    if (r.tier > B.rivalTier) {
+      const was = B.rivalTier;
+      B.rivalTier = r.tier;
+      if (was > 0) {
+        const st = g.villages.map((v) => `${v.name} ${v.shrineStage}`).join(', ');
+        ev('vexahl', `LEVEL ${r.tier}/${r.maxTier}: his citadel grows${r.glancing ? ' (camera glance: ' + (r.tier >= r.maxTier ? 'final form' : 'first temple') + ')' : ''} (${st})`);
+        if (r.glancing) B.shots.push({ key: `21-level${r.tier}-glance`, focus: null, seq: [1500, 4000, 7000, 10000] });
+      }
+      B.shots.push({ key: `22-level${r.tier}`, focus: { ...g.rival.shotPose(r.maxTier), pose: true }, wait: 5200 });
+    }
+  };
   B.schemes = 0;
   E.on('schemeStarted', ({ kind, village: v }) => {
     const s = g.rival.scheme;
@@ -379,6 +401,8 @@ await p.evaluate((CFG) => {
       rival_isle_dist: isle ? Math.round(Math.hypot(isle.position.x, isle.position.z)) : '',
       rival_isle_scale: isle ? +isle.scale.x.toFixed(3) : '',
       rival_noticed: r.noticed ?? '',
+      rival_risen: r.risen ?? '',
+      rival_tier: r.tier ?? '',
       rival_courted: (r.courted ?? []).join('|'),
       rival_farewell: r.farewell ?? '',
       rival_foiled: r.foiled ?? '',
@@ -480,6 +504,7 @@ await p.evaluate((CFG) => {
       g.advance(1);
       B.tick();
       B.milestones();
+      B.watchRival();
       const sh = ora.state().showing;
       if (sh && sh !== B.lastShowing) ev('ora-shown', sh);
       B.lastShowing = sh;
@@ -515,13 +540,31 @@ const fmt = (t) => `${String(Math.floor(t / 60)).padStart(3, '0')}:${String(Math
 // morning for the shot and put back after, so judging a look never depends on whether it happened at night.
 // A shot with no focus (the rival's glance) keeps the game's own camera and hour.
 const DAYLIGHT = process.env.DAYLIGHT_SHOTS !== '0';
-async function shoot(key, focus, wait = 1600) {
+async function shoot(key, focus, wait = 1600, seq = null) {
+  if (seq) {
+    // A run of frames as the game plays in real time (the rising, a glance): its own camera and hour.
+    await p.evaluate(() => {
+      delete game.render;
+      game.input.inside = false;
+    });
+    const t0 = Date.now();
+    for (const ms of seq) {
+      const d = ms - (Date.now() - t0);
+      if (d > 0) await p.waitForTimeout(d);
+      const file = `${key}-${(ms / 1000).toFixed(1)}s.png`;
+      await p.screenshot({ path: `${OUT}/${file}` });
+      shotsTaken.push(file);
+    }
+    await p.evaluate(() => (game.input.inside = true));
+    return;
+  }
   const keep = await p.evaluate(
     ({ f, day }) => {
       delete game.render;
       const was = game.dayTime;
       if (f) {
-        game.godCam.setPose({ x: f.x, z: f.z, distance: f.distance, pitch: 0.82, yaw: 0.5 }, true);
+        if (f.pose) game.godCam.setPose({ x: f.x, z: f.z, distance: f.distance, pitch: f.pitch, yaw: f.yaw }, true, game.terrain);
+        else game.godCam.setPose({ x: f.x, z: f.z, distance: f.distance, pitch: 0.82, yaw: 0.5 }, true);
         // Late morning, or the hour a shot asks for (the light's gold edge reads best at dusk).
         if (day) game.dayTime = f.hour ?? 0.42;
         game.input.inside = false; // no hand in the picture
@@ -545,7 +588,7 @@ async function flush() {
   const now = realS();
   for (const e of d.events) events.push({ ...e, real: Math.round(now) });
   for (const r of d.timeline) timeline.push({ ...r, real_s: Math.round(now) });
-  for (const s of d.shots) await shoot(s.key, s.focus, s.wait);
+  for (const s of d.shots) await shoot(s.key, s.focus, s.wait, s.seq);
   return d;
 }
 

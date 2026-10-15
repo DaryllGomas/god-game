@@ -7,7 +7,8 @@ import { SkinnedHand } from '../hand/SkinnedHand';
 import { ProceduralHand } from '../hand/ProceduralHand';
 import { assets } from '../assets';
 import { clamp, damp, lerp, smoothstep } from '../util/math';
-import { EMBER, ISLE_DRIFT, ISLE_FAR, ISLE_HAZE, ISLE_NEAR, ISLE_RANGE, ISLE_STORM, VIOLET, VIOLET_LIGHT } from './data';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { EMBER, ISLE_DRIFT, ISLE_GROW, ISLE_HAZE, ISLE_NEAR, ISLE_STORM, LEVEL_SECONDS, RISE, VIOLET, VIOLET_LIGHT } from './data';
 
 // ------------------------------------------------------------------ shared bits
 
@@ -48,6 +49,8 @@ function discTexture(): THREE.CanvasTexture {
 
 const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
 const easeInOut = (t: number) => t * t * (3 - 2 * t);
+/** 0..1 through [a, b]. */
+const span = (t: number, a: number, b: number) => clamp((t - a) / (b - a), 0, 1);
 
 /** Keep soft, see-through things (glows, mist, cloud) out of the ambient-occlusion pre-pass, which would draw them as dark boxes. */
 function aoSkip(game: Game, obj: THREE.Object3D, on: boolean) {
@@ -63,14 +66,16 @@ function aoSkip(game: Game, obj: THREE.Object3D, on: boolean) {
  * `haze` (shared uniform, 0..1) veils it toward the fog colour whatever the distance: his isle sits at the sea
  * edge of the default view, so while the world is in tune it must look far off and faint, not merely small.
  */
-function capFog(mat: THREE.Material, cap: number, haze?: { value: number }) {
-  mat.customProgramCacheKey = () => `capfog-${cap}-${haze ? 'haze' : ''}`;
+function capFog(mat: THREE.Material, cap: number | { value: number }, haze?: { value: number }) {
+  const live = typeof cap !== 'number';
+  mat.customProgramCacheKey = () => `capfog-${live ? 'live' : cap.toFixed(2)}-${haze ? 'haze' : ''}`;
   mat.onBeforeCompile = (shader) => {
     if (haze) shader.uniforms.uHaze = haze;
-    shader.fragmentShader = (haze ? 'uniform float uHaze;\n' : '') + shader.fragmentShader.replace(
+    if (live) shader.uniforms.uFogCap = cap;
+    shader.fragmentShader = (haze ? 'uniform float uHaze;\n' : '') + (live ? 'uniform float uFogCap;\n' : '') + shader.fragmentShader.replace(
       '#include <fog_fragment>',
       `#if defined(USE_FOG) && !defined(FOG_EXP2)
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, max(smoothstep(fogNear, fogFar, vFogDepth) * ${cap.toFixed(2)}, ${haze ? 'uHaze' : '0.0'}));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, max(smoothstep(fogNear, fogFar, vFogDepth) * ${live ? 'uFogCap' : (cap as number).toFixed(2)}, ${haze ? 'uHaze' : '0.0'}));
       #else
         #include <fog_fragment>
       #endif`,
@@ -91,114 +96,245 @@ function disposeGroup(g: THREE.Object3D) {
 // ----------------------------------------------------------------------- his isle
 
 /**
- * Which way his isle lies: out on the sea off Ashford's shore, at the top-left sea edge of the view the game
- * starts on (2026-10-14, Daryll: "I didn't really see Vexahl come in anywhere"; before, it sat 1,450 m out to the
- * north-west, which the top-down camera never shows). Its distance and size follow the balance (ISLE_FAR / ISLE_NEAR).
+ * Where his isle rests: out on the sea off Ashford's shore, a little past the top-left sea edge of the view the game
+ * starts on, hidden under the water until your first pyramid stands (2026-10-15; before, it stood 312 m out from the
+ * first day). ISLE_GROW sets how far out along this line it stands as it grows.
  */
-export const ISLE_POS = new THREE.Vector3(-293, 0, 108);
+export const ISLE_POS = new THREE.Vector3(-349, 0, 129);
 /** How far behind a turned village's prayer place his banner stands (z), clear of the pyramid (v0.5 shrines). */
 const BANNER_BACK = -12;
 const ISLE_DIR = new THREE.Vector2(ISLE_POS.x, ISLE_POS.z).normalize();
+/** His citadel faces the island: local +z points home, so local x runs left to right as you look out at him. */
+const FACING = Math.atan2(-ISLE_DIR.x, -ISLE_DIR.y);
+/** Local height of the rock's top, where the citadel stands. */
+const PLATEAU = 34;
+/** Local depth the isle starts from under the sea (its whole height: nothing shows before it rises). */
+const SUNK = 380;
+
+/** A part of the citadel that climbs out of the rock (or the sea) when his citadel reaches `tier`. */
+interface Part {
+  obj: THREE.Object3D;
+  tier: number;
+  y: number;
+  sink: number;
+}
+
+/** One ember window: where it sits (isle-local), and the step of his citadel that lights it. */
+interface Window {
+  m: THREE.Matrix4;
+  tier: number;
+  y: number;
+}
+
+const tmpV = new THREE.Vector3();
+const tmpQ = new THREE.Quaternion();
+const tmpS = new THREE.Vector3(1, 1, 1);
+
+/** Roughen a geometry's surface (hewn stone, not a primitive). */
+function hew(geo: THREE.BufferGeometry, amt: number, seed: number): THREE.BufferGeometry {
+  const p = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i);
+    const y = p.getY(i);
+    const z = p.getZ(i);
+    const j = 1 + amt * Math.sin(x * 0.31 + z * 0.27 + seed) * Math.cos(y * 0.2 + x * 0.1 + seed * 0.7);
+    p.setXYZ(i, x * j, y + amt * 20 * Math.sin(x * 0.17 + z * 0.23 + seed), z * j);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
 
 /**
- * A dark spire-isle out at sea, ringed by a slow violet storm-eye with ember windows. There from the
- * first day: far, small and still while the world is in tune, drifting nearer and taller (and its
- * storm waking) as the balance falls; it recedes as the world recovers. Sinks away if he retreats.
+ * Vexahl's citadel: a dark spire-isle out at sea, the shining city's shadow. Hidden under the water until your first
+ * pyramid stands; then it rises (the sea darkens, a shockwave rings out, the isle surfaces through mist, violet light
+ * runs up the spire). From then on it grows a step with every age you raise, up to TIERS (every temple standing): two
+ * flanking spires, a curtain wall, a crown of shards and dark cloud, taller spires behind, claws of rock out of the sea,
+ * the main spire's needle, and at the last a violet eye in the cloud. Ember windows light as it grows, and the sea
+ * around it darkens. His temper (the storm-eye, bolts, glow) still follows the world's balance. Sinks away if he retreats.
  */
 export class RivalIsle {
   readonly group = new THREE.Group();
+  /** Sea-level effects (darkened water, shockwave rings, mist), in metres, unscaled, under the isle. */
+  private readonly sea = new THREE.Group();
   private appear = 0;
   private goal = 0;
-  /** 0 = far and small .. 1 = near and tall (eased), and where the balance wants it. */
+  /** Has it risen (the rising began), and real seconds since it began. */
+  private riseT = -1;
+  /** Steps of his citadel: the goal (the world's progress) and where its growth is now (eased, real time). */
+  private tierGoal = 0;
+  private lvl = 0;
+  private tiers = 8;
+  /** v0.5 endings (src/endings): hold the isle at this nearness (0 = where it stands .. 1 = ISLE_NEAR); null = it stands where its growth puts it. */
+  hold: number | null = null;
   private near = 0;
-  private nearGoal = 0;
   /** 0 = still .. 1 = his storm fully awake (eased), and its goal. */
   private storm = 0;
   private stormGoal = 0;
   private awake = false;
-  /** v0.5 endings (src/endings): hold the isle at this nearness instead of the balance's (above 1 = nearer than the balance ever brings it); null = the balance decides. */
-  hold: number | null = null;
   private readonly crown = new THREE.Group();
   private readonly eye = new THREE.Group();
+  private readonly cloudCrown = new THREE.Group();
   private readonly glow: THREE.Sprite;
+  private readonly eyeGlow: THREE.Sprite;
+  private readonly runner: THREE.Sprite;
   private readonly beam: THREE.Mesh;
   private readonly bolt: THREE.Line;
   private readonly clouds: THREE.Sprite[] = [];
+  private readonly crownPuffs: { s: THREE.Sprite; base: THREE.Vector3; size: THREE.Vector3 }[] = [];
   private readonly mats: THREE.Material[] = [];
   private readonly puffScale: THREE.Vector3[] = [];
+  private readonly parts: Part[] = [];
+  private readonly wins: Window[] = [];
+  private readonly windows: THREE.InstancedMesh;
+  private litWindows = -1;
+  private spireMat!: THREE.MeshStandardMaterial;
   private shardMat!: THREE.MeshStandardMaterial;
   private cloudMats: THREE.SpriteMaterial[] = [];
+  private crownMats: THREE.SpriteMaterial[] = [];
+  private readonly darkSea: THREE.Mesh;
+  private readonly rings: { m: THREE.Mesh; t: number; dur: number; r: [number, number]; o: number }[] = [];
+  private readonly mist: { s: THREE.Sprite; a: number; r: number; h: number; size: number; ph: number }[] = [];
   private t = Math.random() * 10;
   private flash = 0;
   private nextBolt = 3;
-  /** Far-off veil (see capFog): thick while the isle is far and small, gone as it nears. */
+  /** Far-off veil (see capFog). */
   private readonly haze = { value: ISLE_HAZE };
+  /** How much of the fog his citadel takes (see capFog): less as he grows, so his final form stands dark and clear. */
+  private readonly fogCap = { value: 0.4 };
 
   constructor(private readonly game: Game) {
     const scene = game.scene;
     const g = this.group;
     g.position.copy(ISLE_POS);
+    g.rotation.y = FACING;
 
-    const rockMat = this.track(new THREE.MeshStandardMaterial({ color: 0x1c1430, roughness: 0.95, flatShading: true }));
-    const spireMat = this.track(new THREE.MeshStandardMaterial({ color: 0x2b1d4a, roughness: 0.8, flatShading: true, emissive: 0x2a0f55, emissiveIntensity: 0.55 }));
+    const rockMat = this.track(new THREE.MeshStandardMaterial({ color: 0x0d0a14, roughness: 1, flatShading: true, envMapIntensity: 0.25 }));
+    const spireMat = this.track(new THREE.MeshStandardMaterial({ color: 0x130d1e, roughness: 0.8, flatShading: true, emissive: 0x24093f, emissiveIntensity: 0.3, envMapIntensity: 0.3 }));
+    const wallMat = this.track(new THREE.MeshStandardMaterial({ color: 0x120e1c, roughness: 0.95, flatShading: true, emissive: 0x14082c, emissiveIntensity: 0.3, envMapIntensity: 0.25 }));
     const emberMat = this.track(new THREE.MeshBasicMaterial({ color: EMBER }));
     const shardMat = this.track(new THREE.MeshStandardMaterial({ color: 0x4a2a8a, emissive: VIOLET, emissiveIntensity: 1.5, roughness: 0.3, flatShading: true }));
+    this.spireMat = spireMat;
     this.shardMat = shardMat;
-    // Far out at sea it must still read as a dark spire on the horizon, not vanish into the haze.
-    for (const m of [rockMat, spireMat, emberMat, shardMat]) capFog(m, 0.48, this.haze);
+    // Far out at sea it must still read as a dark citadel on the horizon, not vanish into the haze.
+    for (const m of [rockMat, spireMat, wallMat, emberMat, shardMat]) capFog(m, this.fogCap, this.haze);
 
-    // The rocky foot of the isle, jittered so it looks hewn, half drowned.
-    const rock = new THREE.ConeGeometry(78, 46, 9, 3);
-    const p = rock.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i);
-      const y = p.getY(i);
-      const z = p.getZ(i);
-      const j = 1 + 0.18 * Math.sin(x * 0.31 + z * 0.27) * Math.cos(y * 0.2 + x * 0.1);
-      p.setXYZ(i, x * j, y + 4 * Math.sin(x * 0.17 + z * 0.23), z * j);
-    }
-    rock.computeVertexNormals();
+    // ---- the rock: a broad, hewn, half-drowned foot with a plateau the citadel stands on.
+    const rock = hew(new THREE.CylinderGeometry(40, 84, 46, 11, 3), 0.16, 1);
     const rockMesh = new THREE.Mesh(rock, rockMat);
-    rockMesh.position.y = 14;
+    rockMesh.position.y = PLATEAU - 23;
     g.add(rockMesh);
+    const crag = hew(new THREE.ConeGeometry(30, 38, 7, 2), 0.2, 4);
+    for (const [x, z, s] of [[-46, -22, 1], [40, -30, 0.8], [8, -52, 1.1]] as [number, number, number][]) {
+      const c = new THREE.Mesh(crag, rockMat);
+      c.position.set(x, PLATEAU - 12, z);
+      c.scale.setScalar(s);
+      g.add(c);
+    }
 
-    // The crooked spire: three stacked tapers, leaning a little, with lit ember windows.
-    const spire = new THREE.Group();
-    spire.rotation.z = 0.06;
-    spire.scale.y = 1.45;
-    spire.position.y = 30;
-    const parts: [number, number, number, number][] = [
-      [10, 19, 74, 37],
-      [5, 10.5, 66, 107],
-      [0.8, 5.5, 74, 177],
-    ];
-    for (const [rt, rb, h, y] of parts) {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 7, 1), spireMat);
-      m.position.y = y - 30;
-      spire.add(m);
-    }
-    const windows = new THREE.BoxGeometry(2.2, 4.4, 1.2);
-    for (let i = 0; i < 12; i++) {
-      const lvl = i % 3;
-      const a = (i / 12) * Math.PI * 2 * 3.1;
-      const y = 28 + lvl * 34 + (i % 4) * 5;
-      const r = lerp(18, 7, y / 150) * 0.97;
-      const w = new THREE.Mesh(windows, emberMat);
-      w.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
-      w.rotation.y = -a + Math.PI / 2;
-      spire.add(w);
-    }
-    // Buttress spurs.
+    // ---- the spires. The main one stands from the rising; the others climb out of the rock as he grows.
+    const main = this.spire(spireMat, shardMat, [[10, 19, 74], [5, 10.5, 66], [0.8, 5.5, 74]], 1.45, 1, 14);
+    main.position.set(0, PLATEAU - 4, 0);
+    main.rotation.z = 0.06;
+    this.part(main, 1, main.position.y, 0);
+    // Buttress spurs round its foot.
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2 + 0.3;
       const s = new THREE.Mesh(new THREE.ConeGeometry(4.5, 40, 5), spireMat);
-      s.position.set(Math.cos(a) * 24, 14, Math.sin(a) * 24);
+      s.position.set(Math.cos(a) * 24, PLATEAU - 4 + 14, Math.sin(a) * 24);
       s.rotation.set(Math.sin(a) * 0.25, 0, -Math.cos(a) * 0.25);
-      spire.add(s);
+      g.add(s);
     }
-    g.add(spire);
+    // Two flanking spires (step 2), two taller ones behind (step 5), and three small ones on the wall (step 7).
+    const flanks: [number, number, number, number][] = [[-36, 2, 0.1, 2], [35, 6, -0.12, 2], [-19, -30, 0.05, 5], [22, -27, -0.07, 5]];
+    for (const [x, z, lean, tier] of flanks) {
+      const tall = tier === 5;
+      const s = this.spire(spireMat, shardMat, tall ? [[6.5, 12, 70], [3.4, 7, 64], [0.6, 3.6, 60]] : [[5.5, 10, 56], [2.8, 6, 50], [0.5, 3, 44]], tall ? 1.3 : 1.2, tier, tall ? 10 : 8);
+      s.position.set(x, PLATEAU - 6, z);
+      s.rotation.z = lean;
+      this.part(s, tier, s.position.y, 200);
+    }
+    for (const [a, h] of [[0.5, 1], [2.4, 0.85], [-2.2, 0.95]] as [number, number][]) {
+      const s = this.spire(spireMat, shardMat, [[3.4, 6, 34 * h], [0.5, 3.2, 30 * h]], 1, 7, 4);
+      s.position.set(Math.cos(a) * 44, PLATEAU - 8, Math.sin(a) * 44);
+      this.part(s, 7, s.position.y, 90);
+    }
+    // The main spire's needle (step 7): it climbs out of the top.
+    const needle = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 1.6, 52, 6), spireMat);
+    needle.position.set(0, 0, 0);
+    const needleHolder = new THREE.Group();
+    needleHolder.add(needle);
+    needle.position.y = 26;
+    needleHolder.position.set(-Math.sin(0.06) * 288, PLATEAU - 4 + Math.cos(0.06) * 288, 0);
+    needleHolder.rotation.z = 0.06;
+    this.part(needleHolder, 7, needleHolder.position.y, 56);
+    g.add(needleHolder);
 
-    // A crown of floating violet shards circling the top.
+    // ---- the curtain wall (step 3): a ring of battlemented wall with round towers on the plateau's rim.
+    const wallGeos: THREE.BufferGeometry[] = [];
+    const N = 16;
+    const R = 42;
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      if (Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2))) < 0.2) continue; // the gate, facing home
+      const seg = new THREE.BoxGeometry(2 * R * Math.sin(Math.PI / N) + 1, 15, 3.4);
+      seg.rotateY(-a + Math.PI / 2);
+      seg.translate(Math.cos(a) * R, 7.5, Math.sin(a) * R);
+      wallGeos.push(seg);
+      for (let k = -1; k <= 1; k += 2) {
+        const c = new THREE.BoxGeometry(2.6, 3, 3.6);
+        const ca = a + k * (Math.PI / N) * 0.5;
+        c.rotateY(-ca + Math.PI / 2);
+        c.translate(Math.cos(ca) * R, 16.4, Math.sin(ca) * R);
+        wallGeos.push(c);
+      }
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.26;
+      const tower = new THREE.CylinderGeometry(4.6, 5.4, 26, 8);
+      tower.translate(Math.cos(a) * R, 13, Math.sin(a) * R);
+      const roof = new THREE.ConeGeometry(6, 12, 8);
+      roof.translate(Math.cos(a) * R, 32, Math.sin(a) * R);
+      wallGeos.push(tower, roof);
+      for (const y of [11, 19]) this.window(new THREE.Vector3(Math.cos(a) * (R + 5.1), PLATEAU - 4 + y, Math.sin(a) * (R + 5.1)), -a + Math.PI / 2, 6, 0.9);
+    }
+    const wall = new THREE.Mesh(mergeGeometries(wallGeos.map((x) => x.toNonIndexed())), wallMat);
+    for (const x of wallGeos) x.dispose();
+    wall.position.y = PLATEAU - 4;
+    g.add(wall);
+    this.part(wall, 3, wall.position.y, 40);
+
+    // ---- claws of rock out of the sea round him (step 6), curving in.
+    const clawGeos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + 0.35 * Math.sin(i * 3.1);
+      if (Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2))) < 0.35) continue; // keep the view home clear
+      const h = 70 + 50 * ((i * 7) % 5) / 4;
+      const c = hew(new THREE.ConeGeometry(9, h, 6, 4), 0.12, i);
+      const pos = c.attributes.position as THREE.BufferAttribute;
+      for (let k = 0; k < pos.count; k++) {
+        const y = pos.getY(k) / h + 0.5;
+        pos.setX(k, pos.getX(k) - y * y * 26); // curl the tip inward (toward local -x, turned to the isle below)
+      }
+      c.computeVertexNormals();
+      c.rotateY(Math.PI - a);
+      const r = 112 + 20 * Math.sin(i * 1.7);
+      c.translate(Math.cos(a) * r, h / 2 - 22, Math.sin(a) * r);
+      clawGeos.push(c);
+    }
+    const claws = new THREE.Mesh(mergeGeometries(clawGeos.map((x) => x.toNonIndexed())), rockMat);
+    for (const x of clawGeos) x.dispose();
+    g.add(claws);
+    this.part(claws, 6, 0, 120);
+
+    // ---- ember windows: one instanced mesh, lit step by step.
+    this.placeWindows();
+    this.wins.sort((a, b) => a.tier - b.tier || a.y - b.y);
+    this.windows = new THREE.InstancedMesh(new THREE.BoxGeometry(2.2, 4.4, 1.2), emberMat, Math.max(1, this.wins.length));
+    this.wins.forEach((w, i) => this.windows.setMatrixAt(i, w.m));
+    this.windows.count = 0;
+    g.add(this.windows);
+
+    // ---- a crown of floating violet shards circling the top (step 4).
     this.crown.position.y = 276;
     for (let i = 0; i < 7; i++) {
       const s = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), shardMat);
@@ -210,8 +346,7 @@ export class RivalIsle {
     }
     g.add(this.crown);
 
-    // The storm-eye: a slow ring of dark violet cloud around the spire, soft and painterly, with a
-    // few puffs lit violet from inside.
+    // ---- the storm-eye: a slow ring of dark violet cloud round the spire that gathers as the world falls (balance).
     const cloudMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x1e1236, transparent: true, opacity: 0, depthWrite: false }));
     const litMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x6a3cc0, transparent: true, opacity: 0, depthWrite: false }));
     capFog(cloudMat, 0.5);
@@ -231,7 +366,28 @@ export class RivalIsle {
     }
     g.add(this.eye);
 
-    // Glow in the eye, and a faint beacon beam above the crown.
+    // ---- the crown of dark cloud above him (step 4, full at his final form): his progress, not his temper.
+    const crownDark = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x150c26, transparent: true, opacity: 0, depthWrite: false }));
+    const crownLit = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x6a3cc0, transparent: true, opacity: 0, depthWrite: false }));
+    capFog(crownDark, 0.5);
+    capFog(crownLit, 0.5);
+    this.crownMats = [crownDark, crownLit];
+    for (let i = 0; i < 44; i++) {
+      const a = (i / 44) * Math.PI * 2 * 1.6 + rand(-0.12, 0.12);
+      const r = rand(20, 125);
+      const lit = i % 4 === 0;
+      const s = new THREE.Sprite(lit ? crownLit : crownDark);
+      const w = rand(70, 120) * (lit ? 0.7 : 1);
+      const size = new THREE.Vector3(w, w * rand(0.4, 0.6), 1);
+      const base = new THREE.Vector3(Math.cos(a) * r - 12, rand(330, 372) - (lit ? 12 : 0) - (r > 95 ? 14 : 0), Math.sin(a) * r);
+      s.scale.copy(size);
+      s.position.copy(base);
+      this.cloudCrown.add(s);
+      this.crownPuffs.push({ s, base, size });
+    }
+    g.add(this.cloudCrown);
+
+    // ---- glows: in the storm-eye, the eye in his cloud crown (final form), the light that runs up the spire at the rising.
     const glowMat = this.track(
       new THREE.SpriteMaterial({ map: glowTexture(), color: 0x8a50ff, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
     );
@@ -239,6 +395,15 @@ export class RivalIsle {
     this.glow.scale.set(260, 260, 1);
     this.glow.position.y = 200;
     g.add(this.glow);
+    const eyeMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x7a40e0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    this.eyeGlow = new THREE.Sprite(eyeMat);
+    this.eyeGlow.scale.set(90, 60, 1);
+    this.eyeGlow.position.set(-14, 350, 0);
+    g.add(this.eyeGlow);
+    const runMat = this.track(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xa070ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    this.runner = new THREE.Sprite(runMat);
+    this.runner.scale.set(46, 70, 1);
+    g.add(this.runner);
     const beamMat = this.track(
       new THREE.MeshBasicMaterial({ color: 0x9060ff, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
     );
@@ -253,9 +418,42 @@ export class RivalIsle {
     this.bolt = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), boltMat);
     g.add(this.bolt);
 
+    // ---- the sea round him: darkened water, the rising's shockwave rings and mist.
+    const darkMat = this.track(new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0x080312, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    capFog(darkMat, 0.3);
+    this.darkSea = new THREE.Mesh(new THREE.CircleGeometry(1, 48), darkMat);
+    this.darkSea.rotation.x = -Math.PI / 2;
+    this.darkSea.renderOrder = 2;
+    this.sea.add(this.darkSea);
+    for (let i = 0; i < 3; i++) {
+      const m = new THREE.Mesh(
+        new THREE.RingGeometry(0.93, 1, 96),
+        this.track(new THREE.MeshBasicMaterial({ color: 0xd6cbff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })),
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.position.y = 0.4;
+      m.renderOrder = 3;
+      m.visible = false;
+      this.sea.add(m);
+      this.rings.push({ m, t: -1, dur: 3, r: [10, 200], o: 0.5 });
+    }
+    const mistMat = new THREE.SpriteMaterial({ map: glowTexture(), color: 0x9a92b4, transparent: true, opacity: 0, depthWrite: false });
+    for (let i = 0; i < 20; i++) {
+      const m = this.track(mistMat.clone());
+      capFog(m, 0.35);
+      const s = new THREE.Sprite(m);
+      const size = rand(50, 95);
+      s.scale.set(size, size * 0.6, 1);
+      this.sea.add(s);
+      this.mist.push({ s, a: (i / 20) * Math.PI * 2 + rand(-0.2, 0.2), r: rand(14, 34), h: rand(2, 16), size, ph: rand(0, 1) });
+    }
+    mistMat.dispose();
+
     g.visible = false;
-    scene.add(g);
+    this.sea.visible = false;
+    scene.add(g, this.sea);
     aoSkip(game, g, true);
+    aoSkip(game, this.sea, true);
   }
 
   private track<T extends THREE.Material>(m: T): T {
@@ -263,13 +461,97 @@ export class RivalIsle {
     return m;
   }
 
+  private part(obj: THREE.Object3D, tier: number, y: number, sink: number) {
+    if (!obj.parent) this.group.add(obj);
+    this.parts.push({ obj, tier, y, sink });
+  }
+
+  /** An ember window at an isle-local point, facing out along `yaw`. */
+  private window(p: THREE.Vector3, yaw: number, tier: number, size = 1) {
+    tmpQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    tmpS.setScalar(size);
+    this.wins.push({ m: new THREE.Matrix4().compose(p.clone(), tmpQ.clone(), tmpS.clone()), tier, y: p.y });
+  }
+
+  /**
+   * A crooked spire: stacked tapers [top radius, bottom radius, height], scaled up `stretch`, a violet shard on the
+   * tip, and `n` ember windows that light at `tier` (the lower ones) and the steps after (the upper ones).
+   */
+  private spire(mat: THREE.Material, shard: THREE.Material, segs: [number, number, number][], stretch: number, tier: number, n: number): THREE.Group {
+    const s = new THREE.Group();
+    const body = new THREE.Group();
+    body.scale.y = stretch;
+    let y = 0;
+    const rings: { y: number; r: number }[] = [];
+    segs.forEach(([rt, rb, h], i) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 7, 1), mat);
+      m.position.y = y + h / 2;
+      body.add(m);
+      rings.push({ y: y + h * 0.3, r: lerp(rb, rt, 0.3) }, { y: y + h * 0.62, r: lerp(rb, rt, 0.62) });
+      y += h * 0.92;
+      if (i === segs.length - 1) return;
+      // A ledge where one taper meets the next, and on the bigger spires a ring of pinnacles on it: built, not grown.
+      const lr = Math.max(rt * 1.45, segs[i + 1][1] * 1.25) + 0.8;
+      const ledge = new THREE.Mesh(new THREE.CylinderGeometry(lr, lr * 0.82, 2.6 / stretch, 7, 1), mat);
+      ledge.position.y = y + 1;
+      body.add(ledge);
+      if (rb < 8) return;
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2 + 0.4;
+        const pin = new THREE.Mesh(new THREE.ConeGeometry(1.4, 16 / stretch, 5), mat);
+        pin.position.set(Math.cos(a) * lr * 0.9, y + 1 + 8 / stretch, Math.sin(a) * lr * 0.9);
+        body.add(pin);
+      }
+    });
+    s.add(body);
+    const tip = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), shard);
+    tip.scale.set(1.6, 6, 1.6);
+    tip.position.y = y * stretch + 7;
+    s.add(tip);
+    s.userData.windows = { rings, stretch, tier, n };
+    // Windows are placed once the spire is positioned (see placeWindows).
+    this.pendingSpires.push(s);
+    return s;
+  }
+
+  private readonly pendingSpires: THREE.Group[] = [];
+
+  /** Ember windows for every spire, in isle-local space at the spire's final pose. */
+  private placeWindows() {
+    for (const s of this.pendingSpires) {
+      const d = s.userData.windows as { rings: { y: number; r: number }[]; stretch: number; tier: number; n: number };
+      s.updateMatrix();
+      for (let i = 0; i < d.n; i++) {
+        const ring = d.rings[i % d.rings.length];
+        const a = (i / d.n) * Math.PI * 2 * 3.1 + s.position.x;
+        const r = ring.r * 0.97;
+        tmpV.set(Math.cos(a) * r, ring.y * d.stretch + (i % 3) * 3, Math.sin(a) * r).applyMatrix4(s.matrix);
+        // The lower windows light with the spire; the ones above with the steps after, until his final form.
+        const frac = i / Math.max(1, d.n - 1);
+        const tier = d.tier + Math.floor(frac * 3.2) * (d.tier === 1 ? 2 : 1);
+        this.window(tmpV.clone(), -a + Math.PI / 2 - s.rotation.y, tier);
+      }
+    }
+    this.pendingSpires.length = 0;
+  }
+
   get present(): boolean {
     return this.goal > 0;
   }
 
-  /** 0..1 how risen it is. */
-  get level(): number {
-    return this.appear;
+  /** Has his isle risen from the sea (or begun to)? */
+  get risen(): boolean {
+    return this.riseT >= 0;
+  }
+
+  /** Real seconds since the rising began (-1 before). */
+  get risingFor(): number {
+    return this.riseT;
+  }
+
+  /** How far his citadel has grown (steps, eased; 0 before the rising). */
+  get growth(): number {
+    return this.lvl;
   }
 
   setPresent(on: boolean, instant = false) {
@@ -277,19 +559,40 @@ export class RivalIsle {
     if (instant) this.appear = this.goal;
   }
 
-  /** A burst of violet lightning (arrival, scheme strikes). */
+  /** It rises from the sea (the RISE timeline), or stands risen already (`instant`: a loaded island). */
+  rise(instant = false) {
+    if (this.riseT >= 0) return;
+    this.riseT = instant ? 1e4 : 0;
+    if (instant) this.lvl = Math.max(this.lvl, Math.min(this.tierGoal, 1));
+  }
+
+  /** His citadel grows to step `tier` of `of` (one per age you raise). `instant` snaps (a loaded island). */
+  setTier(tier: number, of: number, instant = false) {
+    this.tiers = Math.max(2, of);
+    this.tierGoal = Math.max(0, tier);
+    if (instant) this.lvl = this.tierGoal;
+    this.litWindows = -1;
+  }
+
+  /** A burst of violet light (the rising, a step of growth, scheme strikes). */
   pulse(amount = 1) {
     this.flash = Math.min(1.5, this.flash + amount);
   }
 
-  /** The world's balance (0..1) sets how near and tall the isle stands and how awake its storm is. `instant` skips the drift. */
+  /** A ring of light out over the water round his isle (the rising, a step of growth). */
+  ring(radius: [number, number] = [12, 120], seconds = 2.6, opacity = 0.35) {
+    const r = this.rings.find((x) => x.t < 0) ?? this.rings[0];
+    r.t = 0;
+    r.dur = seconds;
+    r.r = radius;
+    r.o = opacity;
+  }
+
+  /** The world's balance (0..1) sets how awake his storm is: his temper, not his size. `instant` skips the drift. */
   setBalance(balance: number, instant = false) {
-    this.nearGoal = this.hold ?? smoothstep(ISLE_RANGE[0], ISLE_RANGE[1], balance);
+    this.near = this.hold ?? 0;
     this.stormGoal = Math.max(smoothstep(ISLE_STORM[0], ISLE_STORM[1], balance), this.awake ? 0.12 : 0);
-    if (instant) {
-      this.near = this.nearGoal;
-      this.storm = this.stormGoal;
-    }
+    if (instant) this.storm = this.stormGoal;
   }
 
   /** He has shown himself (his panel is up): a little storm-light even when the world is calm. */
@@ -297,7 +600,7 @@ export class RivalIsle {
     this.awake = on;
   }
 
-  /** 0 (far) .. 1 (near). */
+  /** 0 (where it stands) .. 1 (held near by the endings). */
   get nearness(): number {
     return this.near;
   }
@@ -307,32 +610,91 @@ export class RivalIsle {
     return this.crown.getWorldPosition(out);
   }
 
+  /** World height of his citadel's top (the tip, or the cloud crown once it gathers): for framing the camera. */
+  get height(): number {
+    return (this.lvl >= 4 ? 385 : 330) * this.group.scale.y;
+  }
+
   frame(dt: number) {
     this.t += dt;
+    // The endings bring him up even if the world never raised a pyramid.
+    if (this.hold !== null && this.riseT < 0) this.rise();
     this.appear += (this.goal - this.appear) * damp(0.5, dt);
     if (Math.abs(this.goal - this.appear) < 0.002) this.appear = this.goal;
-    this.near += (this.nearGoal - this.near) * damp(1 / ISLE_DRIFT, dt);
     this.storm += (this.stormGoal - this.storm) * damp(1 / ISLE_DRIFT, dt);
+    if (this.riseT >= 0) this.riseT += dt;
+    const rt = this.riseT;
+    const surfaced = rt >= RISE.surface[1];
+    // Growth: one step every LEVEL_SECONDS (the first step is the rising itself).
+    const cap = rt < 0 ? 0 : surfaced ? this.tiers : 1;
+    const want = Math.min(this.tierGoal, cap);
+    const before = this.lvl;
+    if (rt >= 0 && this.lvl < 1) this.lvl = Math.min(1, want);
+    else if (this.lvl < want) this.lvl = Math.min(want, this.lvl + dt / LEVEL_SECONDS);
+    else if (this.lvl > want) this.lvl = want;
+    if (Math.floor(this.lvl + 1e-6) !== Math.floor(before + 1e-6) && rt > RISE.surface[1] + 0.5) this.litWindows = -1;
+
     const a = this.appear;
     const e = easeInOut(clamp(a, 0, 1));
-    this.group.visible = a > 0.003;
-    if (!this.group.visible) return;
-    // Far and small, or near and tall; rising out of the sea (or sinking) with `appear`.
-    const n = this.near > 1 ? this.near : easeInOut(clamp(this.near, 0, 1)); // past 1 only while the endings hold it (v0.5)
-    const dist = lerp(ISLE_FAR.dist, ISLE_NEAR.dist, n);
-    const scale = lerp(ISLE_FAR.scale, ISLE_NEAR.scale, n);
-    this.group.position.set(ISLE_DIR.x * dist, ISLE_POS.y - (1 - e) * 190 * scale, ISLE_DIR.y * dist);
-    this.group.scale.setScalar((0.4 + 0.6 * e) * scale);
-    this.haze.value = ISLE_HAZE * (1 - clamp(n, 0, 1));
+    const up = rt < 0 ? 0 : easeInOut(span(rt, RISE.surface[0], RISE.surface[1]));
+    const showing = rt >= 0 && a > 0.003;
+    this.group.visible = showing && up > 0.001;
+    this.sea.visible = showing;
+    if (!showing) return;
 
-    // His storm wakes as the world falls: the storm-eye gathers, the shards burn, bolts come.
+    // Where it stands and how big: its growth, or held near by the endings.
+    const grow = clamp((this.lvl - 1) / Math.max(1, this.tiers - 1), 0, 1);
+    const n = this.near;
+    const dist = lerp(lerp(ISLE_GROW.dist[0], ISLE_GROW.dist[1], grow), ISLE_NEAR.dist, n);
+    const scale = lerp(lerp(ISLE_GROW.scale[0], ISLE_GROW.scale[1], grow), ISLE_NEAR.scale, n);
+    const sink = Math.max(1 - up, 1 - e);
+    this.group.position.set(ISLE_DIR.x * dist, ISLE_POS.y - sink * SUNK * scale, ISLE_DIR.y * dist);
+    this.group.scale.setScalar(scale);
+    this.haze.value = ISLE_HAZE * (1 - 0.5 * grow) * (1 - clamp(n, 0, 1));
+    this.fogCap.value = lerp(0.24, 0.15, grow) * (1 - 0.5 * clamp(n, 0, 1));
+
+    // The parts that climb out of the rock (or the sea) as he grows; none before the isle has surfaced.
+    for (const p of this.parts) {
+      const k = p.tier <= 1 ? 1 : easeInOut(clamp(this.lvl - (p.tier - 1), 0, 1));
+      p.obj.visible = k > 0.002;
+      p.obj.position.y = p.y - (1 - k) * p.sink;
+    }
+    this.litUp(rt);
+
+    // His storm (the world's balance): the storm-eye gathers, the shards burn, bolts come.
     const st = this.storm;
     const eyeK = smoothstep(0.08, 0.7, st);
     this.eye.visible = eyeK > 0.01;
     for (let i = 0; i < this.clouds.length; i++) this.clouds[i].scale.copy(this.puffScale[i]).multiplyScalar(0.7 + 0.3 * eyeK);
     this.cloudMats[0].opacity = 0.9 * eyeK;
     this.cloudMats[1].opacity = 0.55 * eyeK * (0.8 + 0.2 * Math.sin(this.t * 0.9));
-    this.shardMat.emissiveIntensity = 0.5 + 1.3 * st;
+
+    // His progress: the crown of shards (step 4), the crown of dark cloud (4 .. final), the eye in it (final form).
+    const shardK = easeInOut(clamp(this.lvl - 3, 0, 1));
+    this.crown.visible = shardK > 0.01;
+    this.crown.scale.setScalar(Math.max(0.01, shardK));
+    const crownK = smoothstep(3, this.tiers, this.lvl);
+    this.cloudCrown.visible = crownK > 0.01;
+    this.crownMats[0].opacity = 0.85 * crownK;
+    this.crownMats[1].opacity = 0.5 * crownK * (0.75 + 0.25 * Math.sin(this.t * 0.7));
+    for (const c of this.crownPuffs) {
+      c.s.scale.copy(c.size).multiplyScalar(0.55 + 0.45 * crownK);
+      c.s.position.set(c.base.x * (0.6 + 0.4 * crownK), c.base.y + Math.sin(this.t * 0.25 + c.base.x) * 2, c.base.z * (0.6 + 0.4 * crownK));
+    }
+    this.cloudCrown.rotation.y = -this.t * 0.025;
+    const finalK = easeInOut(clamp(this.lvl - (this.tiers - 1), 0, 1));
+
+    // The rising: violet light runs up the spire and flares at its tip.
+    const run = rt < 0 ? 1 : span(rt, RISE.light[0], RISE.light[1]);
+    const running = run > 0 && run < 1;
+    this.runner.visible = running;
+    if (running) {
+      this.runner.position.set(0, lerp(PLATEAU, 300, easeInOut(run)), 0);
+      this.runner.material.opacity = 0.75 * Math.sin(run * Math.PI);
+    }
+    const surge = rt < 0 ? 0 : Math.exp(-Math.pow((rt - (RISE.light[0] + RISE.light[1]) / 2) / 1.1, 2));
+    this.spireMat.emissiveIntensity = 0.3 + 1.1 * surge + 0.12 * grow;
+    this.shardMat.emissiveIntensity = 0.5 + 1.3 * st + 0.8 * surge + 0.3 * finalK;
 
     this.crown.rotation.y = this.t * (0.1 + 0.2 * st);
     this.crown.position.y = 276 + Math.sin(this.t * 0.7) * 3;
@@ -342,17 +704,80 @@ export class RivalIsle {
     this.flash = Math.max(0, this.flash - dt * 1.2);
     this.nextBolt -= dt;
     if (this.nextBolt <= 0) {
-      // Bolts only once his storm is properly awake; more often the further the world falls.
+      // Bolts once his storm is properly awake (more often the further the world falls), and now and then in his final form.
       this.nextBolt = rand(5, 10) * lerp(1.6, 0.8, st);
-      if (st > 0.35) {
+      if (st > 0.35 || (finalK > 0.9 && Math.random() < 0.35)) {
         this.flash = Math.max(this.flash, 1);
         this.rebuildBolt();
       }
     }
     const throb = 0.55 + 0.25 * Math.sin(this.t * 0.8);
-    (this.glow.material as THREE.SpriteMaterial).opacity = e * (throb * 0.5 * (0.15 + 0.85 * st) + this.flash * 0.5);
-    (this.beam.material as THREE.MeshBasicMaterial).opacity = e * ((0.07 + 0.06 * throb) * st + this.flash * 0.1);
+    const vis = e * up;
+    (this.glow.material as THREE.SpriteMaterial).opacity = vis * (throb * 0.5 * (0.15 + 0.85 * st) + this.flash * 0.5);
+    (this.beam.material as THREE.MeshBasicMaterial).opacity = vis * ((0.07 + 0.06 * throb) * Math.max(st, 0.35 * finalK) + this.flash * 0.1);
     (this.bolt.material as THREE.LineBasicMaterial).opacity = this.flash > 0.5 ? clamp((this.flash - 0.4) * 1.5, 0, 1) : 0;
+    this.eyeGlow.material.opacity = vis * finalK * (0.22 + 0.1 * Math.sin(this.t * 0.6)) + vis * crownK * this.flash * 0.15;
+
+    this.frameSea(dt, rt, grow, e);
+  }
+
+  /** Which ember windows are lit: those of every step reached, and at the rising only below the running light. */
+  private litUp(rt: number) {
+    const runY = rt < 0 ? -1 : rt >= RISE.light[1] ? Infinity : rt < RISE.light[0] ? -1 : lerp(PLATEAU, 300, easeInOut(span(rt, RISE.light[0], RISE.light[1])));
+    let n = 0;
+    for (const w of this.wins) {
+      if (Math.min(w.tier, this.tiers) > Math.floor(this.lvl + 1e-6)) break;
+      if (w.tier <= 1 && w.y > runY) break;
+      n++;
+    }
+    if (n === this.litWindows) return;
+    this.litWindows = n;
+    this.windows.count = n;
+  }
+
+  /** The water round him: darker as he grows, the rising's rings and mist. */
+  private frameSea(dt: number, rt: number, grow: number, e: number) {
+    const gp = this.group.position;
+    this.sea.position.set(gp.x, 0.25, gp.z);
+    const s = this.group.scale.x;
+    const dk = rt < 0 ? 0 : easeInOut(span(rt, RISE.darken[0], RISE.darken[1]));
+    const r = lerp(85, 150, grow) * (0.3 + 0.7 * dk) * (s / lerp(ISLE_GROW.scale[0], ISLE_GROW.scale[1], grow));
+    this.darkSea.scale.set(r * 1.7, r * 1.7, 1);
+    (this.darkSea.material as THREE.MeshBasicMaterial).opacity = dk * e * lerp(0.85, 1, grow);
+    if (rt >= 0 && rt < RISE.surface[1] + 2) {
+      for (let i = 0; i < RISE.rings.length; i++) {
+        const at = RISE.rings[i];
+        if (rt - dt < at && rt >= at) this.ring([14, 230 + i * 40], 3.4, 0.42);
+      }
+    }
+    for (const ring of this.rings) {
+      if (ring.t < 0) {
+        ring.m.visible = false;
+        continue;
+      }
+      ring.t += dt;
+      const k = ring.t / ring.dur;
+      if (k >= 1) {
+        ring.t = -1;
+        ring.m.visible = false;
+        continue;
+      }
+      ring.m.visible = true;
+      const rr = lerp(ring.r[0], ring.r[1], 1 - Math.pow(1 - k, 2.2));
+      ring.m.scale.set(rr, rr, 1);
+      (ring.m.material as THREE.MeshBasicMaterial).opacity = ring.o * Math.pow(1 - k, 1.4) * smoothstep(0, 0.06, k);
+    }
+    // Mist: thick while it surfaces, thinning to a faint sea-mist round his foot.
+    const mk = rt < 0 ? 0 : Math.max(Math.sin(Math.PI * span(rt, RISE.mist[0], RISE.mist[1])) * 0.8, 0.06 * smoothstep(RISE.mist[0], RISE.mist[1], rt));
+    const foot = 70 * s;
+    for (const m of this.mist) {
+      const out = 1 + 0.6 * span(rt, RISE.mist[0], RISE.mist[1]);
+      const a = m.a + this.t * 0.02;
+      const rr = foot * 0.6 + m.r * out;
+      m.s.position.set(Math.cos(a) * rr, m.h + 10 * span(rt, RISE.mist[0], RISE.mist[1]) * m.ph + Math.sin(this.t * 0.5 + m.ph * 6) * 1.2, Math.sin(a) * rr);
+      m.s.scale.set(m.size * out, m.size * out * 0.6, 1);
+      (m.s.material as THREE.SpriteMaterial).opacity = mk * e * (0.5 + 0.2 * Math.sin(this.t * 0.7 + m.ph * 9));
+    }
   }
 
   private rebuildBolt() {
@@ -368,9 +793,11 @@ export class RivalIsle {
   }
 
   dispose() {
-    this.game.scene.remove(this.group);
+    this.game.scene.remove(this.group, this.sea);
     aoSkip(this.game, this.group, false);
+    aoSkip(this.game, this.sea, false);
     disposeGroup(this.group);
+    disposeGroup(this.sea);
     for (const m of this.mats) m.dispose();
   }
 }
