@@ -491,8 +491,37 @@ export class Game {
    */
   growLight(v: Village, m: number) {
     if (m <= 0) return;
-    if (v.owner === 'player') v.grow(m);
-    else if (this.canReach(v)) this.lightSource(v)?.grow(m * 0.5);
+    if (v.owner === 'player') this.frontierFor(v).grow(m);
+    else if (this.canReach(v)) {
+      const src = this.lightSource(v);
+      if (src) this.frontierFor(src).grow(m * 0.5);
+    }
+  }
+
+  /**
+   * Where a deed in village `v` of yours grows the light: its own, unless its light can't usefully grow (at its cap,
+   * or its next village lies beyond even its cap); then the village of yours at the frontier, nearest to touching
+   * the next village, so tending anywhere still carries the light on (2026-10-14: no dead tending).
+   */
+  private frontierFor(v: Village): Village {
+    const useful = (u: Village) => {
+      const t = this.leanTarget(u);
+      if (!t || u.influenceRadius >= u.ringCap - 1) return null;
+      const need = Math.hypot(t.center.x - u.center.x, t.center.z - u.center.z) - t.radius * INFLUENCE.touch;
+      return need <= u.ringCap ? need - u.influenceRadius : null;
+    };
+    if (useful(v) !== null) return v;
+    let best = v;
+    let bd = Infinity;
+    for (const u of this.villages) {
+      if (u.owner !== 'player') continue;
+      const gap = useful(u);
+      if (gap !== null && gap < bd) {
+        bd = gap;
+        best = u;
+      }
+    }
+    return best;
   }
 
   /** The hand can act in this village: it is yours, or your light reaches it. */

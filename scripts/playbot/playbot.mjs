@@ -1,5 +1,5 @@
 // THE FIRST WORLD: an automated story-mode playthrough, for judging the pacing of the whole road.
-// Run: npm run build && thor-run dist scripts/playbot/playbot.mjs "<out-dir>"
+// Run: npm run build && atlas-run dist scripts/playbot/playbot.mjs "<out-dir>" [profile]   (or thor-run with PROFILE=...)
 // Env: MAX_GAME_S (default 10800 = 3 game hours), BATCH (game seconds per page call, default 30).
 //
 // It plays a FRESH island in story mode the way a reasonable new player would: it answers prayers it can reach
@@ -30,7 +30,9 @@ const PROFILES = {
   // then plays like the attentive player: what a player who takes their time at home finds next door.
   homebody: { react: 30, siteReact: 30, base: 10, pan: 15, giftEvery: 60, homeUntil: 1500 },
 };
-const PROFILE = process.env.PROFILE ?? 'attentive';
+// The profile: PROFILE=... (thor-run), or the first argument after the out-dir (atlas-run: env vars don't cross ssh).
+const PROFILE = process.argv[2] ?? process.env.PROFILE ?? 'attentive';
+if (!PROFILES[PROFILE]) throw new Error(`unknown profile ${PROFILE}`);
 const CFG = PROFILES[PROFILE];
 const realStart = Date.now();
 const realS = () => (Date.now() - realStart) / 1000;
