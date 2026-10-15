@@ -64,23 +64,18 @@ export function mountCloudPanel(game: Game, help: HTMLElement) {
     input.spellcheck = false;
     // Only a suggestion: still optional, editable, and nothing happens until the player presses Begin.
     input.value = pathInitials();
-    // Keys typed here must not drive the camera or miracles.
-    input.addEventListener('keydown', (e) => e.stopPropagation());
+    // Keys typed here must not drive the camera or miracles; Enter begins.
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') begin.click();
+    });
     const hint = el('div', 'cloud-hint', 'Leave a name to get an island code. The code brings your island back on any device.');
+    // The name is optional, so Begin with the field empty is "play without a name": one way forward, not two
+    // (playtest 2026-10-15). "Lost your code?" waits inside the island-code box, where it matters.
     const links = el('div', 'cloud-links');
-    const skip = el('button', 'cloud-link', 'Play without a name');
-    skip.onclick = () => {
-      input.value = '';
-      begin.click();
-    };
     const have = el('button', 'cloud-link', 'Have an island code?');
     have.onclick = () => showRestore(restoreBox, have);
-    // A lost code is found by hand: the player writes in through the studio's contact form.
-    const lost = el('a', 'cloud-link', 'Lost your code?');
-    lost.href = 'https://studio.bigpicsolutions.com/#work';
-    lost.target = '_blank';
-    lost.rel = 'noopener';
-    links.append(skip, have, lost);
+    links.append(have);
     const restoreBox = el('div', 'cloud-restore hidden');
     box.append(input, hint, links, restoreBox);
 
@@ -137,7 +132,12 @@ export function mountCloudPanel(game: Game, help: HTMLElement) {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') void run();
     });
-    host.append(input, go, status);
+    // A lost code is found by hand: the player writes in through the studio's contact form.
+    const lost = el('a', 'cloud-link', 'Lost your code?');
+    lost.href = 'https://studio.bigpicsolutions.com/#work';
+    lost.target = '_blank';
+    lost.rel = 'noopener';
+    host.append(input, go, status, lost);
     input.focus();
   };
 

@@ -13,6 +13,8 @@ const SRC = `${import.meta.env.BASE_URL}intro/intro.mp4`;
 const START_TIMEOUT = 9000;
 /** The "skip" pill stays this long after the last click or key (ms). */
 const SKIP_SHOW = 3500;
+/** Once the film is playing, a faint "skip ›" settles into the corner after this long (ms), and stays. */
+const SKIP_FAINT_AFTER = 2000;
 /** The film dissolves into the live island over this long (ms; matches --dissolve in intro.css). */
 const DISSOLVE = 1800;
 /** On a skip, the dissolve is quick (ms). */
@@ -119,7 +121,10 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
   video.src = SRC;
   const skip = document.createElement('button');
   skip.className = 'intro-skip';
-  skip.textContent = 'skip';
+  skip.type = 'button';
+  skip.innerHTML = 'skip <span aria-hidden="true">›</span>';
+  skip.setAttribute('aria-label', 'Skip the intro (Escape)');
+  skip.title = 'Skip (Esc)';
   const waiting = !!opts.waitForTouch;
   root.append(video, skip);
   // A nudge for someone who just looks (Daryll, 2026-10-15: "it's just a little blinking dot ... some sort of cool,
@@ -170,6 +175,7 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
     let finishing = false;
     let skipTimer = 0;
     let startTimer = 0;
+    let faintTimer = 0;
     let begun = false;
     const begin = () => {
       if (begun) return;
@@ -177,6 +183,12 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
       opts.started?.();
     };
     video.addEventListener('playing', begin);
+    // A visible way out (playtest 2026-10-15: only Escape skipped, and nothing said so): a faint "skip ›" in the
+    // corner a moment after the film starts. It stays quiet; a click or key brightens it, as before.
+    video.addEventListener('playing', () => {
+      if (faintTimer || finishing) return;
+      faintTimer = window.setTimeout(() => root.classList.add('skip-faint'), SKIP_FAINT_AFTER);
+    });
 
     const hushAndUnlock = () => {
       opts.holdAudio?.(true);
@@ -204,7 +216,7 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
         return;
       }
       hushAndUnlock();
-      if (e.target === skip || root.classList.contains('skippable')) void finish(true);
+      if (skip.contains(e.target as Node) || root.classList.contains('skippable')) void finish(true);
       else showSkip();
     };
     const showSkip = () => {
@@ -253,7 +265,8 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
       markSeen();
       window.clearTimeout(skipTimer);
       window.clearTimeout(startTimer);
-      root.classList.remove('skippable');
+      window.clearTimeout(faintTimer);
+      root.classList.remove('skippable', 'skip-faint');
       // The game is built behind the film; wait for it, put it at the landing pose, then dissolve the film away.
       await (opts.ready ?? Promise.resolve()).catch(() => undefined);
       opts.land?.();

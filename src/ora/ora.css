@@ -101,6 +101,108 @@
   transition-duration: var(--ora-in);
 }
 
+/* Story mode's reminder: a small Ora resting at the top centre, where its words appear. Hover or click it and
+   the current goal is said again; it glows softly for a while when the goal changes. */
+.ora-remind {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--talk-top) + 6px);
+  width: 30px;
+  height: 30px;
+  margin-left: -15px;
+  padding: 0;
+  isolation: isolate;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.6);
+  transition:
+    opacity 1.2s ease,
+    transform 1.2s ease,
+    visibility 0s linear 1.2s;
+  z-index: 6;
+}
+.hud .ora-remind {
+  pointer-events: none;
+}
+.hud .ora-remind.on {
+  opacity: 0.62;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1);
+  transition:
+    opacity 1.2s ease,
+    transform 1.2s ease,
+    visibility 0s;
+}
+.ora-remind svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  border-radius: 50%;
+  box-shadow:
+    0 0 10px 3px rgba(159, 220, 255, 0.45),
+    0 0 26px 8px rgba(95, 184, 255, 0.18);
+}
+/* The same soft dark breath Ora's words sit on, so the small orb reads over bright grass and sea. */
+.ora-remind::after {
+  content: '';
+  position: absolute;
+  inset: -16px;
+  z-index: -2;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(5, 12, 28, 0.6), rgba(5, 12, 28, 0.3) 60%, transparent);
+  pointer-events: none;
+}
+.ora-remind .ora-rings {
+  animation-duration: 40s;
+}
+/* A soft halo that breathes: there for the eye, never a blinking alarm. */
+.ora-remind::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(190, 232, 255, 0.75), rgba(95, 184, 255, 0.22) 60%, transparent);
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  pointer-events: none;
+}
+.hud .ora-remind.on:hover,
+.hud .ora-remind.on:focus-visible {
+  opacity: 1;
+  transform: scale(1.12);
+  outline: none;
+  transition-duration: 0.3s;
+}
+.ora-remind:hover::before,
+.ora-remind:focus-visible::before {
+  opacity: 0.7;
+}
+.hud .ora-remind.on.fresh {
+  opacity: 0.95;
+}
+.ora-remind.fresh::before {
+  animation: ora-remind-breathe 3.2s ease-in-out infinite;
+}
+@keyframes ora-remind-breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.15);
+  }
+}
+
 @media (max-width: 720px) {
   .ora {
     top: 11vh;
@@ -117,7 +219,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ora-orb,
-  .ora-rings {
+  .ora-rings,
+  .ora-remind.fresh::before {
     animation: none;
   }
 }

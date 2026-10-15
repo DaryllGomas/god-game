@@ -10,7 +10,7 @@ import type { Prayer, PrayerKind } from '../prayers/Prayers';
  * One line per kind, then the player knows; free play stays quiet.
  */
 const HOW: Record<Exclude<PrayerKind, 'project'>, (p: Prayer) => string> = {
-  timber: (p) => `${p.village.name} needs timber. Lift a tree and set it down on their storehouse.`,
+  timber: (p) => `${p.village.name} is asking for timber. Lift a tree and set it down on their storehouse.`,
   food: (p) => `${p.village.name} is hungry. Let Food fall on their storehouse, or carry fruit and fish to it.`,
   rain: (p) => `${p.village.name}'s fields are thirsty. Let Water fall over them.`,
   fire: (p) => `Fire in ${p.village.name}. Water, over the flames, quickly.`,
@@ -34,8 +34,17 @@ export function install(game: Game): GamePlugin {
   let lostHeld: Prayer | null = null;
   const explain = (p: Prayer) => {
     if (p.kind === 'project' || told.has(p.kind) || !story()?.active) return;
+    // Before the first answer, home's prayers are the story's own first goal: Ora's lead names one (howFor), so
+    // it isn't said twice.
+    if (prayers.answered === 0 && p.village.isHome) return;
     told.add(p.kind);
     ora()?.guide(HOW[p.kind](p));
+  };
+  /** How to answer `p`, in Ora's words (story mode's first goal); `mark`: that kind counts as explained from now on. */
+  const howFor = (p: Prayer, mark = true): string => {
+    if (p.kind === 'project') return '';
+    if (mark) told.add(p.kind);
+    return HOW[p.kind](p);
   };
 
   prayers.setListener({
@@ -51,7 +60,7 @@ export function install(game: Game): GamePlugin {
   });
 
   // Debug/test handle, like game.advance().
-  (game as unknown as { prayerSystem: unknown }).prayerSystem = Object.assign(prayers, { bubbles, advisors });
+  (game as unknown as { prayerSystem: unknown }).prayerSystem = Object.assign(prayers, { bubbles, advisors, howFor });
 
   return {
     name: 'prayers',

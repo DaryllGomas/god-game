@@ -10,12 +10,27 @@ const MIN_GAP = 100;
 const STALE_AFTER = 60;
 /** Quiet time after a Lumi or Fizz card before Ora speaks, so the voices never overlap. */
 const AFTER_ADVISORS = 3;
-/** On screen: fade in, hold (grows with the line's length), fade out. Real seconds. */
+/**
+ * On screen: fade in, hold (grows with the line's length), fade out. Always REAL seconds (frame time), whatever
+ * the game speed: at 4x the world races, Ora's words don't.
+ */
 const FADE_IN = 1.6;
 const HOLD_BASE = 3.4;
 const HOLD_PER_CHAR = 0.055;
 const HOLD_MAX = 8.5;
 const FADE_OUT = 2;
+/**
+ * Story mode's goal lines are instructions, read while the hand is busy: they hold longer (playtest 2026-10-15,
+ * "the goal lines fade within seconds"): at least GUIDE_HOLD_MIN, growing with length to GUIDE_HOLD_MAX.
+ */
+const GUIDE_HOLD_BASE = 4.5;
+const GUIDE_HOLD_PER_CHAR = 0.065;
+const GUIDE_HOLD_MIN = 7.5;
+const GUIDE_HOLD_MAX = 12;
+/** After a new goal is spoken, the small reminder orb glows this long (real seconds), or until it is looked at. */
+const REMIND_GLOW = 20;
+/** Hovering the reminder says the goal again at most this often (real seconds); clicking it always does. */
+const HOVER_AGAIN = 20;
 
 /** Balance 0..1. Below IMBALANCE for IMBALANCE_FOR game seconds is "the first sign of real imbalance". */
 const IMBALANCE = 0.4;
@@ -73,11 +88,11 @@ export const ORA_LINES: Record<OraMoment, readonly string[]> = {
 /** Which moment wins when two are waiting. */
 const RANK: Record<OraMoment, number> = { imbalance: 6, cruel: 5, kind: 5, firstAnswer: 4, recovered: 3, tending: 2, binary: 1, pace: 4, paceCheck: 1, mode: 4 };
 
-const ORB = `<svg viewBox="0 0 40 40" aria-hidden="true">
-  <defs><radialGradient id="ora-core" cx="50%" cy="50%" r="50%">
+const orbSvg = (id: string) => `<svg viewBox="0 0 40 40" aria-hidden="true">
+  <defs><radialGradient id="${id}" cx="50%" cy="50%" r="50%">
     <stop offset="0" stop-color="#ffffff"/><stop offset="0.28" stop-color="#eaf7ff"/><stop offset="0.62" stop-color="#9fdcff" stop-opacity="0.55"/><stop offset="1" stop-color="#5fb8ff" stop-opacity="0.12"/>
   </radialGradient></defs>
-  <circle cx="20" cy="20" r="17" fill="url(#ora-core)"/>
+  <circle cx="20" cy="20" r="17" fill="url(#${id})"/>
   <g class="ora-rings" fill="none" stroke="#e4f6ff" stroke-width="0.8">
     <ellipse cx="20" cy="20" rx="17" ry="5.5"/>
     <ellipse cx="20" cy="20" rx="17" ry="5.5" transform="rotate(60 20 20)"/>
@@ -137,6 +152,13 @@ export class Ora {
   private showing = false;
   private t = 0;
   private hold = 0;
+  /** The goal reminder (story mode) and how long it still glows (real seconds). */
+  private readonly remindEl: HTMLButtonElement;
+  private remindGlow = 0;
+  private lastRecall = -1e9;
+  /** The line on screen is a goal line from the story (it lights the reminder when it fades). */
+  private goalLine = false;
+  private readonly goalLines = new Set<string>();
 
   // What it watches.
   private answeredSeen = -1;
@@ -157,9 +179,25 @@ export class Ora {
     this.el.className = 'ora';
     this.el.setAttribute('role', 'status');
     this.el.setAttribute('aria-live', 'polite');
-    this.el.innerHTML = `<div class="ora-orb">${ORB}</div><div class="ora-line"></div>`;
+    this.el.innerHTML = `<div class="ora-orb">${orbSvg('ora-core')}</div><div class="ora-line"></div>`;
     this.lineEl = this.el.querySelector('.ora-line')!;
     game.hud.root.appendChild(this.el);
+
+    // Story mode: a small, quiet Ora at the top centre. Hover or click it and Ora says the current goal again
+    // (playtest 2026-10-15: a missed goal line could only be found again by accident). It glows a while after the
+    // goal changes. No checklist, no words of its own.
+    this.remindEl = document.createElement('button');
+    this.remindEl.type = 'button';
+    this.remindEl.className = 'ora-remind';
+    this.remindEl.setAttribute('aria-label', 'Ora: what now?');
+    this.remindEl.innerHTML = orbSvg('ora-core-small');
+    this.remindEl.addEventListener('mousedown', (e) => e.preventDefault()); // keep keys for the game
+    // Hover asks once in a while (a cursor resting there mustn't keep Ora talking); a click always asks.
+    this.remindEl.addEventListener('mouseenter', () => {
+      if (this.clock - this.lastRecall > HOVER_AGAIN) this.recall();
+    });
+    this.remindEl.addEventListener('click', () => this.recall());
+    game.hud.root.appendChild(this.remindEl);
 
     const cruel = () => (this.lastCruel = game.time);
     game.events.on('villagerDied', ({ byPlayer }) => byPlayer && cruel());
@@ -208,7 +246,9 @@ export class Ora {
    * replaces any guide line still waiting, is spoken when the stage is quiet, and doesn't count toward the
    * rare-insight limit. Free play never calls this.
    */
-  guide(text: string, opts: { first?: boolean; clear?: boolean } = {}) {
+  guide(text: string, opts: { first?: boolean; clear?: boolean; goal?: boolean } = {}) {
+    // `goal`: the story's goal changed (its lead line): the reminder orb glows once this has been said.
+    if (opts.goal) this.goalLines.add(text);
     // `clear`: what was waiting is stale (the road has moved on, e.g. every temple stands). `first`: a moment that
     // belongs to now (Vexahl noticing you) goes ahead of what is waiting.
     if (opts.clear) this.guideQueue.length = 0;
@@ -227,6 +267,37 @@ export class Ora {
     return this.guideQueue.length > 0 || (this.showing && this.guiding);
   }
 
+  /** Story mode's current goal, in Ora's words (from the story), or null outside story mode. */
+  private currentGoal(): string | null {
+    const st = (this.game as unknown as { story?: { active: boolean; goalLine(): string | null } }).story;
+    return st?.active ? st.goalLine() : null;
+  }
+
+  /** The reminder was looked at: say the current goal again, now, unless Ora (or a character) is already talking. */
+  recall(): boolean {
+    this.remindGlow = 0;
+    this.remindEl.classList.remove('fresh');
+    const text = this.currentGoal();
+    if (!text || this.showing || this.game.hud.helpOpen) return false;
+    if (this.game.hud.root.querySelector('.adv-card.show, .rv-card.show')) return false;
+    // A repeat of a goal waiting in the queue is said now instead of twice.
+    const i = this.guideQueue.indexOf(text);
+    if (i >= 0) this.guideQueue.splice(i, 1);
+    this.lastRecall = this.clock;
+    this.show(text, true, false);
+    return true;
+  }
+
+  /** The reminder orb: there in story mode while Ora is quiet; glowing for a while after a new goal. */
+  private updateRemind(dt: number, hidden: boolean, card: boolean) {
+    const on = !hidden && !card && !this.showing && !!this.currentGoal();
+    this.remindEl.classList.toggle('on', on);
+    if (this.remindGlow > 0) {
+      if (on) this.remindGlow -= dt;
+      this.remindEl.classList.toggle('fresh', this.remindGlow > 0);
+    }
+  }
+
   /** Debug/test: the state of the watchers. */
   state() {
     return {
@@ -237,6 +308,7 @@ export class Ora {
       guide: this.guideQueue[0] ?? null,
       showing: this.showing ? this.lineEl.textContent : null,
       once: [...this.once],
+      remind: this.remindEl.classList.contains('on') ? (this.remindEl.classList.contains('fresh') ? 'fresh' : 'on') : 'off',
     };
   }
 
@@ -304,6 +376,7 @@ export class Ora {
     // Ora shares the top centre with the speaking characters: it steps aside while one of them talks.
     const card = !!g.hud.root.querySelector('.adv-card.show, .rv-card.show');
     this.el.classList.toggle('away', hidden || card);
+    this.updateRemind(dt, hidden, card);
     if (hidden) return;
     this.clock += dt;
     this.watchAdvisors();
@@ -313,7 +386,12 @@ export class Ora {
       if (!card) this.t += dt;
       const end = FADE_IN + this.hold + FADE_OUT;
       if (this.t >= FADE_IN + this.hold) this.el.classList.remove('show');
-      if (this.t >= end) this.showing = false;
+      if (this.t >= end) {
+        this.showing = false;
+        // A new goal has just been said: the reminder glows softly where Ora was, for a while.
+        if (this.goalLine) this.remindGlow = REMIND_GLOW;
+        this.goalLine = false;
+      }
       return;
     }
 
@@ -347,11 +425,14 @@ export class Ora {
     this.show(line, false);
   }
 
-  private show(line: string, guide: boolean) {
+  private show(line: string, guide: boolean, tone = true) {
     this.guiding = guide;
     this.lastSpoke = this.clock;
     this.lineEl.textContent = line;
-    this.hold = Math.min(HOLD_MAX, HOLD_BASE + line.length * HOLD_PER_CHAR);
+    this.goalLine = this.goalLines.delete(line);
+    this.hold = guide
+      ? Math.max(GUIDE_HOLD_MIN, Math.min(GUIDE_HOLD_MAX, GUIDE_HOLD_BASE + line.length * GUIDE_HOLD_PER_CHAR))
+      : Math.min(HOLD_MAX, HOLD_BASE + line.length * HOLD_PER_CHAR);
     this.t = 0;
     this.showing = true;
     this.el.style.setProperty('--ora-in', `${FADE_IN}s`);
@@ -359,7 +440,8 @@ export class Ora {
     this.el.classList.remove('show');
     void this.el.offsetWidth; // restart the entrance
     this.el.classList.add('show');
-    void this.game.audio.oraTone();
+    // A line asked for again (the reminder) comes without the tone: it is not news.
+    if (tone) void this.game.audio.oraTone();
   }
 
   /** Keep out of Lumi's and Fizz's way, and count their cards (for the "two sides" insight). */
