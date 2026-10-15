@@ -337,11 +337,22 @@
 
 /* ------------------------------------------------------------ advisors */
 
+/* Every voice (Lumi, Fizz, Vexahl, Ora) speaks from the very top centre. Wide screens: the top edge.
+   Narrower ones: just under the top-right bar, so the words never sit on the buttons. */
+:root {
+  --talk-top: 66px;
+}
+@media (min-width: 1800px) {
+  :root {
+    --talk-top: 14px;
+  }
+}
+
 .adv-card {
   /* The one place Lumi and Fizz speak: a bubble at the top centre, where the eye already is. */
   position: absolute;
   left: 50%;
-  top: 14vh;
+  top: var(--talk-top);
   z-index: 30;
   width: max-content;
   max-width: min(560px, calc(100vw - 28px));

@@ -121,7 +121,8 @@ export class Ora {
   private readonly lastOf = new Map<OraMoment, number>();
   private pending: Pending | null = null;
   /** Story mode (src/story): the next goal, in Ora's words. Spoken before any waiting moment; never goes stale. */
-  private guidePending: string | null = null;
+  /** Guide lines waiting their turn (story mode), oldest first; a repeat of one already waiting is dropped. */
+  private readonly guideQueue: string[] = [];
   /** The line on screen is a guide line. */
   private guiding = false;
   private spoken = 0;
@@ -206,12 +207,13 @@ export class Ora {
    * rare-insight limit. Free play never calls this.
    */
   guide(text: string) {
-    if (text.trim()) this.guidePending = text;
+    if (text.trim() && !this.guideQueue.includes(text)) this.guideQueue.push(text);
+    if (this.guideQueue.length > 3) this.guideQueue.shift();
   }
 
   /** A guide line is waiting or on screen. */
   get guideBusy(): boolean {
-    return !!this.guidePending || (this.showing && this.guiding);
+    return this.guideQueue.length > 0 || (this.showing && this.guiding);
   }
 
   /** Debug/test: the state of the watchers. */
@@ -221,7 +223,7 @@ export class Ora {
       fromBalanceSystem: typeof (this.game as unknown as { balance?: unknown }).balance !== 'undefined',
       spoken: this.spoken,
       pending: this.pending?.moment ?? null,
-      guide: this.guidePending,
+      guide: this.guideQueue[0] ?? null,
       showing: this.showing ? this.lineEl.textContent : null,
       once: [...this.once],
     };
@@ -305,10 +307,9 @@ export class Ora {
     }
 
     const quiet = !card && !this.advisorWasShowing && this.clock - this.advisorQuietSince >= AFTER_ADVISORS;
-    if (this.guidePending) {
+    if (this.guideQueue.length) {
       if (!quiet || this.clock - this.lastSpoke < GUIDE_GAP || g.paused) return;
-      const text = this.guidePending;
-      this.guidePending = null;
+      const text = this.guideQueue.shift()!;
       this.show(text, true);
       return;
     }

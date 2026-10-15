@@ -43,7 +43,7 @@ export const LEAD: Record<StepId, (c: Ctx) => string> = {
       ? `${c.v} has turned its face away. It could still turn back.`
       : c.again
         ? `Your light reaches ${c.v} now. They are watching, to see who you are.`
-        : `The old stones stand. Their light could reach ${c.v} now, if ${c.v} learned to believe.`,
+        : `The old stones stand, and your light reaches ${c.v}. They believe in a god who answers: hear their prayers, and drop what they need on their storehouse.`,
   carry: (c) => `${c.v} is beyond your light. If ${c.via} raised its stones, the light would carry.`,
   raise: (c) =>
     c.dreaming
@@ -62,7 +62,7 @@ export const NUDGE: Record<StepId, (c: Ctx, i: number) => string> = {
     pick(
       c.dreaming
         ? [`${c.v} is building a dream of its own. Help them raise it, and see what grows.`, `A gift, a rain, a kindness. ${c.v} is watching.`]
-        : [`${c.v} has needs of its own. Answer them, and see what grows.`, `A gift, a rain, a kindness. ${c.v} is watching.`],
+        : [`${c.v} has needs of its own. Answer their prayers, and their belief grows.`, `A tree, food, a rain on their fields. Each gift to ${c.v} is a little more belief.`],
       i,
     ),
   carry: (c, i) => pick([`${c.via}'s stones would carry your light to ${c.v}.`, `${c.via} needs stone, if the light is to reach ${c.v}.`], i),

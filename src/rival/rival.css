@@ -129,7 +129,7 @@
   /* Same spot as Lumi and Fizz: all dialogue speaks from the top centre. */
   position: absolute;
   left: 50%;
-  top: 14vh;
+  top: var(--talk-top);
   z-index: 30;
   width: 400px;
   max-width: calc(100vw - 28px);

@@ -5,11 +5,11 @@
   --ora-out: 2s;
   position: absolute;
   left: 50%;
-  top: 14vh;
+  top: calc(var(--talk-top) + 10px);
   display: flex;
   align-items: center;
   gap: 16px;
-  max-width: min(760px, calc(100vw - 48px));
+  max-width: min(640px, calc(100vw - 48px));
   transform: translate(-50%, 6px);
   pointer-events: none;
   opacity: 0;
