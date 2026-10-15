@@ -5,6 +5,15 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 ## [Unreleased]
 
 ### Added
+- Vexahl enters the story (story mode). His spire-isle now sits, small and hazy, at the top-left sea edge of the view the game starts on (it used to be 1,450 m out, where the top-down camera never looked). When Ashford raises its standing stones, the camera glances out to his isle once, he says his first line, Fizz answers, and Ora notices: "Out at the sea's edge, someone is watching. Someone who was always there." From then on each neighbour your light reaches draws one small move from him, shown on his card and chip: whispers that slow its belief (answer its prayers, give gifts, work a miracle there, or bring the golem), then a blight on a later village's fields (a water miracle washes it away). Neither can turn a village you haven't won yet. When every temple stands he says his last word and stops. Free play keeps the balance-only rules; low balance still wakes him and makes him bite harder in both modes.
+- The tune step is real: the Ascension now waits one game day after the LAST temple stands, counted only while the island stays in tune (a dip pauses it, a fallen temple restarts it). Ora's "Every temple stands" line now plays, and you get a calm closing stretch. In free play the ascension light rises on the same rule.
+
+### Fixed
+- Vexahl's card and Lumi's and Fizz's no longer show on top of each other at the top centre: each waits for the other's to finish.
+- Ora's goal line for the tune step clears stale goal lines still waiting, and Vexahl's first-notice line jumps the queue, so neither arrives minutes late.
+- Sea stacks no longer stand where his isle is.
+
+### Added
 - Voiced Lumi and Fizz's 14 new story-mode lines (Qwen3 Sohee and Kokoro fable, same settings and loudness as the rest), so they no longer fall back to synth babble. Ora stays text-only.
 - Vexahl speaks aloud: 56 recorded lines (Kokoro bm_daniel pitched down), played on his card, which stays up for the clip plus 0.6s; the synth motif remains the fallback. Voice candidates in docs/voice-candidates/.
 - Story mode, the default on a first island: Ora names one goal at a time on the road to the Ascension, re-nudges gently if you're stuck, and a soft light marks the goal. Beating the story unlocks free play: a new island then offers Story or Free play (no guidance, you ascend when you choose).
