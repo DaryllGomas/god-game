@@ -196,6 +196,8 @@ export class RivalUI {
     const q = this.queue[0];
     if (!q) return;
     if (q.line.who === 'rival') {
+      // Lumi's and Fizz's cards share the top centre with his: let a card of theirs that is up finish first.
+      if (this.game.hud.root.querySelector('.adv-card.show') && ++q.tries < 600) return;
       this.queue.shift();
       void this.showRival(q.line.text);
     } else {

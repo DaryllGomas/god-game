@@ -13,8 +13,10 @@ import {
   ADVISOR_FOILED, ADVISOR_RETREAT, ADVISOR_START, ADVISOR_TURNED, ADVISOR_WON_BACK, ARRIVAL_LINES, ARRIVE_DELAY, ARRIVE_PATIENCE, CHILD_NAMES,
   DEPTHS, DIFFICULTY, EARLY, FIRST_SCHEME_DELAY, FOIL_GOAL, FOIL_POWER, HAND, IDLE_TAUNTS, MOOD_LINE_GAP, MOOD_TEXT, PEACE_SECONDS, QUIET, QUIET_LINES,
   RESUME_LINES, RETREAT_LINES, RIVAL_NAME, SCHEME_GAP, SCHEME_INFO, SCHEME_LINES, SCHEME_MIN_PRESSURE, STIR, STIR_LINES, TURNED_BELIEF, TURN_LINES,
-  WONDER_LINES, WON_BACK_LINES, type Difficulty, type Line, type Mood, type SchemeKind,
+  WONDER_LINES, WON_BACK_LINES, COURT, FAREWELL_LINES, NOTICE_DISTANCE, NOTICE_GLANCE, NOTICE_LINES, ORA_NOTICE,
+  type Difficulty, type Line, type Mood, type SchemeKind,
 } from './data';
+import { stageIndex } from '../shrines/stages';
 import { RivalIsle, TurnedMark } from './RivalVisuals';
 import { GraspingHand, Blight, VioletStorm, Whispers, type Fading, type Outcome, type Scheme } from './Schemes';
 import { RivalUI } from './RivalUI';
@@ -84,6 +86,16 @@ export class Rival {
   /** Put the isle straight where the balance says on the first frame (a loaded island shouldn't drift in). */
   private snapIsle = true;
   private cam: { x: number; z: number; dist: number; dyaw: number; dpitch: number } | null = null;
+  /** Story mode: he has noticed you (the home village's standing stones; see notice()). */
+  noticed = false;
+  /** Story mode: villages he has already made his one move on. */
+  private readonly courted = new Set<string>();
+  /** Story mode: game seconds each neighbour has believed in you a little (see COURT.after). */
+  private readonly courtT = new Map<Village, number>();
+  /** Game time his last scheme ended (spacing for the story moves). */
+  private lastEnded = -1e9;
+  /** Story mode, the tune step: his last word has been said; no more moves. */
+  farewell = false;
   private readonly ray = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
 
@@ -232,6 +244,79 @@ export class Rival {
     this.later(3, () => this.ui.say(STIR_LINES));
   }
 
+  // ------------------------------------------------------------ story mode
+
+  /** Story mode is on and the island is in play (src/story). Free play keeps the balance-only rules. */
+  private get storyMode(): boolean {
+    const st = (this.game as unknown as { story?: { active: boolean } }).story;
+    return !!st?.active;
+  }
+
+  private homeHasStones(): boolean {
+    const home = this.game.villages.find((v) => v.isHome);
+    return !!home && home.owner === 'player' && stageIndex(home.shrineStage) >= stageIndex('stone_circle');
+  }
+
+  /**
+   * Story mode: Ashford's standing stones go up and, out at the sea's edge, he notices. The camera glances out to
+   * his isle once, he says his first line, Fizz answers, and Ora names it. From here he is present (his chip in the
+   * village list) but quiet: he moves only on the villages you are winning (court), or if the world tips (STIR).
+   * `quick` (a loaded island, or he had already stirred) marks it without the moment.
+   */
+  notice(quick = false) {
+    if (this.noticed) return;
+    this.noticed = true;
+    const g = this.game;
+    if (this.stage !== 'dormant') return; // he already stirred (the world tipped first): nothing new to notice
+    this.stage = 'present';
+    this.arrivedAt = g.time;
+    this.tauntT = rand(100, 160);
+    this.setMood('brooding', 90);
+    this.ui.show(true);
+    g.events.emit('rivalArrived', {});
+    if (quick) return;
+    this.isle.pulse(1.2);
+    g.audio.rivalArrives();
+    g.message(`Out at the sea's edge, ${RIVAL_NAME} has noticed your island.`, 'warn', 'rival-notice');
+    (g as unknown as { ora?: { guide(t: string, o?: { first?: boolean }): void } }).ora?.guide(ORA_NOTICE, { first: true });
+    this.glance(true, { toward: 1, pitch: 0.3, distance: NOTICE_DISTANCE });
+    this.later(NOTICE_GLANCE, () => this.glance(false));
+    this.later(2.5, () => this.ui.say(NOTICE_LINES));
+  }
+
+  /**
+   * Story mode: each village your light reaches (the one Ora asks you to win) draws ONE small move from him, soon
+   * after it comes within reach (once the glance is over), one at a time, with room between. Whispers first (they
+   * slow its belief), blight on a later village (its fields wither until a water miracle). Both are telegraphed on his card and counterable; neither can turn a
+   * neutral village. When every temple stands he says his last word and stops (the tune step).
+   */
+  private court(dt: number) {
+    const g = this.game;
+    if (this.farewell) return;
+    if (g.allTemplesStand()) {
+      this.farewell = true;
+      if (this.scheme?.courting) this.finish('faded');
+      this.setMood('sulking', 1e9);
+      this.ui.say(FAREWELL_LINES, { delay: 9 });
+      return;
+    }
+    for (const v of g.villages) {
+      const wooed = v.owner === null && v.population > 0 && g.withinReach(v) && !this.courted.has(v.name);
+      if (wooed) this.courtT.set(v, (this.courtT.get(v) ?? 0) + dt);
+      else this.courtT.delete(v);
+    }
+    // His lines queue behind whatever he is saying, so only the camera glance and another scheme hold him back.
+    if (this.scheme || this.stirring || this.cam || g.time - this.lastEnded < COURT.gap) return;
+    const v = [...this.courtT.keys()].find((x) => (this.courtT.get(x) ?? 0) >= COURT.after);
+    if (!v) return;
+    this.courted.add(v.name);
+    this.courtT.delete(v);
+    const fields = v.fields.filter((f) => f.alive && !f.burning).length;
+    const s: Scheme = this.courted.size >= 2 && fields >= 2 ? new Blight(this, v) : new Whispers(this, v);
+    s.courting = true;
+    this.start(s);
+  }
+
   /** The Wonder is finished while he is already here: from now on, the v0.4 rules. */
   private wonderWhilePresent() {
     this.stirring = true;
@@ -265,25 +350,31 @@ export class Rival {
     }
   }
 
-  /** Swing the camera out to sea so you see his isle, then bring it back. */
-  private glance(on: boolean) {
+  /**
+   * Swing the camera out to sea so you see his isle, then bring it back. `shot` (the story beat): how far from the
+   * view's centre toward the isle the focus moves, how low it looks, and from how far (otherwise a wide look, at
+   * least 360 m out).
+   */
+  private glance(on: boolean, shot?: { toward: number; pitch: number; distance: number }) {
+    const toward = shot?.toward ?? 0.3;
+    const pitch = shot?.pitch ?? 0.3;
     const cam = this.game.godCam;
     const isle = this.isle.group.position;
     if (on) {
       const t = cam.target;
-      const px = t.x + (isle.x - t.x) * 0.3;
-      const pz = t.z + (isle.z - t.z) * 0.3;
+      const px = t.x + (isle.x - t.x) * toward;
+      const pz = t.z + (isle.z - t.z) * toward;
       const dx = isle.x - px;
       const dz = isle.z - pz;
       const want = Math.atan2(-dx, -dz);
       let dyaw = (want - cam.yaw) % (Math.PI * 2);
       if (dyaw > Math.PI) dyaw -= Math.PI * 2;
       if (dyaw < -Math.PI) dyaw += Math.PI * 2;
-      const dpitch = 0.3 - cam.pitch;
+      const dpitch = pitch - cam.pitch;
       this.cam = { x: t.x, z: t.z, dist: cam.distance, dyaw, dpitch };
       cam.flyTo(px, pz);
       cam.rotate(dyaw, dpitch);
-      cam.setDistance(Math.max(cam.distance, 360));
+      cam.setDistance(shot ? shot.distance : Math.max(cam.distance, 360));
     } else if (this.cam) {
       const c = this.cam;
       this.cam = null;
@@ -417,6 +508,8 @@ export class Rival {
     this.scheme = null;
     this.fading.push(...s.end(outcome));
     for (const v of s.targets) v.rivalPressure = 0;
+    this.lastEnded = this.game.time;
+    this.game.events.emit('schemeEnded', { kind: s.kind, village: s.village, outcome, courting: s.courting });
     this.nextIn = rand(SCHEME_GAP[0], SCHEME_GAP[1]) * this.diff.gap;
     const g = this.game;
     const lines = SCHEME_LINES[s.kind];
@@ -580,6 +673,8 @@ export class Rival {
   /** Simulation step (game seconds). */
   update(dt: number) {
     const g = this.game;
+    // Story mode: the home village's standing stones catch his eye (and a loaded island past that point remembers).
+    if (!this.noticed && this.storyMode && this.homeHasStones()) this.notice();
     // Before the Wonder, the world tipping far enough wakes him.
     if (this.stage === 'dormant' && !this.pending && this.balance < STIR) this.stir();
     // Waiting for the Wonder's moment to pass.
@@ -608,6 +703,7 @@ export class Rival {
     else this.peaceT = 0;
 
     if (!this.wonder) this.followBalance();
+    if (this.storyMode && !this.wonder) this.court(dt);
     if (this.scheme) {
       const out = this.scheme.update(dt);
       if (out) this.finish(out);
@@ -634,7 +730,9 @@ export class Rival {
     this.tauntT -= dt;
     if (this.tauntT <= 0 && !this.scheme && !this.ui.talking) {
       this.tauntT = rand(140, 240);
-      this.ui.say(pick(IDLE_TAUNTS));
+      // Story mode: he speaks at his moves (paced, see COURT), not in between, unless the world has stirred him.
+      if (this.storyMode && !this.stirring && !this.wonder) return;
+      this.ui.say(pick(this.wonder ? IDLE_TAUNTS : IDLE_TAUNTS.filter((l) => !l.text.includes('Wonder'))));
     }
   }
 
@@ -767,6 +865,9 @@ export class Rival {
       wonder: this.wonder,
       stirring: this.stirring,
       arrivedAt: Math.round(this.arrivedAt * 10) / 10,
+      noticed: this.noticed,
+      courted: [...this.courted],
+      farewell: this.farewell,
       // Villagers he carried off still wash up on a beach (time left, in game seconds).
       abducted: this.abducted.map((a) => ({ v: g.villages.indexOf(a.village), in: Math.round(Math.max(0, a.at - g.time)), name: a.name })),
     };
@@ -786,6 +887,10 @@ export class Rival {
     // Before v0.5 he only ever came after the Wonder.
     this.wonder = typeof d.wonder === 'boolean' ? d.wonder : d.stage !== 'dormant' || !!d.pending;
     this.stirring = typeof d.stirring === 'boolean' ? d.stirring : d.stage === 'present';
+    this.noticed = !!d.noticed;
+    this.farewell = !!d.farewell;
+    this.courted.clear();
+    for (const n of d.courted ?? []) if (typeof n === 'string') this.courted.add(n);
     this.abducted.length = 0;
     for (const a of d.abducted ?? []) {
       const village = g.villages[a.v];
@@ -839,6 +944,9 @@ export class Rival {
       scheme: s ? { ...s.describe(), countdown: +s.countdown().toFixed(1), progress: +s.progress().toFixed(2) } : null,
       carriedOff: this.abducted.length,
       talking: this.ui.talking,
+      noticed: this.noticed,
+      courted: [...this.courted],
+      farewell: this.farewell,
     };
   }
 

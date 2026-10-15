@@ -80,8 +80,8 @@ export class Story {
     return (this.game as unknown as { prayerSystem?: { advisors?: Advisors } }).prayerSystem?.advisors ?? null;
   }
 
-  private get ora(): { guide(t: string): void; guideBusy: boolean } | null {
-    return (this.game as unknown as { ora?: { guide(t: string): void; guideBusy: boolean } }).ora ?? null;
+  private get ora(): { guide(t: string, o?: { clear?: boolean }): void; guideBusy: boolean } | null {
+    return (this.game as unknown as { ora?: { guide(t: string, o?: { clear?: boolean }): void; guideBusy: boolean } }).ora ?? null;
   }
 
   /** Story mode is on and the island is in play (not an ending, not the first question). */
@@ -213,7 +213,8 @@ export class Story {
       this.stuck = 0;
       this.nudges = 0;
       const c = this.ctx(goal, first && this.led.has(goal.id));
-      this.ora?.guide(LEAD[goal.id](c));
+      // The tune step: every temple stands, so any goal line still waiting is stale; Ora's closing line goes now.
+      this.ora?.guide(LEAD[goal.id](c), { clear: goal.id === 'tune' });
       const say = ADVISORS_ON[goal.id];
       if (say && fresh && !first) this.advisors?.say(say(c), { pri: 'important', topic: `story-${goal.id}`, cooldown: 120, argument: true });
       this.led.add(goal.id);

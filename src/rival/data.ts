@@ -60,9 +60,16 @@ export const DEPTHS = 0.15;
 export const EARLY = { pace: [0.5, 1.5] as [number, number], bite: [0.55, 1.25] as [number, number] };
 /** He starts small: the least pressure at which each scheme can be picked before the Wonder. */
 export const SCHEME_MIN_PRESSURE: Record<SchemeKind, number> = { whispers: 0, blight: 0.2, hand: 0.4, storm: 0.65 };
-/** His isle: far, low and small while the world is in tune; near and tall as it falls. Distance from the island's centre, and scale. */
-export const ISLE_FAR = { dist: 1450, scale: 0.32 };
-export const ISLE_NEAR = { dist: 580, scale: 0.7 };
+/**
+ * His isle: small and hazy at the sea edge while the world is in tune; tall and dark as it falls. Distance from the
+ * island's centre (along ISLE_POS in RivalVisuals), and scale. Since 2026-10-14 the far isle sits where the default
+ * top-down view catches it (top-left sea, off Ashford); it grows rather than travels, and drifts a little further
+ * out as it grows so its foot stays in deep water.
+ */
+export const ISLE_FAR = { dist: 312, scale: 0.1 };
+export const ISLE_NEAR = { dist: 385, scale: 0.6 };
+/** How strongly the far isle is veiled in sea haze (0 = none); fades to nothing as it nears. */
+export const ISLE_HAZE = 0.14;
 /** Balance at which the isle is farthest, and nearest. */
 export const ISLE_RANGE: [number, number] = [0.85, 0.15];
 /** Balance at which his isle is still, and at its stormiest (glow, beam, the violet storm-eye, bolts). */
@@ -71,6 +78,25 @@ export const ISLE_STORM: [number, number] = [0.62, 0.15];
 export const ISLE_DRIFT = 6;
 /** Game seconds between his lines about going quiet or stirring again. */
 export const MOOD_LINE_GAP = 150;
+
+// ------------------------------------------------- story mode: he enters the road (2026-10-14)
+
+/**
+ * Story mode (Daryll, 2026-10-14: "I didn't really see Vexahl come in anywhere"). When the home village raises its
+ * standing stones he notices you (a glance out to sea, his first line), and from then on each neighbour your light
+ * reaches (the village Ora asks you to win) draws ONE small, counterable move from him (`COURT`). Free play keeps
+ * the balance-only rules above.
+ * - after: game seconds a neutral village must have been within your light before he moves on it.
+ *   Short on purpose: today a village can be won in under a minute, and the move should meet you while you court it.
+ * - gap: game seconds after his last scheme ended before the next move.
+ * - drain: whispers on a village you are winning pull its belief back this fast (per game second, before `bite`):
+ *   about one answered prayer's worth over the whole scheme if left alone. It never turns a neutral village.
+ */
+export const COURT = { after: 12, gap: 25, drain: 0.3 };
+/** Real seconds the camera lingers out at sea when he first notices you (story mode). */
+export const NOTICE_GLANCE = 7;
+/** Camera distance for that glance (centred on his isle, from above and behind the home village, over its shore). */
+export const NOTICE_DISTANCE = 125;
 
 /** The gentle difficulty knob: scales the gap between schemes, how hard they bite, and how long the warnings are. */
 export const DIFFICULTY: Record<Difficulty, { label: string; gap: number; bite: number; warn: number; turnWeight: number }> = {
@@ -230,6 +256,15 @@ export const WONDER_LINES: Line[] = [
   L('rival', 'A Wonder. How tall. How shiny. It will look lovely... on MY island.'),
   L('imp', 'Uh oh. He has That Look. The one with the eyebrows.'),
 ];
+
+/**
+ * Story mode: the home village raises its standing stones and he notices (all three lines are recorded).
+ * Ora's words go to its guide line (text only; Ora is "it").
+ */
+export const NOTICE_LINES: Line[] = [ARRIVAL_LINES[0], ARRIVAL_LINES[2]];
+export const ORA_NOTICE = 'Out at the sea\'s edge, someone is watching. Someone who was always there.';
+/** Story mode, the tune step: every temple stands and he has nothing left to court (recorded). */
+export const FAREWELL_LINES: Line[] = [QUIET_LINES[1]];
 
 /** Occasional pettiness while he is around and nothing is scheming. */
 export const IDLE_TAUNTS: Line[] = [

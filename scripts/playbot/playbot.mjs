@@ -65,6 +65,9 @@ await p.evaluate(() => {
 await p.getByText('Begin', { exact: false }).first().click({ timeout: 20000 });
 await p.evaluate(() => game.audio.setMuted(true));
 await p.waitForFunction(() => game.pace.confirmed && game.story.active, null, { timeout: 60000 });
+// The view the game starts on, untouched (his isle should sit at its top-left sea edge).
+await p.waitForTimeout(4000);
+await p.screenshot({ path: `${process.env.OUT_DIR}/00-default-view.png` });
 
 // ------------------------------------------------------------------ the bot, in the page
 await p.evaluate((CFG) => {
@@ -102,13 +105,13 @@ await p.evaluate((CFG) => {
   const ora = g.ora;
   const og = ora.guide.bind(ora);
   let stoneLines = 0;
-  ora.guide = (t) => {
+  ora.guide = (t, o) => {
     ev('ora', t, { how: 'guide' });
     if (CFG.learnsStone && /stone/i.test(t) && ++stoneLines === CFG.learnsStone.afterLines) {
       CFG.siteReact = CFG.learnsStone.siteReact;
       ev('learn', `the newcomer takes Ora's word: dreams want stone (now helps dreams after ${CFG.siteReact} s)`);
     }
-    return og(t);
+    return og(t, o);
   };
   const orr = ora.raise.bind(ora);
   ora.raise = (m, f) => {
@@ -128,8 +131,16 @@ await p.evaluate((CFG) => {
   if (rv?.ui) {
     const rs = rv.ui.say.bind(rv.ui);
     rv.ui.say = (lines, o) => {
-      for (const l of Array.isArray(lines) ? lines : [lines]) ev('vexahl', l.text, { who: l.who });
+      for (const l of Array.isArray(lines) ? lines : [lines]) {
+        if (l.who === 'rival') ev('vexahl', l.text, { who: l.who });
+        else ev('advisor', `${l.text} (queued with Vexahl's beat)`, { who: WHO[l.who] ?? l.who });
+      }
       return rs(lines, o);
+    };
+    const sr = rv.ui.showRival.bind(rv.ui);
+    rv.ui.showRival = (text) => {
+      ev('vexahl-shown', text);
+      return sr(text);
     };
     const rb = rv.ui.banner.bind(rv.ui);
     rv.ui.banner = (t, s) => {
@@ -166,7 +177,23 @@ await p.evaluate((CFG) => {
   E.on('householdJoined', ({ village: v, families, of, joined }) =>
     ev('household', `${v.name}: a family ${joined ? 'comes to believe' : 'lets go'} (${families} of ${of} families with you, belief ${Math.floor(v.belief)})`, { village: v.name, families, of }),
   );
-  E.on('rivalArrived', () => ev('vexahl', 'Vexahl arrives / stirs (rivalArrived)'));
+  E.on('rivalArrived', () => {
+    const r = g.rival.state();
+    ev('vexahl', `Vexahl ${r.noticed && !r.stirring ? 'notices you (story beat)' : 'arrives / stirs'} (rivalArrived; balance ${r.balance})`);
+    if (r.noticed && !r.stirring) B.shots.push({ key: '03b-vexahl-notices-glance', focus: null, wait: 4500 });
+  });
+  B.schemes = 0;
+  E.on('schemeStarted', ({ kind, village: v }) => {
+    const s = g.rival.scheme;
+    B.schemes++;
+    B.schemeN = B.schemes;
+    ev('scheme', `Vexahl's ${kind} on ${v.name} begins (${s?.courting ? 'story move on a village you are winning' : 'balance scheme'}; ${v.name} belief ${Math.floor(v.belief)}%, owner ${v.owner ?? 'nobody'})`, { village: v.name, kind });
+    B.shots.push({ key: `10-scheme${B.schemes}-${kind}-${v.name}-start`, focus: { x: v.center.x, z: v.center.z, distance: 200 } });
+  });
+  E.on('schemeEnded', ({ kind, village: v, outcome, courting }) => {
+    ev('scheme', `Vexahl's ${kind} on ${v.name} ends: ${outcome.toUpperCase()}${courting ? ' (story move)' : ''} (${v.name} belief ${Math.floor(v.belief)}%, owner ${v.owner ?? 'nobody'})`, { village: v.name, kind, outcome });
+    B.shots.push({ key: `10-scheme${B.schemeN}-${kind}-${v.name}-${outcome}`, focus: { x: v.center.x, z: v.center.z, distance: 200 } });
+  });
   E.on('villagerBorn', ({ villager }) => (B.born[name(villager.village)] = (B.born[name(villager.village)] ?? 0) + 1));
   E.on('villagerDied', ({ villager, cause }) => {
     const k = `${name(villager.village)}:${cause}`;
@@ -351,6 +378,16 @@ await p.evaluate((CFG) => {
       rival_isle_visible: isle ? isle.visible : '',
       rival_isle_dist: isle ? Math.round(Math.hypot(isle.position.x, isle.position.z)) : '',
       rival_isle_scale: isle ? +isle.scale.x.toFixed(3) : '',
+      rival_noticed: r.noticed ?? '',
+      rival_courted: (r.courted ?? []).join('|'),
+      rival_farewell: r.farewell ?? '',
+      rival_foiled: r.foiled ?? '',
+      rival_scheme_village: r.scheme?.village ?? '',
+      rival_scheme_phase: r.scheme?.phase ?? '',
+      rival_scheme_repel: r.scheme?.repel ?? '',
+      temples_stand: g.allTemplesStand(),
+      tune_days: +(g.endings.tuneDays ?? 0).toFixed(3),
+      day_clock: +(g.day + g.dayTime).toFixed(3),
     };
     for (const v of g.villages) {
       const k = v.name;
@@ -414,6 +451,10 @@ await p.evaluate((CFG) => {
     once('06b-stonemere-glow-joins', () => S.owner === null && g.withinReach(S) && Math.min(...g.ownLight().map((l) => Math.hypot(l.shape.ax - S.center.x, l.shape.az - S.center.z) - g.lightEdgeToward(l.village, S.center.x, S.center.z))) <= g.neighbourGlow(S).ra, { ...between(Br, S, 380), hour: 0.79 });
     once('06c-stonemere-half-joined', () => S.owner === null && S.familiesWithYou() >= Math.max(1, S.familiesNeeded() - 1), { x: S.center.x, z: S.center.z, distance: 120 });
     once('07-stonemere-converted', () => S.owner === 'player', at(S));
+    if (!B.seen.tune && g.allTemplesStand()) {
+      B.seen.tune = g.time;
+      ev('milestone', `tune step begins: every temple stands (day clock ${(g.day + g.dayTime).toFixed(2)}, balance ${g.balance.value.toFixed(3)})`);
+    }
     for (const v of g.villages) once(`08-temple-${v.name}`, () => v.shrineStage === 'temple' && v.owner === 'player', at(v, 150));
     // Stuck: more than 10 game minutes on one goal.
     const key = g.story.goal?.key ?? '';
@@ -447,7 +488,7 @@ await p.evaluate((CFG) => {
         B.row();
       }
       if (g.endings.phase !== 'play') {
-        ev('ending', `ending phase: ${g.endings.phase}`);
+        ev('ending', `ending phase: ${g.endings.phase} (tune step lasted ${B.seen.tune === undefined ? '?' : Math.round(g.time - B.seen.tune)} game s, ${(g.endings.tuneDays ?? 0).toFixed(2)} game days in tune)`);
         B.shots.push({ key: `09-ending-${g.endings.phase}`, focus: at(g.villages[0], 300) });
         return { end: g.endings.phase };
       }
@@ -472,28 +513,31 @@ const fmt = (t) => `${String(Math.floor(t / 60)).padStart(3, '0')}:${String(Math
 
 // Milestone shots are taken in daylight (DAYLIGHT_SHOTS=0 keeps the game's own hour): the clock is set to late
 // morning for the shot and put back after, so judging a look never depends on whether it happened at night.
+// A shot with no focus (the rival's glance) keeps the game's own camera and hour.
 const DAYLIGHT = process.env.DAYLIGHT_SHOTS !== '0';
-async function shoot(key, focus) {
+async function shoot(key, focus, wait = 1600) {
   const keep = await p.evaluate(
     ({ f, day }) => {
       delete game.render;
-      game.godCam.setPose({ x: f.x, z: f.z, distance: f.distance, pitch: 0.82, yaw: 0.5 }, true);
       const was = game.dayTime;
-      // Late morning, or the hour a shot asks for (the light's gold edge reads best at dusk).
-      if (day) game.dayTime = f.hour ?? 0.42;
-      game.input.inside = false; // no hand in the picture
+      if (f) {
+        game.godCam.setPose({ x: f.x, z: f.z, distance: f.distance, pitch: 0.82, yaw: 0.5 }, true);
+        // Late morning, or the hour a shot asks for (the light's gold edge reads best at dusk).
+        if (day) game.dayTime = f.hour ?? 0.42;
+        game.input.inside = false; // no hand in the picture
+      }
       return was;
     },
-    { f: focus, day: DAYLIGHT },
+    { f: focus, day: DAYLIGHT && !!focus },
   );
-  await p.waitForTimeout(1600);
+  await p.waitForTimeout(wait);
   const file = `${key}.png`;
   await p.screenshot({ path: `${OUT}/${file}` });
   shotsTaken.push(file);
   await p.evaluate(({ was, day }) => {
     if (day) game.dayTime = was;
     game.input.inside = true;
-  }, { was: keep, day: DAYLIGHT });
+  }, { was: keep, day: DAYLIGHT && !!focus });
 }
 
 async function flush() {
@@ -501,7 +545,7 @@ async function flush() {
   const now = realS();
   for (const e of d.events) events.push({ ...e, real: Math.round(now) });
   for (const r of d.timeline) timeline.push({ ...r, real_s: Math.round(now) });
-  for (const s of d.shots) await shoot(s.key, s.focus);
+  for (const s of d.shots) await shoot(s.key, s.focus, s.wait);
   return d;
 }
 
@@ -512,7 +556,7 @@ async function writeOut(final = false) {
   await fs.writeFile(`${OUT}/timeline.csv`, csv);
   await fs.writeFile(`${OUT}/timeline.json`, JSON.stringify(timeline));
   await fs.writeFile(`${OUT}/events.json`, JSON.stringify(events));
-  const label = { ora: 'Ora', 'ora-shown': 'Ora (on screen)', advisor: '', vexahl: 'Vexahl' };
+  const label = { ora: 'Ora', 'ora-shown': 'Ora (on screen)', advisor: '', vexahl: 'Vexahl', 'vexahl-shown': 'Vexahl (card on screen)', scheme: 'SCHEME' };
   const lines = events
     .filter((e) => e.type !== 'act' || final)
     .map((e) => {
