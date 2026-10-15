@@ -86,6 +86,8 @@ export class Rival {
   /** Put the isle straight where the balance says on the first frame (a loaded island shouldn't drift in). */
   private snapIsle = true;
   private cam: { x: number; z: number; dist: number; dyaw: number; dpitch: number } | null = null;
+  /** Where the glance put the camera, to tell whether the player moved it before the glance ends. */
+  private camAt: { x: number; z: number; distance: number } | null = null;
   /** Story mode: he has noticed you (the home village's standing stones; see notice()). */
   noticed = false;
   /** Story mode: villages he has already made his one move on. */
@@ -361,6 +363,9 @@ export class Rival {
     const cam = this.game.godCam;
     const isle = this.isle.group.position;
     if (on) {
+      // Never swing the view while the player is holding something or dragging (2026-10-15 playtest: the camera
+      // lurched out to sea mid-miracle and the orb ended up over the water). His lines and his card still come.
+      if (this.game.hand.held || this.game.controls.mode !== 'none') return;
       const t = cam.target;
       const px = t.x + (isle.x - t.x) * toward;
       const pz = t.z + (isle.z - t.z) * toward;
@@ -375,9 +380,14 @@ export class Rival {
       cam.flyTo(px, pz);
       cam.rotate(dyaw, dpitch);
       cam.setDistance(shot ? shot.distance : Math.max(cam.distance, 360));
+      this.camAt = cam.getPose();
     } else if (this.cam) {
       const c = this.cam;
       this.cam = null;
+      // The player took the camera during the glance (Space, a drag, the wheel): leave it with them.
+      const now = cam.getPose();
+      const at = this.camAt;
+      if (at && (Math.hypot(now.x - at.x, now.z - at.z) > 2 || Math.abs(now.distance - at.distance) > 2)) return;
       cam.flyTo(c.x, c.z);
       cam.rotate(-c.dyaw, -c.dpitch);
       cam.setDistance(c.dist);

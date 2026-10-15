@@ -26,6 +26,9 @@ export class Hand {
   hover: Entity | null = null;
   blocked = false;
   scale = 1;
+  /** Where the held thing was lifted from (so it can be put back). */
+  readonly pickedFrom = new THREE.Vector3();
+  hasPickedFrom = false;
   private readonly history: Sample[] = [];
   private readonly lastPos = new THREE.Vector3();
   private readonly toCam = new THREE.Vector3(0, 1, 0);
@@ -144,6 +147,8 @@ export class Hand {
   }
 
   grab(game: Game, e: Entity) {
+    this.pickedFrom.copy(e.pos);
+    this.hasPickedFrom = e.kind !== 'orb';
     this.held = e;
     e.held = true;
     e.airborne = false;
