@@ -48,7 +48,7 @@ export const INFLUENCE = {
    * 223 m from Ashford, Stonemere 257 m from Brambleholt and 397 m from Ashford. With these caps Ashford reaches
    * Brambleholt only once its stones stand, Brambleholt (stones) reaches Stonemere, and Ashford's temple could too.
    */
-  stageCap: [130, 200, 260, 330] as readonly number[],
+  stageCap: [130, 200, 260, 320] as readonly number[],
   /** Metres of reach for each deed (in that village, or half of it for a deed in a neighbour your light reaches). */
   grow: { prayer: 4, gift: 1.5, stone: 0.15, dream: 8 },
   /** Growth earned beyond the cap is kept (up to this much) and flows out when the prayer place rises. */
@@ -62,7 +62,7 @@ export const INFLUENCE = {
   roundShare: 0.3,
   tipShare: 0.45,
   /** A village is in reach once your light touches its lands: within its radius times this of its centre. */
-  touch: 2,
+  touch: 1.8,
   /** A reached village's own patch of light: its radius times this, growing with belief from `min` to `max`. */
   neighbourScale: 1.35,
   neighbourScaleMax: 3,

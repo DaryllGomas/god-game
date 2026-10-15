@@ -118,7 +118,7 @@ for (const size of [
     await p.screenshot({ path: `${OUT}/${tag}-6-beacon-brambleholt-close.png` });
 
     // Stuck: the re-nudge.
-    await p.waitForFunction(() => !game.ora.guideBusy, null, { timeout: 30000 });
+    await p.waitForFunction(() => !game.ora.guideBusy, null, { timeout: 120000 });
     await p.waitForTimeout(7000);
     await p.evaluate(() => game.story.nudge());
     e.nudge = await oraSays(p, '', 30000);

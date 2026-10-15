@@ -260,7 +260,7 @@ export class Village {
 
   /** A deed in or for this village: its light will grow by `m` metres (flowing out over a few seconds). */
   grow(m: number) {
-    if (m > 0) this.ringPending = Math.min(INFLUENCE.bank + m, this.ringPending + m);
+    if (m > 0) this.ringPending += m;
   }
 
   /** An older save had no growth: a village of yours keeps the reach it had (its stage's full light). */
@@ -277,7 +277,8 @@ export class Village {
       this.ringGrowth += d;
       this.ringPending -= d;
     }
-    this.ringPending = Math.min(this.ringPending, INFLUENCE.bank);
+    // Only what is earned beyond the cap is banked (and the bank is limited); below the cap it all flows out.
+    if (room - d <= 0) this.ringPending = Math.min(this.ringPending, INFLUENCE.bank);
   }
 
   /**

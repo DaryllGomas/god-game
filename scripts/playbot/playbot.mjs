@@ -320,11 +320,11 @@ await p.evaluate((CFG) => {
   };
 
   // ---- the timeline row (every game minute)
-  // Metres between the edge of your light and the edge of the village's lands (radius x 2): <= 0 means in reach.
+  // Metres between the edge of your light and the edge of the village's lands (radius x 1.8): <= 0 means in reach.
   const light = (v) => {
     const mine = g.villages.filter((o) => o.owner === 'player' && o !== v);
     if (!mine.length) return null;
-    return Math.round(Math.min(...mine.map((o) => Math.hypot(o.center.x - v.center.x, o.center.z - v.center.z) - g.lightEdgeToward(o, v.center.x, v.center.z) - v.radius * 2)));
+    return Math.round(Math.min(...mine.map((o) => Math.hypot(o.center.x - v.center.x, o.center.z - v.center.z) - g.lightEdgeToward(o, v.center.x, v.center.z) - v.radius * 1.8)));
   };
   B.row = () => {
     const st = g.story.state();
@@ -396,14 +396,20 @@ await p.evaluate((CFG) => {
     once('02-first-prayer-answered', () => ps.answered >= 1, at(A));
     once('03-ashford-stones', () => A.shrineStage !== 'totem', at(A));
     // Ashford's light leaning toward Brambleholt (its tip well past its round part), before it touches.
-    once('03b-ring-leaning-toward-brambleholt', () => A.influenceRadius - A.roundRadius > 22 && !g.withinReach(Br) && Br.owner !== 'player', between(A, Br, 380));
+    const tipFocus = (src, t, d = 300) => {
+      const e = g.lightEdgeToward(src, t.center.x, t.center.z);
+      const len = Math.hypot(t.center.x - src.center.x, t.center.z - src.center.z);
+      const k = Math.min(1, e / len) * 0.8;
+      return { x: src.center.x + (t.center.x - src.center.x) * k, z: src.center.z + (t.center.z - src.center.z) * k, distance: d };
+    };
+    once('03b-ring-leaning-toward-brambleholt', () => A.influenceRadius - A.roundRadius > 22 && !g.withinReach(Br) && Br.owner !== 'player', { ...tipFocus(A, Br, 340), hour: 0.79 });
     once('04-brambleholt-in-reach', () => g.withinReach(Br) || Br.owner === 'player', between(A, Br));
     // Half-joined: some of its families glow gold, not yet most.
     once('04b-brambleholt-half-joined', () => Br.owner === null && Br.familiesWithYou() >= Math.max(1, Br.familiesNeeded() - 1), { x: Br.center.x, z: Br.center.z, distance: 120 });
     once('05-brambleholt-converted', () => Br.owner === 'player', at(Br));
     once('06-stonemere-in-reach', () => g.withinReach(S) || S.owner === 'player', between(Br, S));
     // Stonemere's own glow, grown with its belief, meets your ring.
-    once('06b-stonemere-glow-joins', () => S.owner === null && g.withinReach(S) && Math.min(...g.ownLight().map((l) => Math.hypot(l.shape.ax - S.center.x, l.shape.az - S.center.z) - g.lightEdgeToward(l.village, S.center.x, S.center.z))) <= g.neighbourGlow(S).ra, between(Br, S, 380));
+    once('06b-stonemere-glow-joins', () => S.owner === null && g.withinReach(S) && Math.min(...g.ownLight().map((l) => Math.hypot(l.shape.ax - S.center.x, l.shape.az - S.center.z) - g.lightEdgeToward(l.village, S.center.x, S.center.z))) <= g.neighbourGlow(S).ra, { ...between(Br, S, 380), hour: 0.79 });
     once('06c-stonemere-half-joined', () => S.owner === null && S.familiesWithYou() >= Math.max(1, S.familiesNeeded() - 1), { x: S.center.x, z: S.center.z, distance: 120 });
     once('07-stonemere-converted', () => S.owner === 'player', at(S));
     for (const v of g.villages) once(`08-temple-${v.name}`, () => v.shrineStage === 'temple' && v.owner === 'player', at(v, 150));
@@ -471,7 +477,9 @@ async function shoot(key, focus) {
       delete game.render;
       game.godCam.setPose({ x: f.x, z: f.z, distance: f.distance, pitch: 0.82, yaw: 0.5 }, true);
       const was = game.dayTime;
-      if (day) game.dayTime = 0.42;
+      // Late morning, or the hour a shot asks for (the light's gold edge reads best at dusk).
+      if (day) game.dayTime = f.hour ?? 0.42;
+      game.input.inside = false; // no hand in the picture
       return was;
     },
     { f: focus, day: DAYLIGHT },
@@ -480,7 +488,10 @@ async function shoot(key, focus) {
   const file = `${key}.png`;
   await p.screenshot({ path: `${OUT}/${file}` });
   shotsTaken.push(file);
-  if (DAYLIGHT) await p.evaluate((was) => (game.dayTime = was), keep);
+  await p.evaluate(({ was, day }) => {
+    if (day) game.dayTime = was;
+    game.input.inside = true;
+  }, { was: keep, day: DAYLIGHT });
 }
 
 async function flush() {
