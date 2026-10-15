@@ -29,6 +29,9 @@ export const KIND_WEIGHT: Record<string, number> = {
   eaten_by_golem: 6,
   fed_in_famine: 4.5,
   scheme_foiled: 4,
+  /** Vexahl's ring (2026-10-15): taken (note = the moment; village = the one that knelt) or turned down. */
+  ring_taken: 8,
+  ring_refused: 5,
   died_old: 4,
   thrown: 3,
   carried_by_hand: 2.5,

@@ -26,7 +26,11 @@ export interface Legacy {
   };
   people: { name: string; village: string | null; role: string; story: string }[];
   marks: { worstAct: string | null; bestAct: string | null };
-  vexahl: { outcome: 'reintegrated' };
+  /**
+   * `ring` (added 2026-10-15, optional for readers of older records): how often he offered his ring, and how often
+   * you took it or turned it down (src/rival/Ring.ts). Each ring taken was a step toward becoming him.
+   */
+  vexahl: { outcome: 'reintegrated'; ring?: { offered: number; taken: number; refused: number } };
 }
 
 /** How many remembered people the record carries. */
@@ -52,6 +56,7 @@ export function describeWorst(game: Game, worst: { x: number; z: number; what: s
   if (w === 'thrown') return `You hurled a villager of ${near}.`;
   if (w === 'lost') return `${near} lost its faith in you.`;
   if (w === 'turned') return `${near} turned to Vexahl.`;
+  if (w === 'took the ring') return `You took Vexahl's ring, and ${near} knelt in fear.`;
   const unanswered = /^unanswered (\w+)/.exec(w);
   if (unanswered) {
     const ask = { food: 'food', rain: 'rain', fire: 'help with a fire', lost: 'a lost child' }[unanswered[1]] ?? unanswered[1];
@@ -82,8 +87,9 @@ const KIND_ACTS: Record<string, (e: ChronicleEntry) => string> = {
     e.note === 'home' ? `You saved ${e.name ?? 'a family'}'s home from the flames.` : e.note === 'water' ? `You carried ${e.name ?? 'a villager'}, burning, to the water.` : `Your rain saved ${e.name ?? 'a villager'} from the flames.`,
   fed_in_famine: (e) => `You fed ${e.name ?? 'the hungry'} when ${e.village ?? 'the village'}'s stores ran empty.`,
   scheme_foiled: (e) => `You turned Vexahl's ${SCHEMES[e.note ?? ''] ?? 'scheme'} away from ${e.village ?? 'the village'}.`,
+  ring_refused: () => `Vexahl offered you his ring, and you turned it down.`,
 };
-const KIND_RANK = ['lost_child_home', 'saved_from_fire', 'fed_in_famine', 'scheme_foiled'];
+const KIND_RANK = ['lost_child_home', 'saved_from_fire', 'fed_in_famine', 'scheme_foiled', 'ring_refused'];
 
 /** The kindest thing the chronicle remembers (most memorable kind first, then the latest). */
 export function bestFromChronicle(entries: readonly ChronicleEntry[]): string | null {
@@ -129,8 +135,13 @@ export function buildLegacy(game: Game, lowest: number, fallbackBest: string | n
     },
     people: (game.chronicle?.people(PEOPLE) ?? []).map((p) => ({ name: p.name, village: p.village || null, role: p.role, story: p.story })),
     marks: { worstAct: describeWorst(game, bal?.worst ?? null), bestAct: bestFromChronicle(game.chronicle?.entries ?? []) ?? fallbackBest },
-    vexahl: { outcome: 'reintegrated' },
+    vexahl: { outcome: 'reintegrated', ring: ringRecord(game) },
   };
+}
+
+function ringRecord(game: Game): { offered: number; taken: number; refused: number } {
+  const r = (game as unknown as { rival?: { ring?: { offered: number; taken: number; refused: number } } }).rival?.ring;
+  return { offered: r?.offered ?? 0, taken: r?.taken ?? 0, refused: r?.refused ?? 0 };
 }
 
 /** The fallback hand-off: the record as a .json file the RPG can import. */

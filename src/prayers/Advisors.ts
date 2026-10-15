@@ -272,6 +272,8 @@ export class Advisors {
   }
 
   private converted(v: Village) {
+    // It knelt out of fear (Vexahl's ring, src/rival/Ring.ts): no joy; the ring has its own lines.
+    if (v.fear) return;
     this.say(
       pick([
         [

@@ -18,6 +18,7 @@ const KEEP_ISLAND = 7;
  * One remembered moment. Per villager (`villagerSeed`, `name`): lost_child_home, saved_from_fire,
  * fed_in_famine, carried_by_hand, thrown, killed, eaten_by_golem, born, died_old, died. For the island:
  * shrine_raised (note = the stage), village_joined, village_turned, scheme_foiled (note = the scheme),
+ * ring_taken / ring_refused (Vexahl's ring; note = the moment, or 'silence' when it was let go by),
  * worst_act (note = what it was; only the worst is kept).
  */
 export interface ChronicleEntry {

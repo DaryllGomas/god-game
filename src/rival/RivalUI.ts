@@ -1,16 +1,16 @@
 import type { Game } from '../Game';
 import type { Advisors } from '../prayers/Advisors';
-import { DIFFICULTY, MOOD_TEXT, RIVAL_NAME, SCHEME_INFO, type Difficulty, type Line, type Mood, type SchemeKind } from './data';
+import { DIFFICULTY, MOOD_TEXT, RING, RIVAL_NAME, SCHEME_INFO, type Difficulty, type Line, type Mood, type RivalFace, type SchemeKind } from './data';
 import './rival.css';
 
-const FACE = `<svg viewBox="0 0 58 58" aria-hidden="true">
-  <path d="M10 58C10 36 17 16 29 12c12 4 19 24 19 46z" fill="#1a0d31"/>
-  <path d="M17 24c2-9 6-14 12-16 6 2 10 7 12 16-3-3-7-5-12-5s-9 2-12 5z" fill="#2e1559"/>
-  <path d="M17 36c1-7 5-11 12-11s11 4 12 11c-2 8-6 12-12 12s-10-4-12-12z" fill="#0c0617"/>
-  <ellipse class="rv-eye" cx="23.5" cy="35" rx="3.2" ry="2" fill="#c8a8ff"/>
-  <ellipse class="rv-eye" cx="34.5" cy="35" rx="3.2" ry="2" fill="#c8a8ff"/>
-  <path d="M23.5 43q5.5 3 11 0" fill="none" stroke="#b48cff" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
-</svg>`;
+/**
+ * His portraits (public/rival, cropped from the NAS board "2026-10-15 Vexahl portrait"): D, the hooded shadow with
+ * ember eyes, when he speaks; E, the hand offering the smoking ring, when he tempts; F, turning away and dissolving,
+ * when he is foiled or refused. 192 px for the round slot, 640 px for the temptation card. The Atlas-face portraits
+ * (A2, B, C) are never loaded here: only the reveal in Whole shows them (src/endings/Reveal.ts).
+ */
+const PORTRAIT: Record<RivalFace, string> = { speak: 'd', tempt: 'e', foiled: 'f' };
+export const portraitUrl = (id: string, size: 192 | 640) => `${import.meta.env.BASE_URL}rival/vexahl-${id}-${size}.webp`;
 
 /** Rough on-screen time for a card, mirroring the advisors' own timing so the conversation flows. */
 const cardTime = (text: string) => Math.min(9.5, 3.8 + text.length * 0.05);
@@ -58,6 +58,15 @@ export class RivalUI {
   private last = '';
   private loading = false;
   private stopVoice: (() => void) | null = null;
+  private readonly faceImg: HTMLImageElement;
+  private readonly tempt = document.createElement('div');
+  private readonly temptText: HTMLDivElement;
+  private readonly temptBar: HTMLElement;
+  private readonly takeBtn: HTMLButtonElement;
+  private readonly refuseBtn: HTMLButtonElement;
+  /** The open offer: real seconds left to answer, and what to call with the answer (true = took it). */
+  private offerLeft = 0;
+  private onAnswer: ((took: boolean, timedOut: boolean) => void) | null = null;
   onDifficulty: (() => void) | null = null;
   onScheme: (() => void) | null = null;
 
@@ -90,14 +99,101 @@ export class RivalUI {
     (game.hud.root.querySelector('.villages') ?? game.hud.root).appendChild(c);
 
     this.card.className = 'rv-card';
-    this.card.innerHTML = `<div class="rv-face">${FACE}</div><div class="rv-body"><div class="rv-who">${RIVAL_NAME}</div><div class="rv-say"></div></div>`;
+    this.card.innerHTML = `<div class="rv-face"><img alt="" draggable="false"></div><div class="rv-body"><div class="rv-who">${RIVAL_NAME}</div><div class="rv-say"></div></div>`;
     this.cardText = this.card.querySelector('.rv-say')!;
+    this.faceImg = this.card.querySelector('.rv-face img')!;
+    this.setFace('speak');
+    // Warm the other two (and the temptation card's large one), so a change of face never shows an empty circle.
+    for (const id of ['e', 'f']) new Image().src = portraitUrl(id, 192);
+    new Image().src = portraitUrl('e', 640);
     this.card.title = 'Click to dismiss';
     this.card.onclick = () => {
       this.cardLife = 0;
       this.silence();
     };
     game.hud.root.appendChild(this.card);
+
+    // The ring: a larger, darker card in the same top-centre spot, E large, his offer and two choices.
+    const t = this.tempt;
+    t.className = 'rv-tempt';
+    t.setAttribute('role', 'dialog');
+    t.setAttribute('aria-label', `${RIVAL_NAME} offers you a ring`);
+    t.innerHTML = `
+      <div class="rt-art"><img alt="" draggable="false" src="${portraitUrl('e', 640)}"></div>
+      <div class="rt-body">
+        <div class="rv-who">${RIVAL_NAME} <span class="rt-sub">offers you a ring</span></div>
+        <div class="rt-say"></div>
+        <div class="rt-choices">
+          <button class="rt-take" type="button">Take the ring</button>
+          <button class="rt-refuse" type="button">Turn it down</button>
+        </div>
+        <div class="rt-bar"><i></i></div>
+      </div>`;
+    this.temptText = t.querySelector('.rt-say')!;
+    this.temptBar = t.querySelector('.rt-bar i')!;
+    this.takeBtn = t.querySelector('.rt-take')!;
+    this.refuseBtn = t.querySelector('.rt-refuse')!;
+    this.takeBtn.onclick = () => this.answer(true);
+    this.refuseBtn.onclick = () => this.answer(false);
+    // Clicks on the card never reach the world below it.
+    t.addEventListener('pointerdown', (e) => e.stopPropagation());
+    game.hud.root.appendChild(t);
+  }
+
+  private setFace(face: RivalFace) {
+    const url = portraitUrl(PORTRAIT[face], 192);
+    if (!this.faceImg.src.endsWith(url)) this.faceImg.src = url;
+    this.card.dataset.face = face;
+  }
+
+  /** Is the ring's card up (waiting for an answer)? */
+  get offering(): boolean {
+    return this.onAnswer !== null;
+  }
+
+  /**
+   * He offers the ring: his card gives way to the temptation card (E large, his line in his voice, "Take the ring" /
+   * "Turn it down"). The world keeps going; the card waits RING.wait real seconds, then it counts as turned down.
+   */
+  async offer(line: Line, onAnswer: (took: boolean, timedOut: boolean) => void) {
+    this.card.classList.remove('show');
+    this.cardLife = 0;
+    this.silence();
+    this.onAnswer = onAnswer;
+    this.offerLeft = RING.wait;
+    this.temptText.textContent = line.text;
+    this.temptBar.style.width = '100%';
+    void this.tempt.offsetWidth;
+    this.tempt.classList.add('show');
+    // Keyboard: Tab between the two, Enter to choose. "Turn it down" has the focus (Space stays the game's).
+    this.refuseBtn.focus({ preventScroll: true });
+    let clip: AudioBuffer | null = null;
+    try {
+      clip = this.advisors?.muted ? null : await this.game.audio.advisorClip(line.text);
+    } catch {
+      clip = null;
+    }
+    if (!this.onAnswer) return;
+    // The card holds at least as long as his voice, and a little more to choose.
+    this.offerLeft = Math.max(this.offerLeft, (clip?.duration ?? 0) + 6);
+    const stop = clip ? this.game.audio.playAdvisorClip(clip) : null;
+    if (stop) this.stopVoice = stop;
+    else if (!clip) this.game.audio.rivalVoice();
+  }
+
+  /** The player's answer (or the time running out: turned down). */
+  answer(took: boolean, timedOut = false) {
+    const fn = this.onAnswer;
+    if (!fn) return;
+    this.onAnswer = null;
+    this.offerLeft = 0;
+    this.tempt.classList.remove('show');
+    this.tempt.classList.toggle('took', took);
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    this.silence();
+    // A beat before whatever he says next.
+    this.wait = Math.max(this.wait, 0.8);
+    fn(took, timedOut);
   }
 
   show(on: boolean) {
@@ -172,13 +268,20 @@ export class RivalUI {
 
   /** True while the conversation is still going. */
   get talking(): boolean {
-    return this.queue.length > 0 || this.cardLife > 0 || this.wait > 0 || this.loading;
+    return this.queue.length > 0 || this.cardLife > 0 || this.wait > 0 || this.loading || this.offering;
   }
 
   frame(dt: number) {
     if (this.game.hud.helpOpen) {
       this.card.classList.remove('show');
-      this.silence();
+      if (!this.offering) this.silence();
+      return;
+    }
+    if (this.offering) {
+      // His offer holds the top centre: nothing else of his is said until it is answered.
+      this.offerLeft -= dt;
+      this.temptBar.style.width = `${Math.max(0, Math.min(100, (this.offerLeft / RING.wait) * 100)).toFixed(1)}%`;
+      if (this.offerLeft <= 0) this.answer(false, true);
       return;
     }
     if (this.cardLife > 0) {
@@ -199,7 +302,7 @@ export class RivalUI {
       // Lumi's and Fizz's cards share the top centre with his: let a card of theirs that is up finish first.
       if (this.game.hud.root.querySelector('.adv-card.show') && ++q.tries < 1800) return;
       this.queue.shift();
-      void this.showRival(q.line.text, q);
+      void this.showRival(q.line.text, q, q.line.face);
     } else {
       if (!this.advisors || this.advisors.muted) {
         this.queue.shift();
@@ -221,7 +324,7 @@ export class RivalUI {
   }
 
   /** His card, with his recorded voice when there is one (the synth motif otherwise). The card stays up for the clip plus 0.6s. */
-  private async showRival(text: string, q?: (typeof this.queue)[number]) {
+  private async showRival(text: string, q?: (typeof this.queue)[number], face: RivalFace = 'speak') {
     this.loading = true;
     this.silence();
     let clip: AudioBuffer | null = null;
@@ -237,6 +340,7 @@ export class RivalUI {
       return;
     }
     this.cardText.textContent = text;
+    this.setFace(face);
     void this.card.offsetWidth;
     this.card.classList.add('show');
     this.cardLife = Math.max(cardTime(text), (clip?.duration ?? 0) + 0.6);

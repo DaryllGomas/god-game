@@ -329,7 +329,7 @@ export class Endings {
       if (kind === 'food' && amount >= 20 && village.starving > 0) note(3.2, `You fed ${village.name} in a hungry time.`);
       else if (amount >= 60) note(1.2, `You filled ${village.name}'s stores.`);
     });
-    ev.on('villageConverted', ({ village }) => note(2, `${village.name} came to believe in you.`));
+    ev.on('villageConverted', ({ village }) => !village.fear && note(2, `${village.name} came to believe in you.`));
   }
 
   // -------------------------------------------------------------- save/load
