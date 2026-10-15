@@ -5,7 +5,7 @@ import type { Villager } from '../entities/Villager';
 import type { Field } from '../entities/Buildings';
 import type { Seasons } from '../seasons/Seasons';
 import type { Rival } from './Rival';
-import { BLIGHT, EMBER, HAND, HOME_FAITH_FLOOR, REPEL, STORM, VIOLET_LIGHT, WHISPERS, type SchemeKind } from './data';
+import { BLIGHT, COURT, EMBER, HAND, HOME_FAITH_FLOOR, REPEL, STORM, VIOLET_LIGHT, WHISPERS, type SchemeKind } from './data';
 import { DarkHand, Mist } from './RivalVisuals';
 
 export type Outcome = 'foiled' | 'succeeded' | 'faded';
@@ -40,6 +40,11 @@ export abstract class Scheme {
   abstract readonly kind: SchemeKind;
   phase: 'warning' | 'active' = 'warning';
   t = 0;
+  /**
+   * Story mode: a move on a village you are still winning (not yet yours). It slows that village's belief instead
+   * of draining faith; winning the village outright foils it; it never turns the village to him.
+   */
+  courting = false;
 
   constructor(
     protected readonly rival: Rival,
@@ -66,6 +71,15 @@ export abstract class Scheme {
   onMiracle(_id: string, _x: number, _z: number): void {}
   onPrayerAnswered(_v: Village): void {}
   onRainedOn(_v: Village): void {}
+  /**
+   * A courting move ends if the village turns to him (faded), and, when `wonEnds`, if you win it (foiled: its belief
+   * was what he was after). Otherwise winning it makes it an ordinary scheme on a village of yours. Null while it goes on.
+   */
+  protected courtOver(wonEnds: boolean): Outcome | null {
+    if (!this.courting) return null;
+    if (this.village.owner === 'rival') return 'faded';
+    return wonEnds && this.village.owner === 'player' ? 'foiled' : null;
+  }
   /** Where to point the camera to see it. */
   focus(): { x: number; z: number } {
     return { x: this.village.center.x, z: this.village.center.z };
@@ -128,14 +142,20 @@ export class Whispers extends Scheme {
   update(dt: number): Outcome | null {
     this.t += dt;
     const v = this.village;
-    if (v.owner !== 'player') return v.owner === 'rival' ? 'succeeded' : 'faded';
+    const court = this.courtOver(true);
+    if (court) return court;
+    if (!this.courting && v.owner !== 'player') return v.owner === 'rival' ? 'succeeded' : 'faded';
     this.mist.step(dt);
     this.add(this.golemRate() * dt);
     if (this.phase === 'warning' && this.t >= this.warn) {
       this.phase = 'active';
       this.game.message(`The whispers settle on ${v.name}. Their faith is slipping.`, 'warn', 'whisper-on');
     }
-    if (this.phase === 'active') drainFaith(this.rival, v, WHISPERS.drain * this.rival.bite * dt);
+    if (this.phase === 'active') {
+      // On a village you are still winning, the doubt only slows its belief (it can't turn to him from neutral).
+      if (this.courting) v.belief = Math.max(0, v.belief - COURT.drain * this.rival.bite * dt);
+      else drainFaith(this.rival, v, WHISPERS.drain * this.rival.bite * dt);
+    }
     this.mist.setGoal(this.phase === 'warning' ? 0.3 + 0.2 * (this.t / this.warn) : 1 - 0.8 * (this.repel / WHISPERS.repel));
     if (this.repel >= WHISPERS.repel) return 'foiled';
     if (this.phase === 'active' && this.t - this.warn >= WHISPERS.max) return 'succeeded';
@@ -203,7 +223,10 @@ export class Blight extends Scheme {
 
   update(dt: number): Outcome | null {
     this.t += dt;
-    if (this.village.owner !== 'player') return 'faded';
+    // Blight stays on the fields until it is washed away, even if the village comes to believe in you meanwhile.
+    const court = this.courtOver(false);
+    if (court) return court;
+    if (!this.courting && this.village.owner !== 'player') return 'faded';
     if (this.cleansed) return 'foiled';
     this.motes -= dt;
     const g = this.game;

@@ -1,6 +1,6 @@
 import type { Game } from '../Game';
 import type { Rival } from '../rival/Rival';
-import type { Balance } from '../balance/Balance';
+import { HIGH, type Balance } from '../balance/Balance';
 import type { Prayers } from '../prayers/Prayers';
 import type { Advisors } from '../prayers/Advisors';
 import { DAY_LENGTH } from '../config';
@@ -25,8 +25,16 @@ export const COLLAPSE_BELOW = 0.2;
 export const COLLAPSE_AFTER = 1.5 * DAY_LENGTH;
 /** ...or none of your people left alive for this long (game seconds). */
 export const PEOPLE_GONE_AFTER = 20;
-/** Whole: every temple stands and the balance has stayed in tune (above Balance's HIGH, 0.75) this long (1 day). */
-export const WHOLE_AFTER = 1 * DAY_LENGTH;
+/**
+ * Whole: after the LAST temple stands, the island rests in tune this many game days (by the day clock, so a Walk on
+ * day counts as one day) before Ready to See. Only time with every temple standing counts, and only while the balance
+ * is in tune (above Balance's HIGH, 0.75): a dip pauses it, a fallen temple starts it over. Earlier high balance does
+ * not count (2026-10-14: before, a day of high balance at any time let the Ascension start the second the last
+ * temple went up, so Ora's "Every temple stands" line never played; bot run 1).
+ */
+export const TUNE_DAYS = 1;
+/** The same, in game seconds at the normal pace (kept for readers of the old knob). */
+export const WHOLE_AFTER = TUNE_DAYS * DAY_LENGTH;
 /** The end card's one line, handing off to the next chapter (the RPG builds the Nexus). */
 export const HANDOFF_LINE = 'The Nexus is forming.';
 /** Ruins kept from fallen worlds (the newest stands where it fell; older ones stay too, up to this many). */
@@ -43,6 +51,8 @@ interface EndingsSave {
   lowFor: number;
   goneFor: number;
   best: { text: string; score: number } | null;
+  /** The tune step so far (game days). */
+  tune?: number;
   /** Where it got to: a sequence in progress restarts from its start on load; 'after' = the good ending is done. */
   phase: Phase;
 }
@@ -120,8 +130,19 @@ export class Endings {
     this.lowFor = b.value < COLLAPSE_BELOW && !b.pinned ? this.lowFor + dt : 0;
     const followers = g.villages.reduce((n, v) => n + (v.owner === 'player' ? v.population : 0), 0);
     this.goneFor = followers === 0 ? this.goneFor + dt : 0;
+    // The tune step: time since the last temple stood, counted on the day clock while the island stays in tune.
+    const clock = g.day + g.dayTime;
+    const step = this.lastClock === null ? 0 : Math.max(0, Math.min(1, clock - this.lastClock));
+    this.lastClock = clock;
+    if (!g.allTemplesStand()) this.tuneDays = 0;
+    else if (b.value > HIGH) this.tuneDays += step;
     if (this.lowFor >= COLLAPSE_AFTER || this.goneFor >= PEOPLE_GONE_AFTER) this.startCollapse();
-    else if (b.highFor >= WHOLE_AFTER && g.allTemplesStand() && ((g as unknown as { pace?: { autoEnd(): boolean } }).pace?.autoEnd() ?? true)) this.startAscension(false);
+    else if (this.tuned && ((g as unknown as { pace?: { autoEnd(): boolean } }).pace?.autoEnd() ?? true)) this.startAscension(false);
+  }
+
+  /** Every temple stands and the island has rested in tune for TUNE_DAYS: ready to see (Walk on starts it; Stay shows the light). */
+  get tuned(): boolean {
+    return this.tuneDays >= TUNE_DAYS && this.game.allTemplesStand();
   }
 
   // ------------------------------------------------------------- sequences
@@ -212,6 +233,7 @@ export class Endings {
     if (this.phase !== 'play' && this.phase !== 'after') return;
     this.phase = fromWhole ? 'whole' : 'ready';
     this.take();
+    this.stage.rival?.ui.clearQueue(); // nothing of his still waiting to be said plays over the ending
     const a = new Ascension(
       this.stage,
       () => this.cityLights(),
@@ -286,6 +308,10 @@ export class Endings {
 
   // ------------------------------------------------------------- kindness
 
+  /** Game days every temple has stood with the island in tune (the tune step; see TUNE_DAYS). */
+  tuneDays = 0;
+  /** The day clock (day + time of day) at the last update, to measure the tune step in days. */
+  private lastClock: number | null = null;
   /** The kindest single thing you did, as a fallback for the legacy when the chronicle remembers nothing kinder (see Legacy.bestAct). */
   private watchKindness() {
     const ev = this.game.events;
@@ -318,6 +344,7 @@ export class Endings {
       lowFor: Math.round(this.lowFor),
       goneFor: Math.round(this.goneFor),
       best: this.best,
+      tune: Math.round(this.tuneDays * 1000) / 1000,
       phase: this.phase === 'arrival' ? 'play' : this.phase,
     };
   }
@@ -331,6 +358,7 @@ export class Endings {
     this.lowFor = d.lowFor ?? 0;
     this.goneFor = d.goneFor ?? 0;
     this.best = d.best ?? null;
+    this.tuneDays = typeof d.tune === 'number' ? d.tune : 0;
     this.placeRuins();
     const phase = d.phase ?? 'play';
     if (phase === 'after') {
@@ -382,7 +410,7 @@ export class Endings {
       ruins: this.ruins,
       lowest: Math.round(this.lowest * 1000) / 1000,
       collapse: { below: COLLAPSE_BELOW, lowFor: Math.round(this.lowFor), after: COLLAPSE_AFTER, goneFor: Math.round(this.goneFor), goneAfter: PEOPLE_GONE_AFTER },
-      whole: { templesStand: this.game.allTemplesStand(), highFor: Math.round(b?.highFor ?? 0), after: WHOLE_AFTER },
+      whole: { templesStand: this.game.allTemplesStand(), highFor: Math.round(b?.highFor ?? 0), tuneDays: Math.round(this.tuneDays * 1000) / 1000, after: TUNE_DAYS },
       best: this.best?.text ?? null,
       legacy: !!this.legacy,
       sequenceTime: this.seq ? Math.round(((this.seq as unknown as { t?: number }).t ?? 0) * 10) / 10 : null,

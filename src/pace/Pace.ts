@@ -3,7 +3,6 @@ import type { Game } from '../Game';
 import type { Village } from '../village/Village';
 import { DAY_LENGTH, SEA_LEVEL } from '../config';
 import { DEFS, type ProjectId } from '../projects/defs';
-import { WHOLE_AFTER } from '../endings/Endings';
 import { ORA_LINES } from '../ora/Ora';
 import { clamp } from '../util/math';
 import { freePlayUnlocked } from '../story/unlock';
@@ -548,9 +547,9 @@ export class Pace {
 
   private frameLight(dt: number, home: Village, t: number) {
     const g = this.game;
-    const en = (g as unknown as { endings?: { phase: string } }).endings;
-    const bal = (g as unknown as { balance?: { highFor: number } }).balance;
-    const ready = this.choice === 'stay' && !!en && en.phase === 'play' && g.allTemplesStand() && !!bal && bal.highFor >= WHOLE_AFTER;
+    const en = (g as unknown as { endings?: { phase: string; tuned: boolean } }).endings;
+    // The light rises once every temple has stood a day with the island in tune (src/endings TUNE_DAYS).
+    const ready = this.choice === 'stay' && !!en && en.phase === 'play' && en.tuned;
     this.lightLevel += ((ready ? 1 : 0) - this.lightLevel) * (1 - Math.exp(-0.9 * dt));
     this.light.visible = this.lightLevel > 0.01;
     if (!this.light.visible) return;

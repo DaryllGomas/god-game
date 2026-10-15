@@ -125,6 +125,8 @@ export class Ora {
   private readonly guideQueue: string[] = [];
   /** The line on screen is a guide line. */
   private guiding = false;
+  /** A guide line put ahead of the others (see guide), kept when the queue is trimmed. */
+  private guideFirst = '';
   private spoken = 0;
   private clock = 0;
   private lastSpoke = -1e9;
@@ -206,9 +208,18 @@ export class Ora {
    * replaces any guide line still waiting, is spoken when the stage is quiet, and doesn't count toward the
    * rare-insight limit. Free play never calls this.
    */
-  guide(text: string) {
-    if (text.trim() && !this.guideQueue.includes(text)) this.guideQueue.push(text);
-    if (this.guideQueue.length > 3) this.guideQueue.shift();
+  guide(text: string, opts: { first?: boolean; clear?: boolean } = {}) {
+    // `clear`: what was waiting is stale (the road has moved on, e.g. every temple stands). `first`: a moment that
+    // belongs to now (Vexahl noticing you) goes ahead of what is waiting.
+    if (opts.clear) this.guideQueue.length = 0;
+    if (text.trim() && !this.guideQueue.includes(text)) {
+      if (opts.first) {
+        this.guideQueue.unshift(text);
+        this.guideFirst = text;
+      } else this.guideQueue.push(text);
+    }
+    // Too many waiting: the oldest goes, but never a line that was put first.
+    if (this.guideQueue.length > 3) this.guideQueue.splice(this.guideQueue[0] === this.guideFirst ? 1 : 0, 1);
   }
 
   /** A guide line is waiting or on screen. */

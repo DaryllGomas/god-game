@@ -5,6 +5,7 @@ import { Noise2D } from '../util/noise';
 import { Rng } from '../util/rng';
 import { smoothstep } from '../util/math';
 import { ScatterSet, type ScatterItem } from '../land/Scatter';
+import { ISLE_POS } from '../rival/RivalVisuals';
 import { cliffMaterial, cliffSlabGeometry, cliffStackGeometry, cliffUniforms } from '../coast/cliffMaterial';
 
 /**
@@ -147,6 +148,7 @@ export function install(game: Game): GamePlugin {
         const x = s.x + s.ox * d - s.oz * sd, z = s.z + s.oz * d + s.ox * sd;
         if (Math.abs(x) > 380 || Math.abs(z) > 380) continue;
         if (!water(x, z, big ? 16 : 9, big ? 3 : 2.5)) continue;
+        if (Math.hypot(x - ISLE_POS.x, z - ISLE_POS.z) < (big ? 70 : 45)) continue; // keep clear of Vexahl's isle (src/rival)
         if (sites.some((o) => Math.hypot(o.x - x, o.z - z) < (big ? 60 : 26))) continue;
         sites.push({ x, z, big });
         return true;

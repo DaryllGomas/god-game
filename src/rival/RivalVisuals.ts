@@ -7,7 +7,7 @@ import { SkinnedHand } from '../hand/SkinnedHand';
 import { ProceduralHand } from '../hand/ProceduralHand';
 import { assets } from '../assets';
 import { clamp, damp, lerp, smoothstep } from '../util/math';
-import { EMBER, ISLE_DRIFT, ISLE_FAR, ISLE_NEAR, ISLE_RANGE, ISLE_STORM, VIOLET, VIOLET_LIGHT } from './data';
+import { EMBER, ISLE_DRIFT, ISLE_FAR, ISLE_HAZE, ISLE_NEAR, ISLE_RANGE, ISLE_STORM, VIOLET, VIOLET_LIGHT } from './data';
 
 // ------------------------------------------------------------------ shared bits
 
@@ -58,13 +58,19 @@ function aoSkip(game: Game, obj: THREE.Object3D, on: boolean) {
   else if (!on && i >= 0) list.splice(i, 1);
 }
 
-/** Let a distant silhouette read through the haze: the fog never covers more than `cap` of this material. */
-function capFog(mat: THREE.Material, cap: number) {
+/**
+ * Let a distant silhouette read through the haze: the fog never covers more than `cap` of this material.
+ * `haze` (shared uniform, 0..1) veils it toward the fog colour whatever the distance: his isle sits at the sea
+ * edge of the default view, so while the world is in tune it must look far off and faint, not merely small.
+ */
+function capFog(mat: THREE.Material, cap: number, haze?: { value: number }) {
+  mat.customProgramCacheKey = () => `capfog-${cap}-${haze ? 'haze' : ''}`;
   mat.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
+    if (haze) shader.uniforms.uHaze = haze;
+    shader.fragmentShader = (haze ? 'uniform float uHaze;\n' : '') + shader.fragmentShader.replace(
       '#include <fog_fragment>',
       `#if defined(USE_FOG) && !defined(FOG_EXP2)
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, smoothstep(fogNear, fogFar, vFogDepth) * ${cap.toFixed(2)});
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, max(smoothstep(fogNear, fogFar, vFogDepth) * ${cap.toFixed(2)}, ${haze ? 'uHaze' : '0.0'}));
       #else
         #include <fog_fragment>
       #endif`,
@@ -84,8 +90,12 @@ function disposeGroup(g: THREE.Object3D) {
 
 // ----------------------------------------------------------------------- his isle
 
-/** Which way his isle lies: out on the sea, off the island's north-west shoulder. Its distance follows the balance (see ISLE_FAR / ISLE_NEAR). */
-export const ISLE_POS = new THREE.Vector3(-640, 0, -400);
+/**
+ * Which way his isle lies: out on the sea off Ashford's shore, at the top-left sea edge of the view the game
+ * starts on (2026-10-14, Daryll: "I didn't really see Vexahl come in anywhere"; before, it sat 1,450 m out to the
+ * north-west, which the top-down camera never shows). Its distance and size follow the balance (ISLE_FAR / ISLE_NEAR).
+ */
+export const ISLE_POS = new THREE.Vector3(-293, 0, 108);
 /** How far behind a turned village's prayer place his banner stands (z), clear of the pyramid (v0.5 shrines). */
 const BANNER_BACK = -12;
 const ISLE_DIR = new THREE.Vector2(ISLE_POS.x, ISLE_POS.z).normalize();
@@ -121,6 +131,8 @@ export class RivalIsle {
   private t = Math.random() * 10;
   private flash = 0;
   private nextBolt = 3;
+  /** Far-off veil (see capFog): thick while the isle is far and small, gone as it nears. */
+  private readonly haze = { value: ISLE_HAZE };
 
   constructor(private readonly game: Game) {
     const scene = game.scene;
@@ -133,7 +145,7 @@ export class RivalIsle {
     const shardMat = this.track(new THREE.MeshStandardMaterial({ color: 0x4a2a8a, emissive: VIOLET, emissiveIntensity: 1.5, roughness: 0.3, flatShading: true }));
     this.shardMat = shardMat;
     // Far out at sea it must still read as a dark spire on the horizon, not vanish into the haze.
-    for (const m of [rockMat, spireMat, emberMat, shardMat]) capFog(m, 0.48);
+    for (const m of [rockMat, spireMat, emberMat, shardMat]) capFog(m, 0.48, this.haze);
 
     // The rocky foot of the isle, jittered so it looks hewn, half drowned.
     const rock = new THREE.ConeGeometry(78, 46, 9, 3);
@@ -311,6 +323,7 @@ export class RivalIsle {
     const scale = lerp(ISLE_FAR.scale, ISLE_NEAR.scale, n);
     this.group.position.set(ISLE_DIR.x * dist, ISLE_POS.y - (1 - e) * 190 * scale, ISLE_DIR.y * dist);
     this.group.scale.setScalar((0.4 + 0.6 * e) * scale);
+    this.haze.value = ISLE_HAZE * (1 - clamp(n, 0, 1));
 
     // His storm wakes as the world falls: the storm-eye gathers, the shards burn, bolts come.
     const st = this.storm;

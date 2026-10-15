@@ -60,6 +60,8 @@ export interface GameEvents {
   schemeStarted: { kind: 'whispers' | 'blight' | 'hand' | 'storm'; village: Village };
   /** You countered a scheme. */
   schemeFoiled: { kind: 'whispers' | 'blight' | 'hand' | 'storm'; village: Village };
+  /** A scheme is over, however it ended (`courting`: a story-mode move on a village you were winning). */
+  schemeEnded: { kind: 'whispers' | 'blight' | 'hand' | 'storm'; village: Village; outcome: 'foiled' | 'succeeded' | 'faded'; courting: boolean };
   /** A village's faith hit 0 under his pressure and it now worships him. */
   villageTurned: { village: Village };
   /** He gave up and left (the next island awaits). */

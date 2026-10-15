@@ -362,7 +362,7 @@ export class Advisors {
       if (this.cardLife <= 0) {
         this.finish(this.argument && !!this.queue[0]?.argument);
       }
-    } else if (!this.loading && this.queue.length && this.clock - this.lastEnd >= this.queue[0].gap) void this.showNext();
+    } else if (!this.loading && this.queue.length && this.clock - this.lastEnd >= this.queue[0].gap && !g.hud.root.querySelector('.rv-card.show')) void this.showNext(); // Vexahl's card has the top centre: wait
 
     this.watchMood();
     this.watchTemptation(dt);
