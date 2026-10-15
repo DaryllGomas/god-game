@@ -588,7 +588,8 @@ async function flush() {
   const now = realS();
   for (const e of d.events) events.push({ ...e, real: Math.round(now) });
   for (const r of d.timeline) timeline.push({ ...r, real_s: Math.round(now) });
-  for (const s of d.shots) await shoot(s.key, s.focus, s.wait, s.seq);
+  // Frames of the game's own camera (the rising, a glance) first: a posed shot calls setPose, which would cancel the glide.
+  for (const s of [...d.shots.filter((x) => x.seq), ...d.shots.filter((x) => !x.seq)]) await shoot(s.key, s.focus, s.wait, s.seq);
   return d;
 }
 
