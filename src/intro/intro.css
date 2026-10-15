@@ -125,6 +125,100 @@ body.intro-hud-in .hud {
   opacity: 0;
   animation-play-state: paused;
 }
+
+/* ---- the nudge, for someone who only looks (2026-10-15). All of it fades with the light when touched. */
+/* The light answers the cursor: --near goes 0 (far) to 1 (on it). */
+.intro-light {
+  --near: 0;
+  scale: calc(1 + var(--near) * 0.9);
+  box-shadow: 0 0 calc(18px + var(--near) * 26px) calc(6px + var(--near) * 8px) rgba(159, 220, 255, calc(0.55 + var(--near) * 0.35)),
+    0 0 calc(60px + var(--near) * 60px) calc(22px + var(--near) * 18px) rgba(159, 220, 255, 0.22);
+  transition: opacity 0.6s ease, scale 0.35s ease, box-shadow 0.35s ease;
+}
+/* Ripples: a thin ring, like a drop in still water, every 3.2 s. */
+.intro-light::before,
+.intro-light::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1px solid rgba(190, 232, 255, 0.55);
+  opacity: 0;
+}
+.intro.nudge-ripple .intro-light::before {
+  animation: intro-ripple 3.2s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+.intro.nudge-ripple .intro-light::after {
+  animation: intro-ripple 3.2s cubic-bezier(0.2, 0.6, 0.3, 1) 1.6s infinite;
+}
+@keyframes intro-ripple {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(14); opacity: 0; }
+}
+/* Motes of light drift in from far off and gather into the light. */
+.intro-motes {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2.5s ease;
+}
+.intro.nudge-motes .intro-motes {
+  opacity: 1;
+}
+.intro-motes i {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: #dff3ff;
+  box-shadow: 0 0 6px 2px rgba(159, 220, 255, 0.6);
+  opacity: 0;
+  animation: intro-mote var(--t) cubic-bezier(0.45, 0, 0.75, 1) var(--d) infinite;
+}
+@keyframes intro-mote {
+  0% { transform: translate(var(--x), var(--y)); opacity: 0; }
+  20% { opacity: 0.85; }
+  85% { opacity: 0.9; }
+  100% { transform: translate(0, 0); opacity: 0; }
+}
+/* The last resort: a whisper, in Ora's hand, under the light. */
+.intro-whisper {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 44px);
+  transform: translateX(-50%);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 19px;
+  letter-spacing: 0.06em;
+  color: #cfeaff;
+  text-shadow: 0 0 12px rgba(159, 220, 255, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 3s ease;
+}
+.intro.nudge-whisper .intro-whisper {
+  opacity: 0.75;
+  animation: intro-whisper 6s ease-in-out 3s infinite;
+}
+@keyframes intro-whisper {
+  50% { opacity: 0.35; }
+}
+.intro.touched .intro-motes,
+.intro.touched .intro-whisper {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro.nudge-ripple .intro-light::before,
+  .intro.nudge-ripple .intro-light::after,
+  .intro-motes i {
+    animation: none;
+  }
+}
 @keyframes intro-breathe {
   0%,
   100% {

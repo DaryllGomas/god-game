@@ -122,11 +122,44 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
   skip.textContent = 'skip';
   const waiting = !!opts.waitForTouch;
   root.append(video, skip);
+  // A nudge for someone who just looks (Daryll, 2026-10-15: "it's just a little blinking dot ... some sort of cool,
+  // subtle nudge in case somebody gets stuck just looking at it"). It wakes to the cursor at once; then, if nobody
+  // touches it: ripples (4 s), motes of light drifting in to it (9 s), and only at last a whisper (16 s).
+  const nudges: number[] = [];
+  let onNear: ((e: PointerEvent) => void) | null = null;
   if (waiting) {
     const light = document.createElement('div');
     light.className = 'intro-light';
     root.classList.add('waiting');
-    root.append(light);
+    const motes = document.createElement('div');
+    motes.className = 'intro-motes';
+    for (let i = 0; i < 14; i++) {
+      const m = document.createElement('i');
+      const a = (i / 14) * Math.PI * 2 + Math.random() * 0.4;
+      const d = 46 + Math.random() * 18; // vmax from the light
+      m.style.setProperty('--x', `${Math.cos(a) * d}vmax`);
+      m.style.setProperty('--y', `${Math.sin(a) * d}vmax`);
+      m.style.setProperty('--t', `${5.5 + Math.random() * 3}s`);
+      m.style.setProperty('--d', `${-Math.random() * 8}s`);
+      motes.append(m);
+    }
+    const whisper = document.createElement('div');
+    whisper.className = 'intro-whisper';
+    whisper.textContent = 'touch the light';
+    root.append(motes, light, whisper);
+    nudges.push(
+      window.setTimeout(() => root.classList.add('nudge-ripple'), 4000),
+      window.setTimeout(() => root.classList.add('nudge-motes'), 9000),
+      window.setTimeout(() => root.classList.add('nudge-whisper'), 16000),
+    );
+    // The light leans into the cursor: brighter and larger as it comes near (0 far .. 1 on it).
+    onNear = (e: PointerEvent) => {
+      const r = light.getBoundingClientRect();
+      const dist = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+      const near = Math.max(0, 1 - dist / Math.max(220, Math.min(innerWidth, innerHeight) * 0.35));
+      light.style.setProperty('--near', near.toFixed(3));
+    };
+    root.addEventListener('pointermove', onNear);
   }
   document.body.appendChild(root);
   // The game behind the film is already at the landing pose; its title screen and HUD wait until the glide is done.
@@ -187,6 +220,8 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
     const start = () => {
       if (go) return;
       go = true;
+      nudges.forEach((t) => window.clearTimeout(t));
+      if (onNear) root.removeEventListener('pointermove', onNear);
       root.classList.remove('waiting');
       root.classList.add('touched');
       hushAndUnlock();
@@ -208,7 +243,7 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
         video.muted = true;
         video.play().catch(fail);
       });
-      window.setTimeout(() => root.querySelector('.intro-light')?.remove(), LIGHT_OUT + 100);
+      window.setTimeout(() => root.querySelectorAll('.intro-light, .intro-motes, .intro-whisper').forEach((el) => el.remove()), LIGHT_OUT + 100);
     };
 
     const finish = async (skipped: boolean) => {
