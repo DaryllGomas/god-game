@@ -53,6 +53,28 @@ The site updates within a minute or two. Saves live in each browser's own storag
 | Visual effects | `K` toggles post-processing (ambient occlusion, bloom, grade); `Shift+K` cycles its quality |
 | Advisors | The 💬 button mutes Lumi and Fizz |
 
+### Controller (Xbox layout, native Gamepad API)
+
+Plug in a pad and touch a stick or button: a ring of light (your hand) appears and the mouse is not needed. Moving the mouse hands the screen back. The game sets `window.__nativeGamepad = true` (and `data-native-gamepad` on `<html>`) as soon as it sees a pad, so a host that also maps pads to mouse and keys can switch that off.
+
+| Action | Button |
+| --- | --- |
+| Move the hand | Left stick (deadzone 0.2, speeds up while held; pushing against a screen edge pans) |
+| Grab / set down | **A**: tap to grab, tap again to set down. Or hold A and let go to set it down. Same code as the left click |
+| Drag the land, stroke the golem, press a HUD button | Hold **A** on bare land / the golem; **A** with the hand over a button or the worship slider |
+| Put back (a miracle is refunded) / close a panel | **B** |
+| Home | **X** (tap) · hold **X** + right stick orbits and tilts · **X** on the golem slaps it |
+| Find the golem / call it | **Y** (tap / hold) |
+| Throw | Holding something: hold **Y** to charge, aim with the left stick, let go |
+| Pan | Right stick |
+| Zoom | Left stick click in, right stick click out (held) |
+| Water / Food / Fire / pause | D-pad up / left / right / down |
+| Help screen / pause | View / Start |
+| Menus, intro, cards | D-pad or left stick moves, **A** chooses, **B** closes (the intro: **A** touches the light, **B** or Start skips) |
+| Optional duplicates, never needed | RT = A, LT = right button (flick to throw, slap), LB / RB = zoom out / in |
+
+Not mapped: the Xbox/Guide button (it belongs to the system) and drawing marks (Ctrl-drag). Code: `src/input/Gamepad.ts`. Test without a pad: add `?padtest` to the URL and drive `window.__fakePad` (see `scripts/test-gamepad.mjs`).
+
 Your hand only works inside the golden ring of influence around villages that worship you. You can still **throw** things beyond it, and that's how you reach unconverted villages.
 
 ## How the game works

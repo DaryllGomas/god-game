@@ -3,6 +3,7 @@ import type { Game } from '../Game';
 import type { Input, InputEvent } from './Input';
 import type { MiracleId } from '../miracles/Miracles';
 import { Golem } from '../creature/Golem';
+import { GamepadInput } from './Gamepad';
 
 const CLICK_SLOP = 6; // px of movement before a press becomes a drag
 const THROW_MIN_SPEED = 9;
@@ -40,14 +41,19 @@ export class Controls {
   private readonly ndc = new THREE.Vector2();
   private readonly v = new THREE.Vector3();
 
+  readonly pad: GamepadInput;
+
   constructor(
     private readonly game: Game,
     private readonly input: Input,
-  ) {}
+  ) {
+    this.pad = new GamepadInput(game, input);
+  }
 
   update(dt: number, realTime: number) {
     const g = this.game;
     const cam = g.godCam;
+    this.pad.update(dt, realTime); // a gamepad feeds the same pointer and key queue as the mouse and keyboard
     const { dx, dy } = this.input.consumeDelta();
     if (this.mode !== 'none') this.dragDist += Math.abs(dx) + Math.abs(dy);
 

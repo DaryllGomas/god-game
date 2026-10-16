@@ -71,14 +71,31 @@ export class Input {
   }
 
   private onMove(e: PointerEvent) {
+    this.moveTo(e.clientX, e.clientY);
+  }
+
+  /** Put the pointer at a client position (the mouse, or the gamepad's hand). */
+  moveTo(cx: number, cy: number) {
     const r = this.el.getBoundingClientRect();
-    this.movedX += e.clientX - this.x;
-    this.movedY += e.clientY - this.y;
-    this.x = e.clientX;
-    this.y = e.clientY;
-    this.nx = ((e.clientX - r.left) / r.width) * 2 - 1;
-    this.ny = -((e.clientY - r.top) / r.height) * 2 + 1;
+    this.movedX += cx - this.x;
+    this.movedY += cy - this.y;
+    this.x = cx;
+    this.y = cy;
+    this.nx = ((cx - r.left) / r.width) * 2 - 1;
+    this.ny = -((cy - r.top) / r.height) * 2 + 1;
     this.inside = true;
+  }
+
+  /** The gamepad presses or releases a pointer button at the pointer (same events as the mouse). */
+  padButton(button: number, down: boolean) {
+    if (down) this.buttons.add(button);
+    else this.buttons.delete(button);
+    this.queue.push({ type: down ? 'down' : 'up', button, x: this.x, y: this.y });
+  }
+
+  /** The gamepad "types" a key the game already knows. */
+  padKey(code: string, key = code) {
+    this.queue.push({ type: 'key', key, code });
   }
 
   consume(): InputEvent[] {

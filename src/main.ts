@@ -2,6 +2,7 @@ import { Game } from './Game';
 import { loadAssets } from './assets';
 import { preload as preloadCloud } from './cloud/Cloud';
 import { filmCamera, isFirstVisit, playIntro } from './intro/Intro';
+import { startEarlyPad } from './input/Gamepad';
 import { applyShot } from './shotMode'; // must load before isFirstVisit(): ?shot= skips the intro
 
 // A first visit opens on the intro (on black). The game is built behind it once the film is playing,
@@ -10,6 +11,7 @@ let gameReady = () => {};
 const ready = new Promise<void>((r) => (gameReady = r));
 let introStarted = () => {};
 const started = new Promise<void>((r) => (introStarted = r));
+startEarlyPad(); // a pad can touch the light and skip the film before the game exists
 const cam = filmCamera(() => (window as unknown as { game?: Game }).game);
 const first = isFirstVisit();
 if (first) {
