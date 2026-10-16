@@ -135,12 +135,9 @@ export class GamepadInput {
   private read(): { pad: Gamepad | null } {
     let pad: Gamepad | null = null;
     try {
-      for (const p of navigator.getGamepads?.() ?? []) {
-        if (p && p.connected) {
-          pad = p;
-          break;
-        }
-      }
+      // Any pad that's being used wins (a second pad on the couch, or the TV's test pad); else the first one.
+      const pads = [...(navigator.getGamepads?.() ?? [])].filter((p): p is Gamepad => !!p && p.connected);
+      pad = pads.find((p) => p.buttons.some((b) => b.pressed) || p.axes.slice(0, 4).some((a) => Math.abs(a) > 0.3)) ?? pads[0] ?? null;
     } catch {
       pad = null;
     }
