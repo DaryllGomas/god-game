@@ -33,8 +33,14 @@ export const CITY_NAME = 'TELOR';
 export const ASK = 'Would you like to go on to the next game?';
 export const NEXT_GAME = 'Beyond the Nexus';
 export const STAY_LABEL = 'Stay on this island';
-/** The RPG's page on the studio site (the game is served at /the-first-world/play/; the RPG is not playable online yet). */
-export const RPG_URL = '../../rpg/';
+/**
+ * Where "Beyond the Nexus" goes. On the web: the RPG's page on the studio site (the game is served at
+ * /the-first-world/play/; the RPG is not playable online yet). On the living-room TV (THE JUNCTION serves each game
+ * on its own *.junction.localhost host): the TV's own copy of the RPG, opened at the Nexus.
+ */
+export const RPG_URL = /\.junction\.localhost$/.test(location.hostname)
+  ? `${location.protocol}//nexus.junction.localhost${location.port ? ':' + location.port : ''}/?scene=nexus`
+  : '../../rpg/';
 
 const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
