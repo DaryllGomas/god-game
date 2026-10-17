@@ -341,6 +341,13 @@
    Narrower ones: just under the top-right bar, so the words never sit on the buttons. */
 :root {
   --talk-top: 66px;
+  /* The painted faces on every speech card (Lumi, Fizz, Vexahl): big enough to read the paintings (2026-10-17). */
+  --talk-face: 76px;
+}
+@media (max-width: 720px) {
+  :root {
+    --talk-face: 58px;
+  }
 }
 @media (min-width: 1800px) {
   :root {
@@ -390,8 +397,8 @@
 }
 .adv-face {
   flex: none;
-  width: 58px;
-  height: 58px;
+  width: var(--talk-face);
+  height: var(--talk-face);
   border-radius: 50%;
   overflow: hidden;
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--adv) 40%, #1b1824), #14111c 75%);
