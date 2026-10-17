@@ -306,7 +306,7 @@ export class Game {
       const x = (Math.random() * 2 - 1) * half;
       const z = (Math.random() * 2 - 1) * half;
       if (!this.terrain.isLand(x, z, 1.5) || this.terrain.heightAt(x, z) > 60) continue;
-      if (this.villages.some((v) => v.contains(x, z, 1.1))) continue;
+      if (this.villages.some((v) => v.contains(x, z, 1.1)) || this.kept(x, z)) continue;
       const rock = new Rock(Math.floor(Math.random() * 1e6), x, z, 1.1 + Math.random() * 1.4);
       rock.pos.y = this.terrain.heightAt(x, z) + rock.groundOffset;
       this.add(rock);
@@ -320,7 +320,16 @@ export class Game {
     this.add(t);
   }
 
+  /** Places where nothing may grow or roll in (the last age's city, src/nexus): trees and boulders keep off. */
+  readonly keepClear: ((x: number, z: number) => boolean)[] = [];
+
+  kept(x: number, z: number): boolean {
+    for (const f of this.keepClear) if (f(x, z)) return true;
+    return false;
+  }
+
   canPlantTree(x: number, z: number): boolean {
+    if (this.kept(x, z)) return false;
     const h = this.terrain.heightAt(x, z);
     if (h < SEA_LEVEL + 2.2 || h > 58) return false;
     if (this.terrain.normalAt(x, z, this.projV).y < 0.82) return false;
@@ -443,8 +452,11 @@ export class Game {
   lightShapes(): LightShape[] {
     const own = this.ownLight().map((l) => l.shape);
     const reached = this.villages.filter((v) => v.owner !== 'player' && this.touchedBy(own, v));
-    return [...own, ...reached.map((v) => this.neighbourGlow(v))];
+    return [...own, ...reached.map((v) => this.neighbourGlow(v)), ...this.extraLight];
   }
+
+  /** More gold on the ground, beyond the villages' own (the last age: the Nexus's light at the heart of the island, src/nexus). */
+  readonly extraLight: LightShape[] = [];
 
   private touchedBy(own: readonly LightShape[], v: Village): boolean {
     return lightSdfAll(own, v.center.x, v.center.z) <= v.radius * INFLUENCE.touch;

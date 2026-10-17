@@ -1,0 +1,9 @@
+/* The last age (src/nexus): the chip over the Nexus while it rises. Shares the project chips' look (projects.css). */
+.pj-chip.nexus-chip {
+  border-color: rgba(244, 207, 115, 0.55);
+  box-shadow: 0 0 14px rgba(244, 207, 115, 0.18);
+}
+.pj-chip.nexus-chip .pj-ic {
+  color: #f4cf73;
+  font-size: 13px;
+}

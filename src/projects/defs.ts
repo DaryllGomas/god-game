@@ -1,6 +1,6 @@
 /** Project definitions and tuning knobs for village projects and the Wonder. */
 
-export type ProjectId = 'well' | 'temple' | 'festival' | 'wonder';
+export type ProjectId = 'well' | 'temple' | 'festival' | 'wonder' | 'nexus';
 export type Res = 'wood' | 'stone' | 'food';
 export type Needs = Record<Res, number>;
 
@@ -125,5 +125,18 @@ export const DEFS: Record<ProjectId, ProjectDef> = {
     needs: { wood: 450, stone: 280, food: 260 },
     radius: 23,
     height: 40,
+  },
+  // The last age (src/nexus): the three villages raise the Nexus together, a ring of seven standing stones at the
+  // heart of the island. Not a temple: no prayer bubble, no worship. Stone from your hand, timber and food from every village.
+  nexus: {
+    id: 'nexus',
+    name: 'The Nexus',
+    icon: '◯',
+    prayer: [],
+    thanks: '',
+    effect: 'Seven stones, one for each mark. The city of Telor grows around it.',
+    needs: { wood: 110, stone: 150, food: 90 },
+    radius: 17,
+    height: 10,
   },
 };

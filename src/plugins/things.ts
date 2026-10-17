@@ -256,8 +256,8 @@ export function install(game: Game): GamePlugin {
         dirty = true;
       }
     }
-    // Rot.
-    const kept = stumps.filter((st) => game.time - st.t < (game.villageAt(st.x, st.z) ? STUMP_LIFE_VILLAGE : STUMP_LIFE_WILD));
+    // Rot. (None stay in the last age's city streets and plazas: src/nexus keeps them clear.)
+    const kept = stumps.filter((st) => game.time - st.t < (game.villageAt(st.x, st.z) ? STUMP_LIFE_VILLAGE : STUMP_LIFE_WILD) && !game.kept(st.x, st.z));
     if (kept.length !== stumps.length) {
       stumps = kept;
       dirty = true;

@@ -50,6 +50,8 @@ export class Terrain {
   readonly res = TERRAIN_RES;
   readonly cell = WORLD_SIZE / (TERRAIN_RES - 1);
   readonly heights: Float32Array;
+  /** The land as generated, before any pad was levelled for a building (plans that must come out the same every time read this). */
+  readonly baseHeights: Float32Array;
   /** 1 where a vertex was levelled flat for a building (later pads leave it alone). */
   private readonly lock: Float32Array;
   private dirty = false;
@@ -88,6 +90,7 @@ export class Terrain {
 
   constructor(seed: number, sites: VillageSite[]) {
     this.heights = this.generate(seed, sites);
+    this.baseHeights = this.heights.slice();
     this.lock = new Float32Array(this.heights.length);
     this.mesh = this.buildMesh(seed);
     this.heightTexture = this.buildHeightTexture();
@@ -361,6 +364,15 @@ export class Terrain {
    * (a field, a prop) would look dug in or floating.
    */
   heightAt(x: number, z: number): number {
+    return this.sample(this.heights, x, z);
+  }
+
+  /** The height the land was generated with at (x, z), before any levelling (see baseHeights). */
+  baseHeightAt(x: number, z: number): number {
+    return this.sample(this.baseHeights, x, z);
+  }
+
+  private sample(h: Float32Array, x: number, z: number): number {
     const { res, size, cell } = this;
     const fx = (x + size / 2) / cell;
     const fz = (z + size / 2) / cell;
@@ -369,7 +381,6 @@ export class Terrain {
     const iz = Math.floor(fz);
     const tx = fx - ix;
     const tz = fz - iz;
-    const h = this.heights;
     const i = iz * res + ix;
     const a = h[i];
     const b = h[i + res];

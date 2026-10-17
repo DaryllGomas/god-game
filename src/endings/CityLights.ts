@@ -39,7 +39,7 @@ export function aoSkip(game: Game, obj: THREE.Object3D) {
   if (list && !list.includes(obj)) list.push(obj);
 }
 
-const pillarMat = (color: THREE.Color, power: number) =>
+export const pillarMat = (color: THREE.Color, power: number) =>
   new THREE.ShaderMaterial({
     uniforms: { uColor: { value: color }, uStrength: { value: 0 }, uTime: { value: 0 } },
     transparent: true,

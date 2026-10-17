@@ -44,6 +44,14 @@ function footpath(ax: number, az: number, bx: number, bz: number): Path {
   return pts;
 }
 
+/** On `game.land`: paint the ground mask, clear decorative nature (see install). */
+export interface LandApi {
+  /** Paint into the base land mask (roads, worn ground); the live mask repaints on its next check. */
+  paint(fn: (p: LandPainter) => void): void;
+  /** Remove every decorative tree, shrub, flower and rock where `drop(x, z)` is true. Returns how many went. */
+  clear(drop: (x: number, z: number) => boolean): number;
+}
+
 export function install(game: Game): GamePlugin {
   // ---- roads between the villages (static)
   const roadPaths: Path[] = [];
@@ -159,6 +167,32 @@ export function install(game: Game): GamePlugin {
     decor.refresh(live, routes);
   };
   rebuild();
+
+  // The last age (src/nexus) builds a city: its streets and plazas are painted into the base mask (grass and decor keep
+  // off them), and decorative nature is taken away where a building or a street goes.
+  (game as unknown as { land: LandApi }).land = {
+    paint(fn) {
+      fn(base);
+      lastSig = NaN;
+    },
+    clear(drop) {
+      let n = 0;
+      for (const s of flora.sets) {
+        const items = s.set.items;
+        let w = 0;
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          if (drop(it.x, it.z)) n++;
+          else items[w++] = it;
+        }
+        if (w !== items.length) {
+          items.length = w;
+          s.set.invalidate();
+        }
+      }
+      return n;
+    },
+  };
 
   return {
     name: 'land',

@@ -89,6 +89,9 @@ function starfield(w: number, h: number): string {
   return c.toDataURL();
 }
 
+/** Cards made so far: each one's mark gets its own gradient ids (two cards in the page must not share them). */
+let cards = 0;
+
 /**
  * The end card after Ready to See: on star-black, the TEND mark, THE FIRST WORLD, and one line that hands
  * off to the next chapter. A small icon saves the legacy as a .json file. No other words.
@@ -101,31 +104,76 @@ export class EndCard {
   /** Called once the card has faded away (the player chose to go back to the island). */
   onClosed: (() => void) | null = null;
 
-  constructor(parent: HTMLElement, line: string, onDownload: () => void) {
+  constructor(
+    parent: HTMLElement,
+    line: string,
+    onDownload: () => void,
+    /**
+     * `choice`: the card asks a question with two answers (Daryll, 2026-10-17: "at the end of each modular experience,
+     * you could say, would you like to go on to the next game?"). `go` leaves for the next game (A, Enter); `stay`
+     * closes the card back onto the island (B, Escape). With a choice, a click elsewhere on the card does nothing.
+     */
+    opts: { title?: string; kicker?: string; choice?: { ask: string; go: { label: string; note?: string; onGo: () => void }; stay: { label: string } } } = {},
+  ) {
     this.el = document.createElement('div');
     this.el.className = 'endings-card';
     this.el.innerHTML = `
       <div class="ec-stars"></div>
       <div class="ec-horizon"></div>
       <div class="ec-body">
-        <div class="ec-mark">${TEND_MARK}</div>
+        <div class="ec-mark">${TEND_MARK.replace(/tend-(gold|leaf|orb|bloom|glow)\b/g, `tend${++cards}-$1`)}</div>
         <h1 class="ec-title">THE FIRST WORLD</h1>
         <div class="ec-rule"><span></span><i></i><span></span></div>
         <p class="ec-line"></p>
+        <p class="ec-kicker"></p>
+        ${
+          opts.choice
+            ? `<p class="ec-ask"></p>
+        <div class="ec-choices">
+          <button class="ec-go"><span class="ec-pad">A</span><span class="ec-go-label"></span><small class="ec-go-note"></small></button>
+          <button class="ec-stay"><span class="ec-pad">B</span><span class="ec-stay-label"></span></button>
+        </div>`
+            : ''
+        }
       </div>
       <button class="ec-save" aria-label="Save your legacy (.json)">${DOWNLOAD_ICON}</button>`;
-    this.el.querySelector('.ec-line')!.textContent = line;
+    this.setText(opts.title ?? 'THE FIRST WORLD', line, opts.kicker ?? '');
     (this.el.querySelector('.ec-stars') as HTMLDivElement).style.backgroundImage = `url(${starfield(1600, 1000)})`;
     const save = this.el.querySelector<HTMLButtonElement>('.ec-save')!;
     save.onclick = (e) => {
       e.stopPropagation();
       onDownload();
     };
+    const ch = opts.choice;
+    this.choice = ch ?? null;
+    if (ch) {
+      this.el.querySelector('.ec-ask')!.textContent = ch.ask;
+      this.el.querySelector('.ec-go-label')!.textContent = ch.go.label;
+      this.el.querySelector('.ec-go-note')!.textContent = ch.go.note ?? '';
+      this.el.querySelector('.ec-stay-label')!.textContent = ch.stay.label;
+      this.el.querySelector<HTMLButtonElement>('.ec-go')!.onclick = (e) => {
+        e.stopPropagation();
+        this.choose(true);
+      };
+      this.el.querySelector<HTMLButtonElement>('.ec-stay')!.onclick = (e) => {
+        e.stopPropagation();
+        this.choose(false);
+      };
+    }
     this.el.addEventListener('pointerdown', (e) => {
-      if ((e.target as HTMLElement).closest('.ec-save')) return;
-      this.close();
+      if ((e.target as HTMLElement).closest('.ec-save, .ec-choices')) return;
+      if (!this.choice) this.close();
     });
     parent.appendChild(this.el);
+  }
+
+  /** The card's words: its title, its one line, and an optional word under the line (a place's name). */
+  setText(title: string, line: string, kicker = '') {
+    this.el.querySelector('.ec-title')!.textContent = title;
+    this.el.querySelector('.ec-line')!.textContent = line;
+    const k = this.el.querySelector<HTMLElement>('.ec-kicker')!;
+    k.textContent = kicker;
+    k.style.display = kicker ? '' : 'none';
   }
 
   show() {
@@ -134,6 +182,22 @@ export class EndCard {
     this.out = -1;
     this.el.classList.add('on');
     this.el.style.opacity = '0';
+  }
+
+  private readonly choice: { go: { onGo: () => void } } | null;
+
+  /** Answer the card's question: go on to the next game, or stay on the island. */
+  choose(go: boolean) {
+    if (!this.shown || this.out >= 0 || this.t < CARD_HOLD) return;
+    if (go && this.choice) this.choice.go.onGo();
+    else this.close();
+  }
+
+  /** A key (or the controller's A / B, which arrive as Enter / Escape) on the card. */
+  key(e: KeyboardEvent) {
+    if (!this.choice) return this.close();
+    if (e.key === 'Enter' || e.key === ' ') this.choose(true);
+    else if (e.key === 'Escape' || e.key === 'Backspace') this.choose(false);
   }
 
   /** Back to the island (after the card has held a moment). */
@@ -167,6 +231,7 @@ export class EndCard {
     this.el.style.setProperty('--ec-title', clamp((this.t - 1.8) / 2, 0, 1).toFixed(3));
     this.el.style.setProperty('--ec-line', clamp((this.t - 3.2) / 2.2, 0, 1).toFixed(3));
     this.el.style.setProperty('--ec-save', clamp((this.t - 4.4) / 1.5, 0, 1).toFixed(3));
+    this.el.style.setProperty('--ec-kicker', clamp((this.t - 4.6) / 2.4, 0, 1).toFixed(3));
     this.el.style.setProperty('--ec-time', this.t.toFixed(2));
     if (this.out >= CARD_OUT) {
       this.shown = false;

@@ -35,8 +35,14 @@ export const PEOPLE_GONE_AFTER = 20;
 export const TUNE_DAYS = 1;
 /** The same, in game seconds at the normal pace (kept for readers of the old knob). */
 export const WHOLE_AFTER = TUNE_DAYS * DAY_LENGTH;
-/** The end card's one line, handing off to the next chapter (the RPG builds the Nexus). */
+/** The end card's one line, handing off to the next chapter (the RPG builds the Nexus). Free play's card; in story mode it moved to the true end (src/nexus). */
 export const HANDOFF_LINE = 'The Nexus is forming.';
+/**
+ * Story mode's card after Whole (2026-10-17): no longer the end, but a turn. Daryll: "after you beat Vexahl, you do one
+ * last city building where you bring all of the towns together". The last age (src/nexus) begins when it closes.
+ */
+export const TURN_TITLE = 'WHOLE';
+export const TURN_LINE = 'Three villages, ready to become one.';
 /** Ruins kept from fallen worlds (the newest stands where it fell; older ones stay too, up to this many). */
 const MAX_RUINS = 5;
 
@@ -253,9 +259,19 @@ export class Endings {
     this.game.saves.save('quiet');
   }
 
+  /** Story mode goes on into the last age after this card (src/nexus); free play's card is still the end of the road. */
+  private get turns(): boolean {
+    const g = this.game as unknown as { pace?: { story: boolean }; nexus?: { phase: string } };
+    return !!g.pace?.story && !!g.nexus && g.nexus.phase === 'off';
+  }
+
   private showCard() {
     this.phase = 'card';
-    unlockFreePlay(); // story mode is beaten: a new island may now offer free play (src/story/unlock.ts)
+    if (this.turns) this.card.setText(TURN_TITLE, TURN_LINE);
+    else {
+      this.card.setText('THE FIRST WORLD', HANDOFF_LINE);
+      unlockFreePlay(); // the island is beaten: a new island may now offer free play (src/story/unlock.ts); story mode unlocks it at the true end
+    }
     this.card.show();
   }
 
@@ -271,6 +287,9 @@ export class Endings {
     this.cine.end();
     this.giveBack();
     g.audio.endingBreathe();
+    // Story mode: Whole opens one more age, the Nexus and Telor (src/nexus).
+    const nexus = (g as unknown as { nexus?: { afterWhole(): void } }).nexus;
+    if (nexus && (g as unknown as { pace?: { story: boolean } }).pace?.story) nexus.afterWhole();
     g.saves.save('quiet');
   }
 

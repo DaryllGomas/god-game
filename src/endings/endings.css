@@ -193,6 +193,103 @@
   text-shadow: 0 0 18px rgba(159, 220, 255, 0.45);
   opacity: var(--ec-line);
 }
+.ec-kicker {
+  margin: 22px 0 0;
+  font-family: 'Cinzel', 'Cormorant Garamond', 'Georgia', serif;
+  font-weight: 600;
+  font-size: clamp(15px, 1.35vw, 19px);
+  letter-spacing: 0.62em;
+  padding-left: 0.62em;
+  color: #f4cf73;
+  text-shadow: 0 0 16px rgba(244, 207, 115, 0.5);
+  opacity: var(--ec-kicker, 0);
+}
+.ec-ask {
+  margin: 30px 0 0;
+  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: clamp(19px, 1.8vw, 25px);
+  color: #eaf3ff;
+  text-shadow: 0 0 14px rgba(159, 220, 255, 0.35);
+  opacity: var(--ec-kicker, 0);
+}
+.ec-choices {
+  margin: 18px auto 0;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  opacity: var(--ec-kicker, 0);
+}
+.ec-choices button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 26px 13px 14px;
+  border-radius: 999px;
+  font-family: 'Cinzel', 'Cormorant Garamond', 'Georgia', serif;
+  font-weight: 600;
+  font-size: clamp(13px, 1.1vw, 16px);
+  letter-spacing: 0.18em;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+}
+.ec-go {
+  border: 1px solid rgba(244, 207, 115, 0.7);
+  background: linear-gradient(180deg, rgba(70, 50, 20, 0.65), rgba(22, 17, 10, 0.65));
+  color: #fbe3a6;
+  box-shadow: 0 0 26px rgba(244, 207, 115, 0.25), inset 0 0 12px rgba(244, 207, 115, 0.12);
+}
+.ec-go small {
+  font-family: 'Cormorant Garamond', 'Georgia', serif;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  font-size: 0.95em;
+  color: rgba(251, 227, 166, 0.65);
+}
+.ec-stay {
+  border: 1px solid rgba(200, 220, 255, 0.35);
+  background: rgba(10, 14, 26, 0.55);
+  color: #d8e6ff;
+}
+.ec-go:hover,
+.ec-go:focus-visible {
+  background: linear-gradient(180deg, rgba(96, 70, 26, 0.75), rgba(38, 28, 12, 0.75));
+  box-shadow: 0 0 38px rgba(244, 207, 115, 0.5), inset 0 0 14px rgba(244, 207, 115, 0.2);
+  outline: none;
+}
+.ec-stay:hover,
+.ec-stay:focus-visible {
+  border-color: rgba(200, 220, 255, 0.7);
+  box-shadow: 0 0 22px rgba(159, 220, 255, 0.25);
+  outline: none;
+}
+/* The controller's buttons, shown only while a pad is in use (src/input/Gamepad.ts sets the attribute). */
+.ec-pad {
+  display: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans, 'Inter', sans-serif);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #0b0d14;
+}
+html[data-native-gamepad] .ec-pad {
+  display: inline-flex;
+}
+.ec-go .ec-pad {
+  background: #7fd27a;
+}
+.ec-stay .ec-pad {
+  background: #e8746a;
+}
 .ec-save {
   position: absolute;
   right: 30px;

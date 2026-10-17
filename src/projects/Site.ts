@@ -18,6 +18,7 @@ import {
 import { GLOW, festivalModel, scaffoldModel, stoneHeapGeometry, templeModel, wellModel, type LayeredModel } from './ProjectModels';
 import { WonderVisual } from './Wonder';
 import { ShrineBuildVisual } from '../shrines/ShrineBuild';
+import { NexusVisual } from '../nexus/NexusModel';
 import { BUILT_AT_SHRINE, STAGE_OF_PROJECT } from '../shrines/stages';
 
 const logsGeo = logStackGeometry();
@@ -171,6 +172,8 @@ export class Site extends Entity {
     this.visual =
       def.id === 'wonder'
         ? new WonderWrapper()
+        : def.id === 'nexus'
+          ? new NexusVisual()
         : BUILT_AT_SHRINE.has(def.id)
           ? new ShrineBuildVisual(STAGE_OF_PROJECT[def.id]!, def.radius, def.height)
           : new BuildingVisual(def);
@@ -183,6 +186,11 @@ export class Site extends Entity {
 
   get topHeight() {
     return this.def.height;
+  }
+
+  /** The last age's ring of stones (src/nexus), when this is the Nexus. */
+  get nexusVisual(): NexusVisual | null {
+    return this.visual instanceof NexusVisual ? this.visual : null;
   }
 
   get wonderVisual(): WonderVisual | null {

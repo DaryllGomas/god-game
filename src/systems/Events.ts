@@ -80,6 +80,16 @@ export interface GameEvents {
   prayerAnswered: { kind: PrayerKind; village: Village; villager?: Villager; house?: House };
   /** The world's balance crossed into another band (see src/balance): in tune, tipping, or falling. */
   balanceBand: { band: 'tune' | 'tipping' | 'falling'; from: 'tune' | 'tipping' | 'falling'; value: number };
+  /** The last age (src/nexus): the villages begin the Nexus at the heart of the island. */
+  nexusBegun: { x: number; z: number };
+  /** A stone of the Nexus rises (`stones` now standing or rising, of seven). */
+  nexusStone: { stones: number };
+  /** The ring of seven stones stands: Telor begins to grow round it. */
+  nexusRaised: Record<string, never>;
+  /** Telor reached a step (roads, plaza, district, avenues, walls, built). */
+  telorStep: { step: string };
+  /** The true end: it begins, its card shows, or the card has closed and the island goes on. */
+  trueEnd: { phase: 'begin' | 'card' | 'done' };
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;

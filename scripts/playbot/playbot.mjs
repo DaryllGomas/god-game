@@ -8,6 +8,8 @@
 // children home, drops boulders on dream sites and trees on storehouses. It never calls giftToVillage, never
 // sets belief, never touches game code. Game time is stepped with the game's own debug hook, game.advance().
 // Output: timeline.csv (every game minute), events.md, events.json, timeline.json and milestone screenshots.
+// The last age (2026-10-17): after Whole and its card the bot plays on through the Nexus (answering prayers, boulders
+// and timber onto the ring) and watches Telor grow, to the true end and its card; then the run is over.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs/promises';
 
@@ -371,9 +373,36 @@ await p.evaluate((CFG) => {
     return false;
   }
 
+  /** The last age: prayers anywhere, then the Nexus (boulders for stone; a tree or food if the villages run short). */
+  function nexusTick() {
+    const prs = ps.active.filter((x) => x.kind !== 'project' && g.canReach(x.village) && g.time - x.bornAt >= CFG.react).sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || a.bornAt - b.bornAt);
+    for (const pr of prs) if (answer(pr)) return;
+    const site = g.nexus.site;
+    if (!site || site.complete) return;
+    if (!B.siteSeen.has(site)) B.siteSeen.set(site, g.time);
+    if (g.time - B.siteSeen.get(site) < CFG.siteReact) return;
+    const name = `the Nexus (${g.nexus.stones} of 7 stones, ${Math.floor(site.have.stone)}/${site.def.needs.stone} stone)`;
+    if (site.open('stone') >= 0.5) {
+      const r = nearestOf('rock', site.pos.x, site.pos.z, (x) => dist(x, site.pos.x, site.pos.z) > site.radius + 1);
+      if (r && carry(r, site.pos.x + (Math.random() - 0.5) * 8, site.pos.z + (Math.random() - 0.5) * 8, `boulder onto ${name}`)) return;
+      note('nexus: no boulder in your light');
+    }
+    const low = g.villages.every((v) => v.store.wood < 20);
+    if (site.open('wood') >= 1 && low) {
+      const t = tree(site.pos.x, site.pos.z);
+      if (t && carry(t, site.pos.x, site.pos.z, `tree onto ${name}`)) return;
+    }
+    if (site.open('food') >= 1 && g.villages.every((v) => v.store.food < 45)) {
+      if (miracle('food', site.pos.x, site.pos.z, `Food onto ${name}`)) return;
+    }
+    note(`idle in the last age (${g.nexus.phase})`);
+  }
+
   B.tick = () => {
+    if (g.time < B.busyUntil || g.hand.held) return;
+    if (g.nexus?.phase === 'ring') return nexusTick();
     const goal = g.story.goal;
-    if (g.time < B.busyUntil || g.hand.held || !goal) return;
+    if (!goal) return;
     const home = g.time < (CFG.homeUntil ?? 0); // homebody: only your own villages for now
     // 1. Prayers anywhere the hand can act.
     const prs = ps.active.filter((x) => x.kind !== 'project' && g.canReach(x.village) && (!home || x.village.owner === 'player') && g.time - x.bornAt >= CFG.react).sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || a.bornAt - b.bornAt);
@@ -450,6 +479,10 @@ await p.evaluate((CFG) => {
       temples_stand: g.allTemplesStand(),
       tune_days: +(g.endings.tuneDays ?? 0).toFixed(3),
       day_clock: +(g.day + g.dayTime).toFixed(3),
+      nexus_phase: g.nexus?.phase ?? '',
+      nexus_stones: g.nexus?.stones ?? '',
+      nexus_fraction: g.nexus?.site ? +g.nexus.site.fraction.toFixed(3) : '',
+      telor_t: g.nexus?.phase === 'city' ? Math.round(g.nexus.cityT) : '',
     };
     for (const v of g.villages) {
       const k = v.name;
@@ -551,15 +584,53 @@ await p.evaluate((CFG) => {
         B.lastRow = g.time;
         B.row();
       }
-      if (g.endings.phase !== 'play') {
+      if (g.endings.phase !== 'play' && g.endings.phase !== 'after') {
         ev('ending', `ending phase: ${g.endings.phase} (tune step lasted ${B.seen.tune === undefined ? '?' : Math.round(g.time - B.seen.tune)} game s, ${(g.endings.tuneDays ?? 0).toFixed(2)} game days in tune)`);
         B.shots.push({ key: `09-ending-${g.endings.phase}`, focus: at(g.villages[0], 300) });
         return { end: g.endings.phase };
+      }
+      B.watchNexus();
+      if (g.nexus?.phase === 'lit') {
+        ev('ending', `THE TRUE END begins: Telor stands (${JSON.stringify(g.nexus.state().city)})`);
+        return { end: 'true-end' };
       }
       if (B.shots.length) break;
     }
     return { end: null };
   };
+  // ---- the last age
+  B.nexus = { stones: 0, step: null, phase: 'off' };
+  B.watchNexus = () => {
+    const n = g.nexus;
+    if (!n) return;
+    const st = n.state();
+    const N = B.nexus;
+    const focus = st.site ? { x: st.site.x, z: st.site.z, distance: 120 } : null;
+    if (st.phase !== N.phase) {
+      ev('nexus', `the last age: ${N.phase} -> ${st.phase}${st.site ? ` (site ${st.site.x}, ${st.site.z})` : ''}`);
+      if (st.phase === 'ring') {
+        N.ringAt = g.time;
+        B.shots.push({ key: '40-nexus-begins', focus: { ...focus, distance: 240 } });
+      }
+      if (st.phase === 'city') {
+        N.cityAt = g.time;
+        ev('nexus', `THE RING STANDS after ${Math.round(g.time - (N.ringAt ?? g.time))} game s (${((g.time - (N.ringAt ?? g.time)) / 60).toFixed(1)} game min)`);
+      }
+      if (st.phase === 'lit') ev('nexus', `TELOR STANDS after ${Math.round(g.time - (N.cityAt ?? g.time))} game s of building`);
+      N.phase = st.phase;
+    }
+    if (st.stones > N.stones) {
+      N.stones = st.stones;
+      ev('nexus', `stone ${st.stones} of 7 rises (${JSON.stringify(st.site.have)})`);
+      if ([1, 4, 7].includes(st.stones)) B.shots.push({ key: `41-nexus-stone-${st.stones}`, focus: { ...focus, distance: 90 }, wait: 4500 });
+    }
+    if (st.step && st.step !== N.step) {
+      N.step = st.step;
+      ev('nexus', `Telor: ${st.step} (${JSON.stringify(st.city)})`);
+      B.shots.push({ key: `42-telor-${st.step}`, focus: { ...focus, distance: 280 } });
+    }
+  };
+
   B.drain = () => {
     const out = { events: B.events, timeline: B.timeline, shots: B.shots };
     B.events = [];
@@ -693,16 +764,50 @@ await p.screenshot({ path: `${OUT}/00-where-is-vexahl.png` });
 
 let ended = null;
 let lastWrite = 0;
+const closeCard = async (label) => {
+  // The card holds a few seconds before a click takes you back to the island.
+  await p.waitForTimeout(6500);
+  await p.screenshot({ path: `${OUT}/${label}.png` });
+  // Whole's card closes on a click; the true end's asks, and the bot stays on this island (Escape, the controller's B).
+  await p.mouse.click(160, SIZE.height - 140);
+  await p.keyboard.press('Escape');
+};
 for (;;) {
   const r = await p.evaluate((n) => __bot.run(n), BATCH);
   await flush();
   const t = await p.evaluate(() => game.time);
+  if (r.end === 'true-end') {
+    ended = 'true-end';
+    await p.evaluate(() => delete game.render);
+    for (const at of [4, 10, 14, 18, 22]) {
+      await p.waitForFunction((at) => (game.nexus.state().end?.t ?? 0) >= at, at, { timeout: 90000 }).catch(() => {});
+      await p.screenshot({ path: `${OUT}/50-true-end-${String(at).padStart(2, '0')}s.png` });
+    }
+    await p.waitForFunction(() => game.nexus.state().end?.card, null, { timeout: 90000 }).catch(() => {});
+    await closeCard('51-true-end-card');
+    await p.waitForFunction(() => game.nexus.phase === 'done', null, { timeout: 60000 }).catch(() => {});
+    await p.waitForTimeout(4000);
+    await p.screenshot({ path: `${OUT}/52-after-the-true-end.png` });
+    const fin = await p.evaluate(() => ({ phase: game.nexus.phase, time: game.time, card: [...document.querySelectorAll('.endings-card .ec-line')].map((e) => e.textContent) }));
+    events.push({ t: Math.round(fin.time), type: 'ending', text: `the true end is over: the island goes on (${fin.phase})`, real: Math.round(realS()) });
+    break;
+  }
   if (r.end) {
-    ended = r.end;
-    // A few more seconds of the ending for one more frame.
+    // The first ending (Ready to See, Whole): it plays in real time to its card, which in story mode is a turn.
+    await p.evaluate(() => delete game.render);
     await p.waitForTimeout(6000);
     await p.screenshot({ path: `${OUT}/09-ending-later.png` });
-    break;
+    await p.waitForFunction(() => game.endings.phase === 'card', null, { timeout: 180000 }).catch(() => {});
+    const card = await p.evaluate(() => [...document.querySelectorAll('.endings-card.on')].map((c) => `${c.querySelector('.ec-title').textContent} / ${c.querySelector('.ec-line').textContent}`));
+    events.push({ t: Math.round(t), type: 'ending', text: `Whole's card: ${card.join(' | ')}`, real: Math.round(realS()) });
+    await closeCard('09-whole-card');
+    const ok = await p.waitForFunction(() => game.endings.phase === 'after' && game.nexus.phase === 'ring', null, { timeout: 60000 }).then(() => true).catch(() => false);
+    if (!ok) {
+      ended = `stuck after Whole (${await p.evaluate(() => `${game.endings.phase} / ${game.nexus.phase}`)})`;
+      break;
+    }
+    events.push({ t: Math.round(t), type: 'ending', text: 'the card closes: the last age begins', real: Math.round(realS()) });
+    continue;
   }
   if (t >= MAX_GAME_S) break;
   if (realS() - lastWrite > 60) {

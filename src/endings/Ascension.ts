@@ -61,7 +61,7 @@ const basis = new THREE.Matrix4();
 const rot = new THREE.Matrix4();
 
 /** A soft star of light: a bright core with long thin rays (for the meeting of the hands). */
-function raysTexture(): THREE.CanvasTexture {
+export function raysTexture(): THREE.CanvasTexture {
   const S = 512;
   const c = document.createElement('canvas');
   c.width = c.height = S;

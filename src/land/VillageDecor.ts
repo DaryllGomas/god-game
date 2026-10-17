@@ -109,7 +109,7 @@ function pileGeometry(seed: number): THREE.BufferGeometry {
 }
 
 /** Walkers: one tiny villager per instance; `aLimb` marks each vertex (0 body, 1/2 left/right leg, 3/4 left/right arm). */
-function walkerGeometry(seed: number, tunic: number): THREE.BufferGeometry {
+export function walkerGeometry(seed: number, tunic: number): THREE.BufferGeometry {
   const p = villagerParts(seed, tunic);
   const P = VILLAGER_PIVOT;
   const tag = (g: THREE.BufferGeometry, limb: number) => {
@@ -124,8 +124,8 @@ function walkerGeometry(seed: number, tunic: number): THREE.BufferGeometry {
 }
 
 /** Walkers swing their legs and arms as they go (world look pass): the swing runs in the vertex shader, per instance. */
-const walkerTime = { value: 0 };
-const WALKER_MAT = MAT.base.clone();
+export const walkerTime = { value: 0 };
+export const WALKER_MAT = MAT.base.clone();
 WALKER_MAT.onBeforeCompile = (sh) => {
   sh.uniforms.uWalkTime = walkerTime;
   sh.vertexShader = sh.vertexShader

@@ -270,7 +270,9 @@ export class Ora {
   /** Story mode's current goal, in Ora's words (from the story), or null outside story mode. */
   private currentGoal(): string | null {
     const st = (this.game as unknown as { story?: { active: boolean; goalLine(): string | null } }).story;
-    return st?.active ? st.goalLine() : null;
+    if (st?.active) return st.goalLine();
+    // The last age (src/nexus): the Nexus is the goal.
+    return (this.game as unknown as { nexus?: { goalLine(): string | null } }).nexus?.goalLine() ?? null;
   }
 
   /** The reminder was looked at: say the current goal again, now, unless Ora (or a character) is already talking. */

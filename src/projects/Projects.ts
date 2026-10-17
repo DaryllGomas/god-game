@@ -77,6 +77,7 @@ const START_LINES: Record<ProjectId, Line[][]> = {
   temple: [[{ who: 'spirit', text: 'A pyramid! Right where they pray. They are already arguing about the angle.' }, { who: 'imp', text: 'Pointy. I approve.' }]],
   festival: [[{ who: 'spirit', text: 'A temple of white stone, round their pyramid. And a feast to open it!' }, { who: 'imp', text: 'A feast? Count me in. I hear there will be fireworks. (There will not be fireworks.)' }]],
   wonder: [],
+  nexus: [],
 };
 
 const DONE_LINES: Record<ProjectId, Line[][]> = {
@@ -87,6 +88,7 @@ const DONE_LINES: Record<ProjectId, Line[][]> = {
   ],
   festival: [[{ who: 'spirit', text: 'Columns and lanterns and dancing. I could watch this all night.' }, { who: 'imp', text: 'I am not crying. There is temple dust in my eye.' }]],
   wonder: [],
+  nexus: [],
 };
 
 /**
@@ -585,7 +587,7 @@ export class Projects {
     const g = this.game;
     const r = (n: number) => Math.round(n * 100) / 100;
     const sites = g.entities
-      .filter((e): e is Site => e instanceof Site && e.alive && !(e.complete && BUILT_AT_SHRINE.has(e.def.id)))
+      .filter((e): e is Site => e instanceof Site && e.alive && e.def.id !== 'nexus' && !(e.complete && BUILT_AT_SHRINE.has(e.def.id)))
       .map((s) => ({
         v: g.villages.indexOf(s.village),
         id: s.def.id,
@@ -634,7 +636,8 @@ export class Projects {
     for (const s of d.sites) {
       const v = g.villages[s.v];
       const def = DEFS[s.id];
-      if (!v || !def) continue;
+      // The Nexus is the last age's own (src/nexus saves it).
+      if (!v || !def || def.id === 'nexus') continue;
       const atShrine = BUILT_AT_SHRINE.has(def.id);
       // v0.4's temples and festival greens stood on their own plots: a finished one is now an age of the
       // prayer place (src/shrines derives it), and one still being built moves there with what it had.
