@@ -72,16 +72,22 @@ export function buildFieldMesh(w: number, d: number, sample: (lx: number, lz: nu
   soilGeo.computeVertexNormals();
   soilGeo.computeBoundingSphere();
 
-  // --- crops: rows of short segments; each vertex remembers its ground height.
+  // --- crops: rows of tufts (village art pass 2026-10-16: they read as plants, not slabs), staggered a little;
+  // each tuft is a tapering prism whose top ring moves with the crop's height, with a ridge of earth along each row.
   const parts: THREE.BufferGeometry[] = [];
   const rows = Math.floor(d / 1.2);
-  const segs = Math.max(4, Math.round((w - 0.8) / 1.1));
-  const segW = (w - 0.8) / segs;
+  const step = 0.62;
+  const segs = Math.max(4, Math.floor((w - 0.8) / step));
+  const span = segs * step;
+  let seed = Math.round(w * 131 + d * 17);
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let r = 0; r < rows; r++) {
     const z = -d / 2 + 0.6 + r * 1.2;
     for (let s = 0; s < segs; s++) {
-      const x = -(w - 0.8) / 2 + segW * (s + 0.5);
-      parts.push(paint(new THREE.BoxGeometry(segW + 0.02, 1, 0.55).translate(x, 0.5, z), 0xffffff, 0.12));
+      const x = -span / 2 + step * (s + 0.5) + (r % 2 ? step * 0.3 : -step * 0.1);
+      const rb = 0.26 + rnd() * 0.08;
+      const tuft = new THREE.CylinderGeometry(rb * 0.35, rb, 1, 5).rotateY(rnd() * 3).translate(x + (rnd() - 0.5) * 0.12, 0.5, z + (rnd() - 0.5) * 0.12);
+      parts.push(paint(tuft, 0xffffff, 0.24));
     }
   }
   const crops = merge(parts);

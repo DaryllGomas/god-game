@@ -39,7 +39,7 @@ await pose(0, 62, 0.75, 0.9, 0.36);
 await shot('v0-panel2');
 await pose(0, 26, 0.5, 0.9, 0.36, 8, 12);
 await shot('v0-street');
-await pose(0, 78, 0.68, 0.5, 0.72);
+await pose(0, 78, 0.68, 0.5, 0.775);
 await shot('v0-dusk');
 const only = process.argv.includes('houses');
 for (let i = 0; i < 3; i++) {

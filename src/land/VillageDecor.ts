@@ -16,6 +16,7 @@ import { LandPainter } from './LandMask';
 import { TREE_TINTS } from './palette';
 import { bushGeometry, flowerGeometry } from './Flora';
 import type { Path } from './Roads';
+import { PROP_MATS, barnGeometry, cartGeometry, haystackGeometry, lampGeometry, stallGeometry, wellGeometry, woodshedGeometry, workshopGeometry } from './VillageProps';
 
 /**
  * Village density (v0.6): a lived-in village inside a woodland clearing. Purely visual (instanced, no collision, never an
@@ -25,7 +26,7 @@ import type { Path } from './Roads';
  * a project site or the shrine ground is simply tucked away, so nothing here can ever stand where something is built.
  */
 
-type Kind = 'tree' | 'bush' | 'flower' | 'hedge' | 'plot' | 'pile';
+type Kind = 'tree' | 'bush' | 'flower' | 'hedge' | 'plot' | 'pile' | 'prop';
 interface Entry {
   item: ScatterItem;
   kind: Kind;
@@ -231,6 +232,48 @@ export class VillageDecor {
       const R = v.radius;
       const wp = v.worship.pos;
 
+      // ---- lived-in props (village art pass 2026-10-16): a market round the storehouse, a well, a barn, a workshop,
+      // woodsheds, carts, haystacks by the fields and lamp posts. Placed first, so the trees and bushes keep clear of them.
+      const vIndex = Math.max(0, VILLAGE_SITES.findIndex((s) => s.name === v.name));
+      const placeProp = (key: string, x: number, z: number, r: number, yaw: number) => {
+        if (!free(x, z, v, null, r)) return false;
+        if (nearSolid(x, z, r)) return false;
+        addItem(v, 'prop', key, x, z, 1, null, r, { yaw, tint: 0, lift: 0.02 });
+        solid.push({ x, z, r });
+        this.count.small++;
+        return true;
+      };
+      const facing = (x: number, z: number, tx: number, tz: number) => Math.atan2(tx - x, tz - z);
+      const ringTry = (key: string, cx: number, cz: number, d0: number, d1: number, r: number, tries = 60, face?: [number, number]) => {
+        for (let t = 0; t < tries; t++) {
+          const a = rng.range(0, Math.PI * 2);
+          const d = rng.range(d0, d1);
+          const x = cx + Math.cos(a) * d;
+          const z = cz + Math.sin(a) * d;
+          const [fx, fz] = face ?? [cx, cz];
+          if (Math.hypot(x - wp.x, z - wp.z) < SHRINE_CLEARANCE + r + 1) continue;
+          if (placeProp(key, x, z, r, facing(x, z, fx, fz) + rng.range(-0.25, 0.25))) return true;
+        }
+        return false;
+      };
+      const sp = v.store.pos;
+      for (let k = 0; k < 3; k++) ringTry(`stall-${vIndex}-${k}`, sp.x, sp.z, 8, 11.5, 2.2);
+      ringTry('well', c.x, c.z, 7, 13, 1.7);
+      ringTry('barn', c.x, c.z, 0.75 * R, 1.15 * R, 5.4, 120);
+      for (let k = 0; k < 2; k++) ringTry('work', c.x, c.z, 0.45 * R, 1.05 * R, 3.9, 120);
+      for (let k = 0; k < 2; k++) ringTry('shed', c.x, c.z, 0.45 * R, 1.1 * R, 2.6);
+      for (let k = 0; k < 3; k++) ringTry(`cart-${k % 2}`, c.x, c.z, 0.2 * R, 0.9 * R, 1.7);
+      for (const f of v.fields) for (let k = 0; k < 2; k++) ringTry(`hay-${k}`, f.pos.x, f.pos.z, 8, 10.5, 1.5, 30, [c.x, c.z]);
+      // Lamps: round the market and the prayer place's approach, and one by each home's path.
+      for (let k = 0; k < 4; k++) ringTry('lamp', sp.x, sp.z, 6.2, 7.5, 0.5, 20);
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + 0.3;
+        const x = wp.x + Math.cos(a) * (SHRINE_CLEARANCE + 9.5);
+        const z = wp.z + Math.sin(a) * (SHRINE_CLEARANCE + 9.5);
+        placeProp('lamp', x, z, 0.5, facing(x, z, wp.x, wp.z));
+      }
+      for (const h of v.houses) ringTry('lamp', h.pos.x, h.pos.z, 5.5, 7, 0.5, 12);
+
       // ---- tree and bush clumps between the houses (inside the clearing)
       let clumps = 0;
       for (let t = 0; t < 400 && clumps < CLUMP_COUNT; t++) {
@@ -370,6 +413,19 @@ export class VillageDecor {
       } else if (key === 'hedge') {
         geo = hedgeGeo;
         tints = WHITE;
+      } else if (key.startsWith('stall-') || ['well', 'barn', 'work', 'shed', 'lamp'].includes(key) || key.startsWith('cart-') || key.startsWith('hay-')) {
+        const k = key.split('-');
+        geo =
+          k[0] === 'stall' ? stallGeometry(900 + Number(k[2]) * 7 + Number(k[1]) * 31, VILLAGE_SITES[Number(k[1])]?.tunic ?? 0x3f6fc4)
+          : k[0] === 'well' ? wellGeometry(901)
+          : k[0] === 'barn' ? barnGeometry(902)
+          : k[0] === 'work' ? workshopGeometry(903)
+          : k[0] === 'shed' ? woodshedGeometry(904)
+          : k[0] === 'cart' ? cartGeometry(905 + Number(k[1]))
+          : k[0] === 'hay' ? haystackGeometry(907 + Number(k[1]))
+          : lampGeometry();
+        mat = k[0] === 'work' || k[0] === 'lamp' ? (PROP_MATS as unknown as THREE.Material) : MAT.base;
+        tints = WHITE;
       } else if (key === 'plot') {
         geo = plotGeo;
         mat = MAT.base;
@@ -381,8 +437,10 @@ export class VillageDecor {
       }
       const set = new ScatterSet(game.scene, geo, mat, b.items, tints, `vdecor-${key}`);
       for (const en of b.entries) en.set = set;
-      set.mesh.castShadow = false;
-      this.sets.push({ set, kind: 'small', maxCam: 420 });
+      // The village props are buildings-sized: they cast shadows and stay in view further out.
+      const prop = b.entries[0]?.kind === 'prop';
+      set.mesh.castShadow = prop;
+      this.sets.push({ set, kind: 'small', maxCam: prop ? 900 : 420 });
     }
   }
 
@@ -492,7 +550,8 @@ export class VillageDecor {
       const wp = vr.v.worship.pos;
       for (let i = 0; i < GATHER; i++) {
         const ang = (i / GATHER) * Math.PI * 2 + 0.4 + Math.sin(i * 7.3) * 0.15;
-        const rad = 9.5 + (i % 3) * 1.6;
+        // Outside the stones once they stand (the court is theirs), close round the totem before that.
+        const rad = (vr.v.shrineStage === 'totem' ? 9.5 : 13.6) + (i % 3) * 1.6;
         const gx = wp.x + Math.cos(ang) * rad;
         const gz = wp.z + Math.sin(ang) * rad;
         const gy = this.game.terrain.heightAt(gx, gz) + 0.05 * Math.abs(Math.sin(time * 1.6 + i * 2.1));

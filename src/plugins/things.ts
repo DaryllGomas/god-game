@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Game, GamePlugin } from '../Game';
-import { House } from '../entities/Buildings';
+import { Field, House } from '../entities/Buildings';
 import type { Tree } from '../entities/Nature';
 import { MAT } from '../art/Models';
 import { Rng } from '../util/rng';
@@ -51,8 +51,8 @@ export function install(game: Game): GamePlugin {
   // ---- props
   const barrels = new InstanceSet(scene, barrelGeometry(), MAT.base, 160);
   const crates = new InstanceSet(scene, crateGeometry(), MAT.base, 160);
-  const fencePosts = new InstanceSet(scene, fencePostGeometry(), MAT.base, 520);
-  const fenceRails = new InstanceSet(scene, fenceRailGeometry(), MAT.base, 260);
+  const fencePosts = new InstanceSet(scene, fencePostGeometry(), MAT.base, 1500);
+  const fenceRails = new InstanceSet(scene, fenceRailGeometry(), MAT.base, 900);
   const posts = new InstanceSet(scene, lanternPostGeometry(), MAT.base, 100);
   const lanternMat = new THREE.MeshStandardMaterial({ color: 0x3a2c18, emissive: 0xffa84a, emissiveIntensity: 0, roughness: 0.6 });
   const lanterns = new InstanceSet(scene, lanternGlowGeometry(), lanternMat, 100, false);
@@ -82,7 +82,7 @@ export function install(game: Game): GamePlugin {
   };
   let propTimer = 0;
 
-  const placeProps = (houses: House[]) => {
+  const placeProps = (houses: House[], fields: Field[]) => {
     for (const s of [barrels, crates, fencePosts, fenceRails, posts, lanterns]) s.clear();
     propRecs = [];
     for (const h of houses) {
@@ -150,15 +150,54 @@ export function install(game: Game): GamePlugin {
         propRecs.push({ what: 'fence-post', pts: [[p0[0], p0[1], g0], [p1[0], p1[1], g1]], allowBury: 0.15 });
       }
     }
+    // Fields (village art pass 2026-10-16): a post-and-rail fence all round, open on the side facing the village.
+    for (const f of fields) {
+      const a = f.object.rotation.y;
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      const hx = f.width / 2 + 0.75;
+      const hz = f.depth / 2 + 0.75;
+      const wx = (lx: number, lz: number) => f.pos.x + lx * c + lz * sn;
+      const wz = (lx: number, lz: number) => f.pos.z - lx * sn + lz * c;
+      const sides: [number, number, number, number][] = [
+        [-hx, -hz, hx, -hz],
+        [hx, -hz, hx, hz],
+        [hx, hz, -hx, hz],
+        [-hx, hz, -hx, -hz],
+      ];
+      sides.forEach(([x0, z0, x1, z1], si) => {
+        const len = Math.hypot(x1 - x0, z1 - z0);
+        const n = Math.max(1, Math.round(len / 2));
+        for (let k = 0; k < n; k++) {
+          // The front side (+z, toward the village) keeps a gate gap in its middle.
+          if (si === 2 && Math.abs(k + 0.5 - n / 2) < 1) continue;
+          const t0 = k / n;
+          const t1 = (k + 1) / n;
+          const ax = wx(x0 + (x1 - x0) * t0, z0 + (z1 - z0) * t0);
+          const az = wz(x0 + (x1 - x0) * t0, z0 + (z1 - z0) * t0);
+          const bx = wx(x0 + (x1 - x0) * t1, z0 + (z1 - z0) * t1);
+          const bz = wz(x0 + (x1 - x0) * t1, z0 + (z1 - z0) * t1);
+          const g0 = game.terrain.heightAt(ax, az) - 0.05;
+          const g1 = game.terrain.heightAt(bx, bz) - 0.05;
+          const yaw = Math.atan2(-(bz - az), bx - ax);
+          const seg = Math.hypot(bx - ax, bz - az);
+          fencePosts.push(ax, g0, az, yaw, 1);
+          if (k === n - 1 || (si === 2 && Math.abs(k + 1.5 - n / 2) < 1)) fencePosts.push(bx, g1, bz, yaw, 1);
+          fenceRails.pushTilted((ax + bx) / 2, (g0 + g1) / 2, (az + bz) / 2, yaw, Math.atan2(g1 - g0, seg), Math.hypot(seg, g1 - g0) / 2);
+          propRecs.push({ what: 'fence-post', pts: [[ax, az, g0], [bx, bz, g1]], allowBury: 0.15 });
+        }
+      });
+    }
     for (const s of [barrels, crates, fencePosts, fenceRails, posts, lanterns]) s.flush();
   };
 
   const syncProps = () => {
     const hs = game.entities.filter((e): e is House => e instanceof House && e.complete);
-    const sig = hs.map((h) => h.id).join(',') + '@' + game.terrain.version;
+    const fs = game.entities.filter((e): e is Field => e instanceof Field && e.alive);
+    const sig = hs.map((h) => h.id).join(',') + '|' + fs.map((f) => f.id).join(',') + '@' + game.terrain.version;
     if (sig === propSig) return;
     propSig = sig;
-    placeProps(hs);
+    placeProps(hs, fs);
   };
 
   // ---- stumps
