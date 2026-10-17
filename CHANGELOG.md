@@ -13,6 +13,8 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 - An island saved at any point in the last age loads where it stood, with the same stones and the same city. Islands from before this update load unchanged. Free play's ending is as it was.
 - For tests: `game.nexus.debug('nexus' | 'stone' | 'ring' | 'city' | 'built' | 'end')` and `game.nexus.state()`; `scripts/test-nexus-age.mjs`; the playbot plays on through the last age to the true end and stays on the island.
 
+- **Lumi and Fizz speak the new lines aloud** in their own voices (every line of the last age, with each village's name).
+
 ### Fixed (2026-10-17)
 - **Vexahl's glances always come back** (Daryll: "when he's done ... we should go back"). The camera stays out at sea only if you moved it yourself during the glance (a drag, keys, the wheel, a click that flies somewhere); anything else, and it glides back to where you were.
 - **The good ending opened inside a wall.** With the new village scenery (barns, stalls, haystacks), the low camera at the temple could start buried in one, and "Ready to See" showed a brown screen. The ending now checks that nothing drawn stands between the camera and the temple before it picks its spot.
