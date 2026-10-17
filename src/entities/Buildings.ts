@@ -122,6 +122,8 @@ export class House extends Entity {
   readonly chimney: THREE.Vector3;
   readonly footW: number;
   readonly footD: number;
+  /** Roof ridge height (local). */
+  private readonly roofTop: number;
   /** Its family believes in you (a village not yet yours): glows gold (see setBelieving). */
   believing = false;
   /** Its family is ruled by fear (the village knelt when you took Vexahl's ring): a cold violet-ember glow (see setFear). */
@@ -140,6 +142,7 @@ export class House extends Entity {
     this.chimney = g.chimney;
     this.footW = g.w;
     this.footD = g.d;
+    this.roofTop = g.top;
     this.body = ownedMesh(g.body, MAT.base);
     this.windows = ownedMesh(g.windows, WINDOW_DARK, false);
     this.scaffold = sharedMesh(scaffoldGeo, MAT.base);
@@ -219,7 +222,7 @@ export class House extends Entity {
     const breathe = 0.88 + 0.12 * Math.sin(t * 1.2 + this.seed);
     (this.halo.material as THREE.MeshBasicMaterial).opacity = Math.min(1, k * HALO_PEAK * breathe);
     (this.mote.material as THREE.SpriteMaterial).opacity = Math.min(1, k * MOTE_PEAK * breathe);
-    this.mote.position.set(0, 9 + Math.sin(t * 0.9 + this.seed * 0.7) * 0.35, 0);
+    this.mote.position.set(0, this.roofTop + 2.6 + Math.sin(t * 0.9 + this.seed * 0.7) * 0.35, 0);
   }
 
   get capacity(): number {
@@ -231,13 +234,14 @@ export class House extends Entity {
   }
 
   get topHeight() {
-    return 6;
+    return Math.max(6, this.roofTop);
   }
 
   /** Point just outside the front door, in world space. */
   doorPoint(out: THREE.Vector3): THREE.Vector3 {
     const a = this.object.rotation.y;
-    return out.set(this.pos.x + Math.sin(a) * 3.2, this.pos.y, this.pos.z + Math.cos(a) * 3.2);
+    const k = Math.max(3.2, this.footD / 2 + 0.9);
+    return out.set(this.pos.x + Math.sin(a) * k, this.pos.y, this.pos.z + Math.cos(a) * k);
   }
 
   private refreshVisual() {
@@ -335,7 +339,7 @@ export class Store extends Entity {
     this.woodHeap.rotation.y = 0.5;
     this.flagMat = new THREE.MeshStandardMaterial({ color: village.color, roughness: 0.7, side: THREE.DoubleSide });
     this.flag = sharedMesh(flagGeometry(), this.flagMat, false);
-    this.flag.position.set(0, 9, 0);
+    this.flag.position.set(0, 9.7, 0);
     this.object.add(this.foodHeap, this.woodHeap, this.flag);
     this.pos.set(x, y, z);
     this.radius = 4.2;

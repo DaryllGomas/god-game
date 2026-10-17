@@ -5,7 +5,7 @@ import type { Field, House } from './Buildings';
 import type { Site } from '../projects/Site';
 import { Entity, ownedMesh, sharedMesh } from './Entity';
 import { Pile, Tree, carriedFood, carriedWood } from './Nature';
-import { MAT, villagerParts } from '../art/Models';
+import { MAT, VILLAGER_GOLD, VILLAGER_PIVOT, villagerParts } from '../art/Models';
 import { SEA_LEVEL, VILLAGE, VILLAGER } from '../config';
 import { angleLerp, damp } from '../util/math';
 import { rng } from '../util/rng';
@@ -70,6 +70,8 @@ export class Villager extends Entity {
   private armR!: THREE.Mesh;
   private legL!: THREE.Mesh;
   private legR!: THREE.Mesh;
+  /** A believer's gold sash and pendant (village art pass): shown while this villager believes in you. */
+  private faith!: THREE.Mesh;
   private readonly carryMesh: THREE.Mesh;
 
   constructor(village: Village, x: number, z: number, seed: number) {
@@ -84,7 +86,7 @@ export class Villager extends Entity {
     this.radius = 0.9;
     this.mass = 0.8;
     this.object.add(this.root);
-    this.root.scale.setScalar(rng.range(1.14, 1.3));
+    this.root.scale.setScalar(rng.range(1.24, 1.4));
     this.buildBody(village.color);
     this.carryMesh = sharedMesh(carriedFood, MAT.base);
     this.carryMesh.position.set(0, 2.25, 0);
@@ -95,7 +97,7 @@ export class Villager extends Entity {
   }
 
   private buildBody(tunic: number) {
-    for (const m of [this.body, this.armL, this.armR, this.legL, this.legR]) {
+    for (const m of [this.body, this.armL, this.armR, this.legL, this.legR, this.faith]) {
       if (m) {
         m.removeFromParent();
         m.geometry.dispose();
@@ -108,11 +110,14 @@ export class Villager extends Entity {
     this.armR = ownedMesh(p.arm.clone(), MAT.base, false);
     this.legL = ownedMesh(p.leg, MAT.base, false);
     this.legR = ownedMesh(p.leg.clone(), MAT.base, false);
-    this.armL.position.set(-0.4, 1.45, 0);
-    this.armR.position.set(0.4, 1.45, 0);
-    this.legL.position.set(-0.15, 0.78, 0);
-    this.legR.position.set(0.15, 0.78, 0);
-    this.root.add(this.body, this.armL, this.armR, this.legL, this.legR);
+    this.faith = ownedMesh(p.faith, VILLAGER_GOLD, false);
+    this.faith.visible = false;
+    const P = VILLAGER_PIVOT;
+    this.armL.position.set(-P.armX, P.armY, 0);
+    this.armR.position.set(P.armX, P.armY, 0);
+    this.legL.position.set(-P.legX, P.legY, 0);
+    this.legR.position.set(P.legX, P.legY, 0);
+    this.root.add(this.body, this.armL, this.armR, this.legL, this.legR, this.faith);
   }
 
   setDisciple(job: Job | null, x = this.pos.x, z = this.pos.z) {
@@ -214,6 +219,8 @@ export class Villager extends Entity {
 
   update(game: Game, dt: number) {
     this.animT += dt;
+    // Believers wear gold: everyone in a village of yours, and a family that has come to believe (not one ruled by fear).
+    this.faith.visible = this.village.owner === 'player' ? !this.home?.fear : !!this.home?.believing && !this.home.fear;
     if (this.dead) {
       this.deathT += dt;
       this.pose('lie');

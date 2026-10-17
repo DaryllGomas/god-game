@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Game } from '../Game';
 import type { Village } from '../village/Village';
-import { MAT, jitterVerts, merge, paint, villagerParts } from '../art/Models';
+import { MAT, VILLAGER_PIVOT, jitterVerts, merge, paint, villagerParts } from '../art/Models';
 import { seasonalMaterial } from '../entities/Forest';
 import { treeVariant, TREE_VARIANTS } from '../entities/Nature';
 import { assets } from '../assets';
@@ -111,8 +111,9 @@ function pileGeometry(seed: number): THREE.BufferGeometry {
 function walkerGeometry(seed: number, tunic: number): THREE.BufferGeometry {
   const p = villagerParts(seed, tunic);
   const parts: THREE.BufferGeometry[] = [p.body.clone()];
-  for (const x of [-0.34, 0.34]) parts.push(p.arm.clone().translate(x, 1.5, 0));
-  for (const x of [-0.15, 0.15]) parts.push(p.leg.clone().translate(x, 0.78, 0));
+  const P = VILLAGER_PIVOT;
+  for (const x of [-P.armX, P.armX]) parts.push(p.arm.clone().translate(x, P.armY, 0));
+  for (const x of [-P.legX, P.legX]) parts.push(p.leg.clone().translate(x, P.legY, 0));
   const g = merge(parts.map((q) => (q.index ? q.toNonIndexed() : q)));
   return g;
 }
@@ -128,8 +129,12 @@ interface VillageRoutes {
   v: Village;
   routes: { p: Path; len: number; cum: number[] }[];
   walkers: Walker[];
-  mesh: THREE.InstancedMesh;
+  /** Several looks per village (outfits, hair, hats), instances dealt round them. */
+  meshes: THREE.InstancedMesh[];
 }
+
+/** Walker looks per village. */
+const WALKER_LOOKS = 5;
 
 export class VillageDecor {
   readonly sets: { set: ScatterSet; kind: 'tree' | 'small' | 'rock'; maxCam: number }[] = [];
@@ -303,7 +308,10 @@ export class VillageDecor {
         const fz = Math.cos(rot);
         const px = -fz; // across
         const pz = fx;
-        const at = (f: number, s: number): [number, number] => [hx + fx * f + px * s, hz + fz * f + pz * s];
+        // Offsets were laid out round a 4.9 x 4.2 cottage: spread them with the house's own size.
+        const kf = Math.max(1, h.footD / 4.2);
+        const ks = Math.max(1, h.footW / 4.9);
+        const at = (f: number, s: number): [number, number] => [hx + fx * f * kf + px * s * ks, hz + fz * f * kf + pz * s * ks];
         const tryAdd = (kind: Kind, key: string, f: number, s: number, scale: number, r: number, opts: { yaw?: number; stretch?: number; tint?: number; lift?: number } = {}) => {
           const [x, z] = at(f, s);
           if (!free(x, z, v, h, r * 0.6, 0.85)) return;
@@ -322,17 +330,21 @@ export class VillageDecor {
       }
 
       // ---- walkers (routes get filled in by the land plugin on every repaint)
-      const geo = walkerGeometry(40 + this.villages.length, VILLAGE_SITES.find((s) => s.name === v.name)?.tunic ?? 0x3f6fc4);
+      const tunic = VILLAGE_SITES.find((s) => s.name === v.name)?.tunic ?? 0x3f6fc4;
       const count = 14 + v.houses.length * 2 + GATHER;
-      const mesh = new THREE.InstancedMesh(geo, MAT.base, count);
-      mesh.count = 0;
-      mesh.frustumCulled = false;
-      mesh.castShadow = true;
-      mesh.name = `walkers-${v.name}`;
-      game.scene.add(mesh);
+      const meshes: THREE.InstancedMesh[] = [];
+      for (let k = 0; k < WALKER_LOOKS; k++) {
+        const mesh = new THREE.InstancedMesh(walkerGeometry(40 + this.villages.length * 17 + k * 101, tunic), MAT.base, Math.ceil(count / WALKER_LOOKS) + 1);
+        mesh.count = 0;
+        mesh.frustumCulled = false;
+        mesh.castShadow = true;
+        mesh.name = `walkers-${v.name}-${k}`;
+        game.scene.add(mesh);
+        meshes.push(mesh);
+      }
       const walkers: Walker[] = [];
       for (let i = 0; i < count - GATHER; i++) walkers.push({ route: i, t: rng.range(0, 60), speed: rng.range(1.1, 1.7), dir: rng.next() < 0.5 ? 1 : -1 });
-      this.villages.push({ v, routes: [], walkers, mesh });
+      this.villages.push({ v, routes: [], walkers, meshes });
       this.count.walkers += count;
     }
 
@@ -380,7 +392,7 @@ export class VillageDecor {
     const shrine = v.worship.pos;
     if (near(shrine.x, shrine.z, SHRINE_CLEARANCE * (loose ? 0.95 : 1))) return false;
     if (near(v.store.pos.x, v.store.pos.z, STORE_R)) return false;
-    for (const h of v.houses) if (h !== own && near(h.pos.x, h.pos.z, HOUSE_R)) return false;
+    for (const h of v.houses) if (h !== own && near(h.pos.x, h.pos.z, Math.max(HOUSE_R, h.footW * 0.62))) return false;
     for (const f of v.fields) if (near(f.pos.x, f.pos.z, FIELD_R)) return false;
     for (const o of v.obstacles) if (near(o.pos.x, o.pos.z, o.radius)) return false;
     if (v.projectSite && !v.projectSite.complete && near(v.projectSite.pos.x, v.projectSite.pos.z, v.projectSite.def.radius + 3)) return false;
@@ -443,9 +455,11 @@ export class VillageDecor {
     const near = camDist < 480;
     const time = this.game.time;
     for (const vr of this.villages) {
-      vr.mesh.visible = near;
-      if (!vr.mesh.visible) continue;
+      for (const m of vr.meshes) m.visible = near;
+      if (!near) continue;
       let n = 0;
+      const L = vr.meshes.length;
+      const put = (k: number) => vr.meshes[k % L].setMatrixAt(Math.floor(k / L), this.m);
       for (const w of vr.walkers) {
         if (!vr.routes.length) break;
         const route = vr.routes[w.route % vr.routes.length];
@@ -471,8 +485,8 @@ export class VillageDecor {
         if (!Number.isFinite(x + y + z + heading)) continue;
         this.e.set(0, heading, Math.sin(time * 6 + w.speed * 9) * 0.04);
         this.q.setFromEuler(this.e);
-        this.m.compose(this.p.set(x, y, z), this.q, this.s.set(1.28, 1.28, 1.28));
-        vr.mesh.setMatrixAt(n++, this.m);
+        this.m.compose(this.p.set(x, y, z), this.q, this.s.set(1.32, 1.32, 1.32));
+        put(n++);
       }
       // Gatherers: a loose ring round the heart, swaying a little, facing the centre.
       const wp = vr.v.worship.pos;
@@ -486,11 +500,13 @@ export class VillageDecor {
         if (!Number.isFinite(gx + gy + gz + heading)) continue;
         this.e.set(0, heading, Math.sin(time * 1.1 + i) * 0.03);
         this.q.setFromEuler(this.e);
-        this.m.compose(this.p.set(gx, gy, gz), this.q, this.s.set(1.28, 1.28, 1.28));
-        vr.mesh.setMatrixAt(n++, this.m);
+        this.m.compose(this.p.set(gx, gy, gz), this.q, this.s.set(1.32, 1.32, 1.32));
+        put(n++);
       }
-      vr.mesh.count = n;
-      vr.mesh.instanceMatrix.needsUpdate = true;
+      for (let k = 0; k < L; k++) {
+        vr.meshes[k].count = Math.floor(n / L) + (k < n % L ? 1 : 0);
+        vr.meshes[k].instanceMatrix.needsUpdate = true;
+      }
     }
   }
 }
