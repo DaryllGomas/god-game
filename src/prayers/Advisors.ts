@@ -49,7 +49,7 @@ const LUMI_HURT = /^(Oh no|That is not funny|That was somebody|It will\. Sadly|I
 const LUMI_PEEK = /^(Something stirs|Oh dear\. Someone is watching|He wants their hearts|Dark clouds|A dark mist|A hand!|His storm|\{?\w*\}?'?s? ?fields are going|.* has turned to him)/;
 /** Her first sentence ends in "!": good news. */
 const LUMI_CHEER = /^[^.?]*!/;
-const FIZZ_CACKLE = /^(Ha\b|Smashing|Whoops|Ooh(?!, a rival)|Delightfully|Delicious|Echo|They bounce|My favourite part|Your golem|And his face)/;
+const FIZZ_CACKLE = /^(Ha\b|Smashing|Whoops|Ooh(?!, a rival)|Delightfully|Delicious|A temple! Fantastic|They bounce|My favourite part|Your golem|And his face)/;
 const FIZZ_SCHEME = /^(Go on\. One little toss|You know, from up here|That boulder would|Dry, you say|Summer\. Prime fire|I am bored|Gifts work too|Or slap it|Feed them better bread)|Drop a boulder near them/;
 const FIZZ_PEEK = /^(\.\.\.Hold on|Are we sightseeing|Translation:|Ooh, a rival)/;
 const moodOf = ({ who, text }: Line): Mood => {

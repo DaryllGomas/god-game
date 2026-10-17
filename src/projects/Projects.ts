@@ -81,7 +81,10 @@ const START_LINES: Record<ProjectId, Line[][]> = {
 
 const DONE_LINES: Record<ProjectId, Line[][]> = {
   well: [[{ who: 'spirit', text: 'Hear that trickle? Cooler air, greener fields, and fires will think twice.' }]],
-  temple: [[{ who: 'spirit', text: 'Look at it catch the light. Every prayer rings a little louder now.' }, { who: 'imp', text: 'Echo! Echo! ...Sorry.' }]],
+  temple: [
+    [{ who: 'spirit', text: 'Look at it catch the light. Every prayer rings a little louder now.' }, { who: 'imp', text: 'They built you a house nicer than any of theirs. Bit awkward, really.' }],
+    [{ who: 'spirit', text: 'Look at it catch the light. Every prayer rings a little louder now.' }, { who: 'imp', text: 'A temple! Fantastic acoustics. Imagine the screaming. ...Singing. I meant singing.' }],
+  ],
   festival: [[{ who: 'spirit', text: 'Columns and lanterns and dancing. I could watch this all night.' }, { who: 'imp', text: 'I am not crying. There is temple dust in my eye.' }]],
   wonder: [],
 };
