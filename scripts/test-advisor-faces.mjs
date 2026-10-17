@@ -1,5 +1,5 @@
 // Lumi's and Fizz's painted faces (2026-10-16), on the render box: `npm run build && atlas-run dist scripts/test-advisor-faces.mjs <out>`.
-// Says one line per face (Lumi warm and hurt, Fizz smug and cackling), shoots the top of the screen, and checks each
+// Says one line per face (Lumi warm and hurt; Fizz smirking, cackling, scheming and peeking), shoots the top of the screen, and checks each
 // card shows the right portrait, loaded. Writes PNGs and report.json.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs/promises';
@@ -34,8 +34,10 @@ await wait(3000);
 const LINES = [
   ['lumi-speak', 'spirit', 'Look at them dance!', 'lumi-b'],
   ['lumi-hurt', 'spirit', 'Oh no. Please be gentler with them.', 'lumi-c'],
-  ['fizz-speak', 'imp', 'Pointy. I approve.', 'fizz-a'],
-  ['fizz-cackle', 'imp', 'Ha! Splat. ...I mean, how dreadful.', 'fizz-b'],
+  ['fizz-speak', 'imp', 'Pointy. I approve.', 'fizz-smirk'],
+  ['fizz-cackle', 'imp', 'Ha! Splat. ...I mean, how dreadful.', 'fizz-cackle'],
+  ['fizz-scheme', 'imp', 'You know, from up here they look very... throwable.', 'fizz-scheme'],
+  ['fizz-peek', 'imp', '...Hold on. Is anyone else feeling a draught from the east? Across the sea?', 'fizz-peek'],
 ];
 for (const [name, who, text, want] of LINES) {
   await p.evaluate(() => game.rival.ui.advisors.finish?.());
