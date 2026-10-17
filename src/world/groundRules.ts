@@ -4,7 +4,7 @@ export const SOIL_LIFT = 0.1;
  * Hidden stone skirt under a cottage's footing, and under the store's wall. Buried on the flat pad a house normally
  * gets; on a slope with no pad (an old save, a spot that clashed) it shows as a tall foundation on the downhill side.
  */
-export const HOUSE_SKIRT = 3;
+export const HOUSE_SKIRT = 4; // 4 since the village art pass: the bigger cottages span more of a slope
 export const STORE_SKIRT = 3;
 /** The prayer place's floor disc and court: top height above the pad, and how far their hidden skirt reaches below it. */
 export const SHRINE_FLOOR = { top: 0.2, skirt: 1.0 };

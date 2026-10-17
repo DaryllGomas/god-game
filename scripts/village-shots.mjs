@@ -59,7 +59,11 @@ await shot('mid');
 await pose(0, 130, 0.85, 0.5, 0.36);
 await sleep(1500);
 const fps = await p.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 4000) requestAnimationFrame(f); else res(n / ((performance.now() - t0) / 1000)); }; requestAnimationFrame(f); }));
-const info = await p.evaluate(() => { const r = game.renderer?.info?.render; return r ? { calls: r.calls, triangles: r.triangles } : null; });
+const info = await p.evaluate(() => new Promise((res) => {
+  // Whole-frame totals (every pass: shadows, AO pre-pass, main): count across one frame.
+  const inf = game.renderer.info; inf.autoReset = false; inf.reset();
+  requestAnimationFrame(() => requestAnimationFrame(() => { const r = { calls: inf.render.calls, triangles: inf.render.triangles }; inf.autoReset = true; res(r); }));
+}));
 await writeFile(`${process.env.OUT_DIR}/${tag}-fps.json`, JSON.stringify({ fps, info, errors: errors.slice(0, 20) }, null, 2));
 console.log('fps', fps, info, 'errors', errors.length, errors.slice(0, 5));
 await browser.close();
