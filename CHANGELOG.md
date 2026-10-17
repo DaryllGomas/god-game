@@ -4,6 +4,10 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Changed (Lumi and Fizz have faces, 2026-10-16: Daryll: "get all of the art in")
+- **Lumi and Fizz are painted now**, like Vexahl, instead of the little drawn cartoon faces. Lumi is a spirit of light: a soft glowing face of moonlight and gold filaments under her halo, with the sea at dusk behind her. Fizz is a wiry ember-orange imp with swept-back horns, fin ears, one fang and a smug grin.
+- **Their faces follow the moment.** Lumi is warm when she speaks, and hurt, with one tear of light, when you are cruel ("Oh no. Please be gentler with them.", "That was somebody's grandad.", and when you take Vexahl's ring). Fizz is smug, and cackles and points at his own jokes and at your mischief ("Ha! Splat.", "Smashing! Literally.", "Your golem just ate a villager."). Lumi's light breathes softly while she talks; Fizz bobs when he laughs.
+
 ### Added (controller support, 2026-10-16: Daryll: "If you're on the couch, I want it to work with the game controllers also.")
 - **The game plays with an Xbox controller, natively** (no mouse and key emulation needed). The left stick moves your hand, with a small ring of light that shows only once a pad is used and goes away when the mouse moves. **A** grabs and sets down (tap, tap; or hold and let go), through the same code the mouse uses, so a tree goes onto a rock. **B** puts back or closes. The right stick pans; **X** goes home (hold it with the right stick to turn the view); **Y** finds the golem, or throws what you hold; stick clicks zoom; the D-pad is Water, Food, Fire and pause. No shoulder buttons or triggers are needed, and the Xbox button is never touched. The full map is in the README.
 - The intro (A touches the light, B or Start skips), the title screen, the help screen, the win card, the rival's ring and the end cards all work with A, B and the D-pad. The help screen shows a Controller line once a pad is in use.
