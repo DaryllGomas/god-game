@@ -91,8 +91,8 @@ export class Rival {
   private snapIsle = true;
   /** The view to come back to while the camera is out at sea (x, z, distance, yaw, pitch). */
   private cam: { x: number; z: number; dist: number; dyaw: number; dpitch: number } | null = null;
-  /** Where the glance put the camera, to tell whether the player moved it before the glance ends. */
-  private camAt: { x: number; z: number; distance: number; yaw: number } | null = null;
+  /** The camera's count of player moves when the glance began, to tell whether the player took the view meanwhile. */
+  private camMoves = 0;
   /** Story mode: he has noticed you (his rising at your first pyramid; see notice()). */
   noticed = false;
   /** His isle has risen from the sea (your first pyramid, or the world fell first). */
@@ -554,14 +554,13 @@ export class Rival {
       if (dy < -Math.PI) dy += Math.PI * 2;
       pose.yaw = was.yaw + dy;
       cam.glideTo(pose, shot ? 2.6 : 1.8);
-      this.camAt = { x: pose.x, z: pose.z, distance: pose.distance, yaw: pose.yaw };
+      this.camMoves = cam.moves;
     } else if (this.cam) {
       const c = this.cam;
       this.cam = null;
-      // The player took the camera during the glance (Space, a drag, the wheel): leave it with them.
-      const now = cam.getPose();
-      const at = this.camAt;
-      if (at && (Math.hypot(now.x - at.x, now.z - at.z) > 2 || Math.abs(now.distance - at.distance) > 2 || Math.abs(now.yaw - at.yaw) > 0.05)) return;
+      // The player took the camera during the glance (Space, a drag, the wheel, a click that flies): leave it with
+      // them. Anything else (a glide, a scripted view) and the camera always comes back to where you were.
+      if (cam.moves !== this.camMoves) return;
       cam.glideTo({ x: c.x, z: c.z, distance: c.dist, yaw: c.dyaw, pitch: c.dpitch }, 2.4);
     }
   }

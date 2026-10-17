@@ -5,6 +5,7 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 ## [Unreleased]
 
 ### Fixed (2026-10-17)
+- **Vexahl's glances always come back** (Daryll: "when he's done ... we should go back"). The camera stays out at sea only if you moved it yourself during the glance (a drag, keys, the wheel, a click that flies somewhere); anything else, and it glides back to where you were.
 - **The good ending opened inside a wall.** With the new village scenery (barns, stalls, haystacks), the low camera at the temple could start buried in one, and "Ready to See" showed a brown screen. The ending now checks that nothing drawn stands between the camera and the temple before it picks its spot.
 
 ### Changed (Lumi and Fizz have faces, 2026-10-16: Daryll: "get all of the art in")

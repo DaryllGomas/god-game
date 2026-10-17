@@ -30,6 +30,11 @@ export class GodCamera {
   private readonly goal = { target: new THREE.Vector3(), yaw: 0.5, pitch: 0.85, distance: 130 };
   /** A timed glide of the goal values (see glideTo); null when idle. */
   private glide: { from: CameraPose; to: CameraPose; t: number; dur: number } | null = null;
+  /**
+   * Counts the player's own moves of the view (drag, keys, wheel, a click that flies somewhere), so a scripted glance
+   * can tell whether the player took the camera. Glides and setPose (scripted views) don't count.
+   */
+  moves = 0;
   private readonly grabPoint = new THREE.Vector3();
   private grabbing = false;
   private shakeAmt = 0;
@@ -74,10 +79,12 @@ export class GodCamera {
   }
 
   flyTo(x: number, z: number) {
+    this.moves++;
     this.goal.target.set(x, this.goal.target.y, z);
   }
 
   beginGrab(point: THREE.Vector3) {
+    this.moves++;
     this.grabPoint.copy(point);
     this.grabbing = true;
   }
@@ -108,6 +115,7 @@ export class GodCamera {
   }
 
   panBy(dx: number, dz: number) {
+    this.moves++;
     this.target.x = clamp(this.target.x + dx, -BOUND, BOUND);
     this.target.z = clamp(this.target.z + dz, -BOUND, BOUND);
     this.goal.target.x = this.target.x;
@@ -116,6 +124,7 @@ export class GodCamera {
 
   /** Pan relative to the view direction (keyboard). */
   panLocal(right: number, forward: number) {
+    this.moves++;
     const s = Math.sin(this.yaw);
     const c = Math.cos(this.yaw);
     this.goal.target.x = clamp(this.goal.target.x + c * right - s * forward, -BOUND, BOUND);
@@ -123,12 +132,14 @@ export class GodCamera {
   }
 
   rotate(dYaw: number, dPitch: number) {
+    this.moves++;
     this.goal.yaw += dYaw;
     this.goal.pitch = clamp(this.goal.pitch + dPitch, MIN_PITCH, MAX_PITCH);
   }
 
   /** factor < 1 zooms in. Zooming pulls the focus toward `toward` so you zoom to the cursor. */
   zoom(factor: number, toward?: THREE.Vector3) {
+    this.moves++;
     const before = this.goal.distance;
     this.goal.distance = clamp(before * factor, MIN_DIST, MAX_DIST);
     const actual = this.goal.distance / before;
@@ -140,6 +151,7 @@ export class GodCamera {
   }
 
   setDistance(d: number) {
+    this.moves++;
     this.goal.distance = clamp(d, MIN_DIST, MAX_DIST);
   }
 
