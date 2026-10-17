@@ -35,7 +35,7 @@ const LINES = [
   ['lumi-speak', 'spirit', 'Full tummies make full hearts.', 'lumi-speak'],
   ['lumi-cheer', 'spirit', 'Look at them dance!', 'lumi-cheer'],
   ['lumi-peek', 'spirit', 'Something stirs out there. But that is a story for another day.', 'lumi-peek'],
-  ['lumi-hurt', 'spirit', 'Oh no. Please be gentler with them.', 'lumi-speak'],
+  ['lumi-hurt', 'spirit', 'Oh no. Please be gentler with them.', 'lumi-hurt'],
   ['fizz-speak', 'imp', 'Pointy. I approve.', 'fizz-smirk'],
   ['fizz-cackle', 'imp', 'Ha! Splat. ...I mean, how dreadful.', 'fizz-cackle'],
   ['fizz-scheme', 'imp', 'You know, from up here they look very... throwable.', 'fizz-scheme'],

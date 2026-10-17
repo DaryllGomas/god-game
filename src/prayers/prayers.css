@@ -411,11 +411,7 @@
   object-fit: cover;
   user-select: none;
 }
-/* Their painted faces (2026-10-16): Lumi's light breathes while she speaks; Fizz bobs when he cackles. Hurt, Lumi's
-   light dims and cools (until she has a painted hurt face). */
-.adv-card.spirit[data-face='hurt'] .adv-face img {
-  filter: saturate(0.45) brightness(0.8) hue-rotate(-12deg);
-}
+/* Their painted faces (2026-10-16): Lumi's light breathes while she speaks (not when she is hurt); Fizz bobs when he cackles. */
 .adv-card.show.spirit:not([data-face='hurt']) .adv-face img {
   animation: adv-breathe 3.2s ease-in-out infinite;
 }

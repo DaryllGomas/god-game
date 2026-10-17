@@ -34,7 +34,7 @@ const NAME: Record<Who, string> = { spirit: 'Lumi', imp: 'Fizz' };
  * Their painted portraits (public/advisors, cropped from the NAS board "2026-10-16 Lumi and Fizz portraits"). Both
  * are from sheets Daryll picked (2026-10-17), and she is his counterpart. Lumi, a little glowing spirit with a halo
  * and a star friend: chin in her hands when she talks; cheering at good news; peeking round a wall when something is
- * wrong; and hurt when you are cruel (for now her talking face, dimmed and cooled; a painted one is to come). Fizz is a trickster, not a
+ * wrong; and hurt, one tear of light, when you are cruel. Fizz is a trickster, not a
  * villain (Daryll, 2026-10-17: "more playful ... there to bug you and annoy you"), from the four-panel sheet Daryll
  * picked: smirking, chin on hand; cackling and pointing at his own jokes and your mischief; scheming, hand to chin,
  * when he tempts you; peeking round a rock when something is afoot. Which face goes with a line is read from the
@@ -42,7 +42,7 @@ const NAME: Record<Who, string> = { spirit: 'Lumi', imp: 'Fizz' };
  */
 type Mood = 'speak' | 'hurt' | 'cheer' | 'cackle' | 'scheme' | 'peek';
 const PORTRAIT: Record<Who, Partial<Record<Mood, string>> & { speak: string }> = {
-  spirit: { speak: 'lumi-speak', cheer: 'lumi-cheer', peek: 'lumi-peek', hurt: 'lumi-speak' },
+  spirit: { speak: 'lumi-speak', cheer: 'lumi-cheer', peek: 'lumi-peek', hurt: 'lumi-hurt' },
   imp: { speak: 'fizz-smirk', cackle: 'fizz-cackle', scheme: 'fizz-scheme', peek: 'fizz-peek' },
 };
 const LUMI_HURT = /^(Oh no|That is not funny|That was somebody|It will\. Sadly|It would also make a hole|Please |Fizz!|Fizz\.\.\.)/;
