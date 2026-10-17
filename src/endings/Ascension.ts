@@ -241,11 +241,35 @@ export class Ascension {
         const sz = z + (p.z - z) * f;
         for (const e of solid) clear = Math.min(clear, Math.hypot(e.pos.x - sx, e.pos.z - sz) - e.radius - (e.kind === 'tree' ? 2 : 3.5));
       }
+      const pos = new THREE.Vector3(x, g.terrain.surfaceAt(x, z) + lift, z);
+      // Anything drawn in the way (2026-10-17): the village's scenery (barns, stalls, haystacks, clumps of trees) is
+      // instanced decor, not entities, and once buried the camera in a barn wall.
+      if (this.blocked(pos, p)) clear = Math.min(clear, -10);
       const score = Math.min(clear, 6) - Math.abs(a - base) * 0.6;
-      if (score > best.score) best = { pos: new THREE.Vector3(x, g.terrain.surfaceAt(x, z) + lift, z), a, score };
+      if (score > best.score) best = { pos, a, score };
       if (clear >= 6 && k < 3) break;
     }
     return { pos: best.pos, a: best.a };
+  }
+
+  /** True when something drawn stands between `from` and a point 7 m above `p`, within 80% of the way there. */
+  private blocked(from: THREE.Vector3, p: THREE.Vector3): boolean {
+    const g = this.s.game;
+    const to = new THREE.Vector3(p.x, g.terrain.heightAt(p.x, p.z) + 7, p.z);
+    const dir = to.clone().sub(from);
+    const len = dir.length();
+    const ray = new THREE.Raycaster(from, dir.divideScalar(len), 0.3, len * 0.8);
+    ray.camera = g.godCam.camera;
+    const hits = ray.intersectObjects(g.scene.children, true);
+    const solid = (o: THREE.Object3D) => {
+      if ((o as THREE.Sprite).isSprite || (o as THREE.Points).isPoints || (o as THREE.Line).isLine) return false;
+      for (let a: THREE.Object3D | null = o; a; a = a.parent) if (!a.visible) return false;
+      // Glows, light rings and other see-through effects don't block a view.
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      const mats = Array.isArray(m) ? m : m ? [m] : [];
+      return mats.some((x) => x.visible && x.depthWrite && !(x.transparent && x.opacity < 0.9));
+    };
+    return hits.some((h) => solid(h.object));
   }
 
   begin() {

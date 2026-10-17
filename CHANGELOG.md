@@ -4,6 +4,9 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Fixed (2026-10-17)
+- **The good ending opened inside a wall.** With the new village scenery (barns, stalls, haystacks), the low camera at the temple could start buried in one, and "Ready to See" showed a brown screen. The ending now checks that nothing drawn stands between the camera and the temple before it picks its spot.
+
 ### Changed (Lumi and Fizz have faces, 2026-10-16: Daryll: "get all of the art in")
 - **Lumi and Fizz are painted now**, like Vexahl, instead of the little drawn cartoon faces, from sheets Daryll picked on 2026-10-17. Lumi is a little glowing spirit with a halo, big blue eyes and a tiny star friend, over a harbour at dusk: Fizz's counterpart. Fizz is a playful ember-orange trickster with swept-back horns, fin ears, one fang, a scarf and a tail ("there to bug you and annoy you", not evil).
 - **Their faces follow the moment.** Lumi rests her chin in her hands when she talks, cheers at good news ("Look at them dance!"), peeks round a wall when something is wrong ("Something stirs out there."), and is hurt, with one tear of light and her star friend worried, when you are cruel ("Oh no. Please be gentler with them."). Fizz smirks with his chin on his hand; cackles and points at his own jokes and at your mischief ("Ha! Splat.", "Your golem just ate a villager."); schemes, hand to chin, when he tempts you ("You know, from up here they look very... throwable."); and peeks round a rock when something is afoot across the sea. Lumi's light breathes softly while she talks; Fizz bobs when he laughs.
