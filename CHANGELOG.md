@@ -4,6 +4,11 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Changed (Lumi and Fizz have faces, 2026-10-16: Daryll: "get all of the art in")
+- **Lumi and Fizz are painted now**, like Vexahl, instead of the little drawn cartoon faces, from sheets Daryll picked on 2026-10-17. Lumi is a little glowing spirit with a halo, big blue eyes and a tiny star friend, over a harbour at dusk: Fizz's counterpart. Fizz is a playful ember-orange trickster with swept-back horns, fin ears, one fang, a scarf and a tail ("there to bug you and annoy you", not evil).
+- **Their faces follow the moment.** Lumi rests her chin in her hands when she talks, cheers at good news ("Look at them dance!"), peeks round a wall when something is wrong ("Something stirs out there."), and is hurt, with one tear of light and her star friend worried, when you are cruel ("Oh no. Please be gentler with them."). Fizz smirks with his chin on his hand; cackles and points at his own jokes and at your mischief ("Ha! Splat.", "Your golem just ate a villager."); schemes, hand to chin, when he tempts you ("You know, from up here they look very... throwable."); and peeks round a rock when something is afoot across the sea. Lumi's light breathes softly while she talks; Fizz bobs when he laughs.
+- **The faces on every speech card are bigger** (76 px, was 58; Vexahl's too), so the paintings read. Phones keep the old size.
+
 ### Changed (world look 2, 2026-10-17: storyboard panels 2 and 3)
 - **Meadows and woods are deep, warm greens by day**, not lime: the ground, the grass and the tree crowns. Nights keep the brightness they had.
 - **Woods have more colour**: dark teal pines, mid greens and olive, and now and then a tree turning gold-orange.

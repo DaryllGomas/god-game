@@ -131,7 +131,7 @@
   left: 50%;
   top: var(--talk-top);
   z-index: 30;
-  width: 400px;
+  width: 420px;
   max-width: calc(100vw - 28px);
   display: flex;
   align-items: center;
@@ -166,8 +166,8 @@
 }
 .rv-face {
   flex: none;
-  width: 58px;
-  height: 58px;
+  width: var(--talk-face, 58px);
+  height: var(--talk-face, 58px);
   border-radius: 50%;
   overflow: hidden;
   background: radial-gradient(circle at 50% 38%, #3a1410, #0c0608 78%);

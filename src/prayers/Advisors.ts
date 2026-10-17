@@ -30,28 +30,36 @@ const EATEN: Line[] = [
 
 const NAME: Record<Who, string> = { spirit: 'Lumi', imp: 'Fizz' };
 
-const FACE: Record<Who, string> = {
-  spirit: `<svg viewBox="0 0 52 52" aria-hidden="true">
-    <circle class="adv-spirit-glow" cx="26" cy="28" r="22" fill="#bfe6ff" opacity="0.25"/>
-    <ellipse cx="26" cy="9.5" rx="10" ry="3" fill="none" stroke="#ffe9a8" stroke-width="2"/>
-    <circle cx="26" cy="29" r="15" fill="#eef8ff"/>
-    <circle cx="26" cy="29" r="15" fill="none" stroke="#bfe6ff" stroke-width="1.5"/>
-    <path d="M18.5 27.5q3-3.2 6 0M27.5 27.5q3-3.2 6 0" fill="none" stroke="#4a6f94" stroke-width="1.8" stroke-linecap="round"/>
-    <circle cx="19" cy="33" r="2.6" fill="#ffb5c0" opacity="0.65"/><circle cx="33" cy="33" r="2.6" fill="#ffb5c0" opacity="0.65"/>
-    <path class="adv-mouth" d="M22.5 34q3.5 4 7 0" fill="none" stroke="#4a6f94" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M42 11l1.2 2.6 2.6 1.2-2.6 1.2L42 18.6l-1.2-2.6-2.6-1.2 2.6-1.2z" fill="#fff3c4"/>
-  </svg>`,
-  imp: `<svg viewBox="0 0 52 52" aria-hidden="true">
-    <path d="M14 20L10 6l11 8zM38 20l4-14-11 8z" fill="#7a1f16"/>
-    <path d="M11 30l-7-4 5 9zM41 30l7-4-5 9z" fill="#d95a36"/>
-    <circle cx="26" cy="30" r="15" fill="#f0764d"/>
-    <ellipse cx="20" cy="28" rx="3.4" ry="3.8" fill="#fff6e0"/><ellipse cx="32" cy="28" rx="3.4" ry="3.8" fill="#fff6e0"/>
-    <circle cx="21" cy="28.6" r="1.7" fill="#2a1410"/><circle cx="33" cy="28.6" r="1.7" fill="#2a1410"/>
-    <path d="M15.5 22.5l8 2.4M36.5 22.5l-8 2.4" stroke="#7a1f16" stroke-width="2" stroke-linecap="round"/>
-    <path class="adv-mouth" d="M17 35q9 8 18 0z" fill="#3a1410"/>
-    <path d="M23 35.6l1.8 3 1.8-3z" fill="#fff6e0"/>
-  </svg>`,
+/**
+ * Their painted portraits (public/advisors, cropped from the NAS board "2026-10-16 Lumi and Fizz portraits"). Both
+ * are from sheets Daryll picked (2026-10-17), and she is his counterpart. Lumi, a little glowing spirit with a halo
+ * and a star friend: chin in her hands when she talks; cheering at good news; peeking round a wall when something is
+ * wrong; and hurt, one tear of light, when you are cruel. Fizz is a trickster, not a
+ * villain (Daryll, 2026-10-17: "more playful ... there to bug you and annoy you"), from the four-panel sheet Daryll
+ * picked: smirking, chin on hand; cackling and pointing at his own jokes and your mischief; scheming, hand to chin,
+ * when he tempts you; peeking round a rock when something is afoot. Which face goes with a line is read from the
+ * line itself (LUMI_HURT, LUMI_PEEK, LUMI_CHEER, FIZZ_CACKLE, FIZZ_SCHEME, FIZZ_PEEK). The little drawn faces they had before are gone.
+ */
+type Mood = 'speak' | 'hurt' | 'cheer' | 'cackle' | 'scheme' | 'peek';
+const PORTRAIT: Record<Who, Partial<Record<Mood, string>> & { speak: string }> = {
+  spirit: { speak: 'lumi-speak', cheer: 'lumi-cheer', peek: 'lumi-peek', hurt: 'lumi-hurt' },
+  imp: { speak: 'fizz-smirk', cackle: 'fizz-cackle', scheme: 'fizz-scheme', peek: 'fizz-peek' },
 };
+const LUMI_HURT = /^(Oh no|That is not funny|That was somebody|It will\. Sadly|It would also make a hole|Please |Fizz!|Fizz\.\.\.)/;
+const LUMI_PEEK = /^(Something stirs|Oh dear\. Someone is watching|He wants their hearts|Dark clouds|A dark mist|A hand!|His storm|\{?\w*\}?'?s? ?fields are going|.* has turned to him)/;
+/** Her first sentence ends in "!": good news. */
+const LUMI_CHEER = /^[^.?]*!/;
+const FIZZ_CACKLE = /^(Ha\b|Smashing|Whoops|Ooh(?!, a rival)|Delightfully|Delicious|Echo|They bounce|My favourite part|Your golem|And his face)/;
+const FIZZ_SCHEME = /^(Go on\. One little toss|You know, from up here|That boulder would|Dry, you say|Summer\. Prime fire|I am bored|Gifts work too|Or slap it|Feed them better bread)|Drop a boulder near them/;
+const FIZZ_PEEK = /^(\.\.\.Hold on|Are we sightseeing|Translation:|Ooh, a rival)/;
+const moodOf = ({ who, text }: Line): Mood => {
+  if (who === 'spirit') return LUMI_HURT.test(text) ? 'hurt' : LUMI_PEEK.test(text) ? 'peek' : LUMI_CHEER.test(text) ? 'cheer' : 'speak';
+  if (FIZZ_SCHEME.test(text)) return 'scheme';
+  if (FIZZ_PEEK.test(text)) return 'peek';
+  return FIZZ_CACKLE.test(text) ? 'cackle' : 'speak';
+};
+export const advisorPortraitUrl = (id: string, size: 192 | 384) => `${import.meta.env.BASE_URL}advisors/${id}-${size}.webp`;
+const portraitOf = (line: Line) => PORTRAIT[line.who][moodOf(line)] ?? PORTRAIT[line.who].speak;
 
 const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
 
@@ -141,6 +149,7 @@ export class Advisors {
   muted = false;
   private readonly card: HTMLDivElement;
   private readonly faceEl: HTMLDivElement;
+  private readonly faceImg: HTMLImageElement;
   private readonly nameEl: HTMLDivElement;
   private readonly textEl: HTMLDivElement;
   private readonly toggle: HTMLButtonElement;
@@ -178,8 +187,11 @@ export class Advisors {
     this.card.className = 'adv-card';
     this.card.setAttribute('role', 'status');
     this.card.setAttribute('aria-live', 'polite');
-    this.card.innerHTML = '<div class="adv-face"></div><div class="adv-body"><div class="adv-name"></div><div class="adv-text"></div></div>';
+    this.card.innerHTML = '<div class="adv-face"><img alt="" draggable="false"></div><div class="adv-body"><div class="adv-name"></div><div class="adv-text"></div></div>';
     this.faceEl = this.card.querySelector('.adv-face')!;
+    this.faceImg = this.faceEl.querySelector('img')!;
+    // Warm the cache, so the first line of each face never shows an empty circle.
+    for (const who of ['spirit', 'imp'] as const) for (const id of Object.values(PORTRAIT[who])) new Image().src = advisorPortraitUrl(id, 192);
     this.nameEl = this.card.querySelector('.adv-name')!;
     this.textEl = this.card.querySelector('.adv-text')!;
     this.card.onclick = () => (this.cardLife = 0);
@@ -356,7 +368,10 @@ export class Advisors {
     this.argument = q.argument;
     const wasUp = this.card.classList.contains('show');
     this.card.className = `adv-card ${who}${wasUp ? ' show' : ''}`;
-    this.faceEl.innerHTML = FACE[who];
+    const face = portraitOf(q.line);
+    this.faceImg.src = advisorPortraitUrl(face, 192);
+    this.faceImg.srcset = `${advisorPortraitUrl(face, 192)} 1x, ${advisorPortraitUrl(face, 384)} 2x`;
+    this.card.dataset.face = moodOf(q.line);
     this.nameEl.textContent = NAME[who];
     this.textEl.textContent = text;
     this.showing = true;
