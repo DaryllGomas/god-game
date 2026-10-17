@@ -20,6 +20,11 @@ const NIGHT_HEMI = 0.78;
 const NIGHT_HEMI_COLOR = new THREE.Color(0x6788d8);
 const NIGHT_GROUND = 0.4;
 const NIGHT_EXPOSURE_LIFT = 0.14;
+/**
+ * World look pass (2026-10-16, storyboard panels 2 and 3): this game's day stays nearer golden hour than the look kit's
+ * `goldenAtNoon` (0.4, shared with the RPG and left as it is there). Warm light at midday, not a white noon.
+ */
+const DAY_GOLD_FLOOR = 0.82;
 
 /** Sky dome, sun/moon light, hemisphere fill, stars and fog, all driven by time of day. */
 export class Sky {
@@ -157,7 +162,7 @@ export class Sky {
     this.sunDir.set(Math.cos(ang) * 0.8, elev, 0.45).normalize();
     this.daylight = smoothstep(-0.12, 0.22, elev);
     // Golden hour: a flatter sun (long soft shadows) all day; golden strongest when the sun is low.
-    const golden = clamp(1 - smoothstep(0.2, 0.8, elev), LOOK.goldenAtNoon, 1) * this.daylight;
+    const golden = clamp(1 - smoothstep(0.2, 0.8, elev), DAY_GOLD_FLOOR, 1) * this.daylight;
     if (elev > 0) this.sunDir.y = elev * LOOK.sunFlatten + LOOK.sunLift * smoothstep(0, 0.15, elev);
     this.sunDir.normalize();
     const dusk = clamp(1 - Math.abs(elev) / 0.35, 0, 1);

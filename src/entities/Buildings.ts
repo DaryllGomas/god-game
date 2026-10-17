@@ -391,12 +391,20 @@ export class WorshipSite extends Entity {
   private readonly rings = new LightRings();
   private ringsStage = '';
   private ringsT = 0;
+  /**
+   * A warm pool of light over the prayer place of a village of yours (world look pass): soft by day, stronger at night.
+   * Every village has one from the start (dark until it is yours), so the scene's light count never changes.
+   */
+  private readonly pool = new THREE.PointLight(0xffb25a, 0, 40, 2);
+  private poolK = 0;
   private readonly rotY: number;
 
   constructor(village: Village, x: number, y: number, z: number) {
     super();
     this.village = village;
-    this.object.add(this.shrine.group, this.rings.group);
+    this.object.add(this.shrine.group, this.rings.group, this.pool);
+    this.pool.position.set(0, 7.5, 0);
+    this.pool.castShadow = false;
     this.rotY = Math.atan2(village.center.x - x, village.center.z - z);
     this.object.rotation.y = this.rotY;
     this.pos.set(x, y, z);
@@ -440,6 +448,9 @@ export class WorshipSite extends Entity {
       if (!g.aoIgnore?.includes(this.rings.group)) (g.aoIgnore ??= []).push(this.rings.group);
     }
     this.rings.frame(count, night, dt);
+    this.poolK += Math.sign((count > 0 ? 1 : 0) - this.poolK) * Math.min(Math.abs((count > 0 ? 1 : 0) - this.poolK), dt / 2.5);
+    // Brighter with each age, and at night. (Physical units: roughly 1.5 of light at 12 m by day for a temple.)
+    this.pool.intensity = this.poolK * (90 + 55 * Math.min(3, count)) * (1.2 + 0.7 * night);
   }
 
   /** Dancers circle the prayer place; slot i of n at the current time. */

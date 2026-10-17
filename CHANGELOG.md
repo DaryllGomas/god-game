@@ -4,13 +4,22 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Changed (world look, 2026-10-16: storyboard panels 2 and 3)
+- **The day is warmer**, nearer golden hour at midday too (this game's own setting; the look kit shared with the RPG is unchanged). Nights are as bright as before.
+- **Greens are richer and deeper**: the meadows, the grass tufts and the spring and summer grass colours.
+- **Paths are warm brown earth**, not yellow-green lines, and each home and the storehouse stands in a yard of trampled earth. The season's grass colour no longer tints bare ground green.
+- **A warm pool of light** hangs over a prayer place of yours, stronger with each age and at night, lighting the stones, the court and the people round it.
+- **The walkers on the paths swing their legs and arms** as they go. The people gathered at the prayer place stand still.
+- Unchanged on purpose: the gold of your light on the ground and the grey drain when the world falls out of tune.
+- A cottage's hidden footing now goes 6 m down, so a home on a steep spot never shows a gap. For tests, `?shot=…&stage=` now takes an age's number (0 to 3) or its name; the number used to be ignored.
+
 ### Changed (village art pass, 2026-10-16: Daryll wants the game finished "with all of the art in"; target: storyboard panel 2)
 - **Villagers look like little people.** Each has an outfit in the village's colour (a belted tunic, a long dress with an apron, a hooded cloak, or a plain smock with a scarf in the village colour), a face, one of several hair styles or a straw hat, hands and boots. They are a little bigger. Believers wear gold: a sash and a small sun pendant, on everyone in your villages and on the people of a neighbour's home that has come to believe (not on a home ruled by fear). The walkers on the paths come in five looks per village, and there are more of them.
 - **Homes are bigger, chunkier and warmer**, in three kinds: timber-framed with a steep shingled roof, fieldstone with a deep thatch, and two storeys with the upper floor jutting out and a dormer. All have a big stone chimney, lit windows with shutters and flower boxes, and some a porch. The storehouse is now a round stone granary with a shingled roof and a little cupola (it was a red cone).
 - **The prayer places are grand.** The totem is a third taller, carved with faces, with layered wings, a crest and torches round its floor. The standing stones are half as tall again, in slate grey. The pyramid is steeper and taller, and the temple's columns and floating crown rise with it.
 - **Rings of gold light** lie on the ground round a prayer place of yours, one for each age (up to three), with beads of light running round them. They glow brighter at night. The grass stays off them.
 - **Villages are busier.** Crops grow in rows of plants inside a fence with a gate (they were flat slabs). Each village has market stalls in its colour round the storehouse, a well, a barn, workshops with a glowing forge, woodsheds, carts, haystacks by the fields and lamp posts. These are scenery: they are not homes and don't count as houses. The people gathered at the prayer place stand outside the stones once the stones stand.
-- Under the hood: a cottage's hidden footing goes 4 m down (was 3) for the bigger footprint; the ground check passes, including the slope stress step. `scripts/village-shots.mjs` takes the village close-ups, each age, dusk and the island view on Atlas, with fps and draw calls.
+- Under the hood: a cottage's hidden footing goes deeper for the bigger footprint (see the world look entry); the ground check passes, including the slope stress step. `scripts/village-shots.mjs` takes the village close-ups, each age, dusk and the island view on Atlas, with fps and draw calls.
 
 ### Added (controller support, 2026-10-16: Daryll: "If you're on the couch, I want it to work with the game controllers also.")
 - **The game plays with an Xbox controller, natively** (no mouse and key emulation needed). The left stick moves your hand, with a small ring of light that shows only once a pad is used and goes away when the mouse moves. **A** grabs and sets down (tap, tap; or hold and let go), through the same code the mouse uses, so a tree goes onto a rock. **B** puts back or closes. The right stick pans; **X** goes home (hold it with the right stick to turn the view); **Y** finds the golem, or throws what you hold; stick clicks zoom; the D-pad is Water, Food, Fire and pause. No shoulder buttons or triggers are needed, and the Xbox button is never touched. The full map is in the README.

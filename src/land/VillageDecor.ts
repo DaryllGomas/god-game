@@ -108,16 +108,58 @@ function pileGeometry(seed: number): THREE.BufferGeometry {
   return merge(parts);
 }
 
-/** Walkers: one tiny villager (body, arms, legs fixed) per instance. */
+/** Walkers: one tiny villager per instance; `aLimb` marks each vertex (0 body, 1/2 left/right leg, 3/4 left/right arm). */
 function walkerGeometry(seed: number, tunic: number): THREE.BufferGeometry {
   const p = villagerParts(seed, tunic);
-  const parts: THREE.BufferGeometry[] = [p.body.clone()];
   const P = VILLAGER_PIVOT;
-  for (const x of [-P.armX, P.armX]) parts.push(p.arm.clone().translate(x, P.armY, 0));
-  for (const x of [-P.legX, P.legX]) parts.push(p.leg.clone().translate(x, P.legY, 0));
-  const g = merge(parts.map((q) => (q.index ? q.toNonIndexed() : q)));
-  return g;
+  const tag = (g: THREE.BufferGeometry, limb: number) => {
+    const q = g.index ? g.toNonIndexed() : g;
+    q.setAttribute('aLimb', new THREE.BufferAttribute(new Float32Array(q.attributes.position.count).fill(limb), 1));
+    return q;
+  };
+  const parts: THREE.BufferGeometry[] = [tag(p.body.clone(), 0)];
+  parts.push(tag(p.arm.clone().translate(-P.armX, P.armY, 0), 3), tag(p.arm.clone().translate(P.armX, P.armY, 0), 4));
+  parts.push(tag(p.leg.clone().translate(-P.legX, P.legY, 0), 1), tag(p.leg.clone().translate(P.legX, P.legY, 0), 2));
+  return merge(parts);
 }
+
+/** Walkers swing their legs and arms as they go (world look pass): the swing runs in the vertex shader, per instance. */
+const walkerTime = { value: 0 };
+const WALKER_MAT = MAT.base.clone();
+WALKER_MAT.onBeforeCompile = (sh) => {
+  sh.uniforms.uWalkTime = walkerTime;
+  sh.vertexShader = sh.vertexShader
+    .replace(
+      '#include <common>',
+      `#include <common>
+      attribute float aLimb;
+      attribute float aSwing;
+      uniform float uWalkTime;`,
+    )
+    .replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      if (aLimb > 0.5) {
+        bool leg = aLimb < 2.5;
+        float side = (aLimb < 1.5 || (aLimb > 2.5 && aLimb < 3.5)) ? 1.0 : -1.0;
+        #ifdef USE_INSTANCING
+          float ph = dot(instanceMatrix[3].xz, vec2(0.37, 0.61));
+        #else
+          float ph = 0.0;
+        #endif
+        float sw = sin(uWalkTime * 8.5 + ph) * aSwing;
+        float ang = leg ? sw * 0.6 * side : -sw * 0.5 * side;
+        float py = leg ? ${VILLAGER_PIVOT.legY.toFixed(3)} : ${VILLAGER_PIVOT.armY.toFixed(3)};
+        float yy = transformed.y - py;
+        float zz = transformed.z;
+        float c = cos(ang);
+        float sn = sin(ang);
+        transformed.y = py + yy * c - zz * sn;
+        transformed.z = yy * sn + zz * c;
+      }`,
+    );
+};
+WALKER_MAT.customProgramCacheKey = () => 'village-walker-v1';
 
 interface Walker {
   route: number; // index into the village's route list
@@ -378,7 +420,10 @@ export class VillageDecor {
       const count = 20 + v.houses.length * 3 + GATHER;
       const meshes: THREE.InstancedMesh[] = [];
       for (let k = 0; k < WALKER_LOOKS; k++) {
-        const mesh = new THREE.InstancedMesh(walkerGeometry(40 + this.villages.length * 17 + k * 101, tunic), MAT.base, Math.ceil(count / WALKER_LOOKS) + 1);
+        const cap = Math.ceil(count / WALKER_LOOKS) + 1;
+        const wg = walkerGeometry(40 + this.villages.length * 17 + k * 101, tunic);
+        wg.setAttribute('aSwing', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
+        const mesh = new THREE.InstancedMesh(wg, WALKER_MAT, cap);
         mesh.count = 0;
         mesh.frustumCulled = false;
         mesh.castShadow = true;
@@ -512,13 +557,19 @@ export class VillageDecor {
   /** Move the walkers along their routes; hidden when the camera is far out. */
   frame(dt: number, camDist: number) {
     const near = camDist < 480;
+    walkerTime.value = this.game.time;
     const time = this.game.time;
     for (const vr of this.villages) {
       for (const m of vr.meshes) m.visible = near;
       if (!near) continue;
       let n = 0;
       const L = vr.meshes.length;
-      const put = (k: number) => vr.meshes[k % L].setMatrixAt(Math.floor(k / L), this.m);
+      const put = (k: number, swing: number) => {
+        const m = vr.meshes[k % L];
+        const i = Math.floor(k / L);
+        m.setMatrixAt(i, this.m);
+        (m.geometry.attributes.aSwing as THREE.InstancedBufferAttribute).setX(i, swing);
+      };
       for (const w of vr.walkers) {
         if (!vr.routes.length) break;
         const route = vr.routes[w.route % vr.routes.length];
@@ -545,7 +596,7 @@ export class VillageDecor {
         this.e.set(0, heading, Math.sin(time * 6 + w.speed * 9) * 0.04);
         this.q.setFromEuler(this.e);
         this.m.compose(this.p.set(x, y, z), this.q, this.s.set(1.32, 1.32, 1.32));
-        put(n++);
+        put(n++, Math.min(1, w.speed / 1.4));
       }
       // Gatherers: a loose ring round the heart, swaying a little, facing the centre.
       const wp = vr.v.worship.pos;
@@ -561,11 +612,12 @@ export class VillageDecor {
         this.e.set(0, heading, Math.sin(time * 1.1 + i) * 0.03);
         this.q.setFromEuler(this.e);
         this.m.compose(this.p.set(gx, gy, gz), this.q, this.s.set(1.32, 1.32, 1.32));
-        put(n++);
+        put(n++, 0);
       }
       for (let k = 0; k < L; k++) {
         vr.meshes[k].count = Math.floor(n / L) + (k < n % L ? 1 : 0);
         vr.meshes[k].instanceMatrix.needsUpdate = true;
+        vr.meshes[k].geometry.attributes.aSwing.needsUpdate = true;
       }
     }
   }

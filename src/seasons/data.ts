@@ -67,17 +67,17 @@ const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
 export const LOOKS: Record<SeasonId, Look> = {
   spring: {
-    grassColor: c(0x86d052), grassAmt: 0.38, snow: 0,
+    grassColor: c(0x63a944), grassAmt: 0.38, snow: 0,
     leafTint: lin(0.94, 1.02, 0.86), autumn: 0, bare: 0, blossom: 1, snowCanopy: 0,
     grassScale: 1.1, flower: 1.5, wind: 1,
     horizonTint: c(0xd5efff), horizonAmt: 0.12, zenithTint: c(0x3d94e8), zenithAmt: 0.15,
-    sunTint: c(0xfff0d0), sunAmt: 0.15, sunScale: 1.03, hemiScale: 1.05, fogScale: 1, nightLift: 0,
+    sunTint: c(0xffe2b0), sunAmt: 0.3, sunScale: 1.03, hemiScale: 1.05, fogScale: 1, nightLift: 0,
     warm: v3(1.03, 1.02, 0.97), sat: 1.12, vignette: 0.2,
     cropGrowth: 1.35, treeGrowth: 1.3, hunger: 1, fireSpread: 1,
     birds: 1, hush: 0, leaves: 0, petals: 0.35, windows: 1,
   },
   summer: {
-    grassColor: c(0xbdb248), grassAmt: 0.5, snow: 0,
+    grassColor: c(0x9fac42), grassAmt: 0.5, snow: 0,
     leafTint: lin(0.84, 0.95, 0.84), autumn: 0, bare: 0, blossom: 0, snowCanopy: 0,
     grassScale: 1, flower: 1, wind: 1,
     horizonTint: c(0xffe9c0), horizonAmt: 0.22, zenithTint: c(0x2f7fd0), zenithAmt: 0.2,

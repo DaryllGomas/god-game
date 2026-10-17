@@ -41,6 +41,11 @@ await pose(0, 26, 0.5, 0.9, 0.36, 8, 12);
 await shot('v0-street');
 await pose(0, 78, 0.68, 0.5, 0.775);
 await shot('v0-dusk');
+// World look frames (pass 5): sunset dusk, deep night, and the world fallen out of tune (balance pinned low).
+await pose(0, 78, 0.68, 0.5, 0.735);
+await shot('v0-sunset');
+await pose(0, 78, 0.68, 0.5, 0.0);
+await shot('v0-night');
 const only = process.argv.includes('houses');
 for (let i = 0; i < 3; i++) {
   await p.evaluate((i) => { const h = game.villages[0].houses[i] ?? game.villages[2].houses[i]; game.dayTime = 0.36; game.godCam.setPose({ x: h.pos.x, z: h.pos.z, distance: 30, pitch: 0.5, yaw: h.object.rotation.y + 0.5 }, true); }, i);
@@ -56,6 +61,7 @@ await shot('v2');
 await pose(0, 240, 0.7, 0.5, 0.36);
 await shot('mid');
 // fps over 4 s at the default view of the home village.
+
 await pose(0, 130, 0.85, 0.5, 0.36);
 await sleep(1500);
 const fps = await p.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 4000) requestAnimationFrame(f); else res(n / ((performance.now() - t0) / 1000)); }; requestAnimationFrame(f); }));
@@ -64,6 +70,11 @@ const info = await p.evaluate(() => new Promise((res) => {
   const inf = game.renderer.info; inf.autoReset = false; inf.reset();
   requestAnimationFrame(() => requestAnimationFrame(() => { const r = { calls: inf.render.calls, triangles: inf.render.triangles }; inf.autoReset = true; res(r); }));
 }));
+// Last: the world fallen out of tune (balance pinned low): the land drains grey (it eases back slowly, so it goes last).
+await p.evaluate(() => { game.balance?.force?.(0.06); });
+await pose(0, 78, 0.68, 0.5, 0.36);
+await p.waitForTimeout(6000);
+await shot('v0-untuned');
 await writeFile(`${process.env.OUT_DIR}/${tag}-fps.json`, JSON.stringify({ fps, info, errors: errors.slice(0, 20) }, null, 2));
 console.log('fps', fps, info, 'errors', errors.length, errors.slice(0, 5));
 await browser.close();

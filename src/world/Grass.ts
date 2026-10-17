@@ -167,7 +167,7 @@ export class Grass {
           vec3 cool = vec3(0.72, 0.92, 0.82);
           vec3 tint = mix(cool, warm, smoothstep(0.3, 0.7, tone));
           #if FLOWERS == 0
-            vColor.rgb *= tint * vec3(0.86, 0.9, 0.78) * (0.85 + 0.3 * r2.x) * (1.0 - 0.42 * lmk.g);
+            vColor.rgb *= tint * vec3(0.78, 0.88, 0.72) * (0.85 + 0.3 * r2.x) * (1.0 - 0.42 * lmk.g); // deeper since the world look pass
             // Deeper, warmer greens like the ground (groundLook.ts) with dry straw tips on some tufts.
             float dryTuft = smoothstep(0.55, 0.9, fract(r1.x * 7.3 + r1.y * 3.1 + tone)) * (0.5 + 0.5 * smoothstep(0.4, 0.8, tone));
             float tipK = smoothstep(0.35, 1.0, clamp(position.y, 0.0, 1.0));

@@ -1,7 +1,9 @@
 import type { Game } from './Game';
+import { SHRINE_STAGES, isShrineStage } from './shrines/stages';
 
 /**
  * Screenshot mode for the render box (`atlas-shot`), debug only: `?shot=default|close|mid|far[&stage=0..3]`.
+ * `stage` takes an age's number (0 totem .. 3 temple) or its name (`stone_circle`).
  * Skips the intro, hides every overlay, puts the camera on a fixed pose over the home village and lets the
  * world settle, so a plain URL renders a repeatable frame. Has no effect without the `shot` parameter.
  */
@@ -29,8 +31,10 @@ export function applyShot(game: Game) {
   style.textContent = 'body > *:not(#app), #app > *:not(canvas) { visibility: hidden !important; }';
   document.head.appendChild(style);
   const stage = q.get('stage');
-  const g = game as unknown as { shrines?: { setStage?: (which: number, n: number) => void }; godCam: { target: { x: number; z: number }; setPose?: (p: object, instant: boolean) => void } };
-  if (stage != null) g.shrines?.setStage?.(0, Number(stage)); // village 0 = home
+  const g = game as unknown as { shrines?: { setStage?: (which: number, s: string) => void }; godCam: { target: { x: number; z: number }; setPose?: (p: object, instant: boolean) => void } };
+  // Village 0 = home. setStage wants the age's name; a number picks it from the track (it used to be passed raw and ignored).
+  const name = stage != null && /^\d+$/.test(stage) ? SHRINE_STAGES[Math.min(SHRINE_STAGES.length - 1, Number(stage))] : stage;
+  if (name != null && isShrineStage(name)) g.shrines?.setStage?.(0, name);
   const t = g.godCam.target;
   g.godCam.setPose?.({ x: t.x, z: t.z, distance: pose.distance, pitch: pose.pitch, yaw: 0.5 }, true);
 }

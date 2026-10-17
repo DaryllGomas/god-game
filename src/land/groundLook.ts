@@ -63,15 +63,18 @@ export const LAND_LOOK_GLSL = /* glsl */ `
   vec3 cMoss = pow(vec3(0.27, 0.43, 0.25), vec3(2.2));
   vec3 cWarm = pow(vec3(0.52, 0.56, 0.20), vec3(2.2));
   vec3 cMeadow = pow(vec3(0.66, 0.62, 0.27), vec3(2.2));
-  vec3 cDirt = pow(vec3(0.58, 0.43, 0.26), vec3(2.2));
-  vec3 cDirtLight = pow(vec3(0.72, 0.58, 0.37), vec3(2.2));
-  vec3 cDirtDark = pow(vec3(0.38, 0.28, 0.17), vec3(2.2));
+  // Warm brown earth (world look pass 2026-10-16: storyboard paths are brown dirt, not yellow-green lines).
+  vec3 cDirt = pow(vec3(0.55, 0.42, 0.29), vec3(2.2));
+  vec3 cDirtLight = pow(vec3(0.69, 0.57, 0.41), vec3(2.2));
+  vec3 cDirtDark = pow(vec3(0.37, 0.29, 0.20), vec3(2.2));
   vec3 cNeedle = pow(vec3(0.17, 0.27, 0.13), vec3(2.2));
   vec3 cStone = pow(vec3(0.46, 0.43, 0.38), vec3(2.2));
 
   vec3 col = diffuseColor.rgb;
   float gw = bwl.x;
   col *= mix(1.0, 0.7, gw); col = mix(col, vec3(dot(col, vec3(0.3, 0.59, 0.11))) * vec3(0.92, 1.0, 0.62), gw * 0.3); // deeper, warmer greens overall: the storyboard's meadows are mid-dark, not lime
+  // World look pass: richer, deeper greens under the warmer light (a touch darker and bluer, more saturated).
+  col = mix(col, col * vec3(0.78, 0.92, 0.74), gw * 0.6);
 
   // Large-scale meadow patches: deep green hollows, mossy lows, warm olive and yellow dry rises.
   col = mix(col, cDeep, gw * (1.0 - smoothstep(0.30, 0.55, big)) * 0.7);
@@ -97,7 +100,11 @@ export const LAND_LOOK_GLSL = /* glsl */ `
 
   // Worn ground around buildings, fields and the totem: dry, trampled, with the odd tuft still holding on.
   float worn = clamp(lm.b, 0.0, 1.0) * smoothstep(0.1, 0.55, lm.b + 0.35 * (gnoise(lp * 0.6 + 21.0) - 0.5));
-  col = mix(col, mix(cWarm, cDirt, 0.65), worn * 0.7 * (gw + bwl.y));
+  // Trampled earth: warm brown, lighter where most worn, with darker patches and the odd tuft.
+  vec3 wc = mix(cDirt, cDirtLight, smoothstep(0.55, 0.9, worn) * (0.5 + 0.5 * fine));
+  wc = mix(wc, cDirtDark, 0.25 * smoothstep(0.5, 0.75, mid2));
+  float wornK = worn * 0.85 * (gw + bwl.y);
+  col = mix(col, wc, wornK);
 
   // Dirt paths, soft-edged: a worn centre, darker rim, grass breaking through at the edge.
   float pm = clamp(lm.r, 0.0, 1.0);
@@ -107,6 +114,8 @@ export const LAND_LOOK_GLSL = /* glsl */ `
   vec3 pc = mix(cDirt, cDirtLight, core * (0.6 + 0.4 * fine));
   pc = mix(pc, cDirtDark, (1.0 - core) * 0.35);
   col = mix(col, pc, path * (1.0 - 0.8 * bwl.w));
+  // Bare earth keeps its brown under the season's grass colour (see Terrain GROUND_DETAIL).
+  gBare = clamp(max(path, wornK) * (1.0 - 0.8 * bwl.w), 0.0, 1.0);
 
   // Sea cliffs: where the ground is steep and near the water the grass gives way to layered strata, a dark wet base
   // and a grass lip above (v0.6 coast; colour only, the height field is untouched).

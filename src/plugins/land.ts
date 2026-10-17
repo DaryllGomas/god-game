@@ -105,7 +105,9 @@ export function install(game: Game): GamePlugin {
         if (Math.hypot(e.pos.x - cx, e.pos.z - cz) > v.radius * 1.5) continue;
         const r = e.kind === 'field' ? 9 : 7;
         spots.push({ x: e.pos.x, z: e.pos.z, r });
-        live.disc(e.pos.x, e.pos.z, r, CH_WORN, e.kind === 'field' ? 0.7 : 0.85, 0.45);
+        // Trampled earth: a wide yard round homes and the storehouse (world look pass: the bigger cottages hid the old one).
+        if (e.kind === 'field') live.disc(e.pos.x, e.pos.z, r, CH_WORN, 0.7, 0.45);
+        else live.disc(e.pos.x, e.pos.z, 10.5, CH_WORN, 0.95, 0.5);
       }
       // Footpaths: from the totem to every building, and each building to its nearest neighbour.
       for (const s of spots) {

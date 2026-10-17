@@ -255,6 +255,7 @@ export class Terrain {
           uniform float uSnow;
           uniform float uWet;
           float gWet = 0.0;
+          float gBare = 0.0;
           float gSnow = 0.0;
           ${GROUND_NOISE_GLSL}
           ${BALANCE_TINT_GLSL}
@@ -624,7 +625,7 @@ const GROUND_DETAIL_GLSL = /* glsl */ `
   // Season: pull the grass toward the season's colour, keeping its light/dark blotches.
   float gl = dot(grassPart, vec3(0.2126, 0.7152, 0.0722));
   vec3 seasonal = uGrassTarget * (gl / 0.28);
-  grassPart = mix(grassPart, seasonal, uGrassAmt);
+  grassPart = mix(grassPart, seasonal, uGrassAmt * (1.0 - gBare));
   diffuseColor.rgb = grassPart * bw.x + diffuseColor.rgb * (sm * bw.y + rm * bw.z + snm * bw.w);
   // The world's balance: meadows drain to grey-olive when it tips (sand and rock a little less).
   diffuseColor.rgb = balanceTint(diffuseColor.rgb, 0.5 + 0.5 * bw.x);
