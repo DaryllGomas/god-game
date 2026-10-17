@@ -31,24 +31,29 @@ const EATEN: Line[] = [
 const NAME: Record<Who, string> = { spirit: 'Lumi', imp: 'Fizz' };
 
 /**
- * Their painted portraits (public/advisors, cropped from the NAS board "2026-10-16 Lumi and Fizz portraits"). Lumi
- * is a spirit of light, warm (b) or hurt, one tear of light (c), when you are cruel. Fizz is a trickster, not a
+ * Their painted portraits (public/advisors, cropped from the NAS board "2026-10-16 Lumi and Fizz portraits"). Both
+ * are from sheets Daryll picked (2026-10-17), and she is his counterpart. Lumi, a little glowing spirit with a halo
+ * and a star friend: chin in her hands when she talks; cheering at good news; peeking round a wall when something is
+ * wrong; and hurt when you are cruel (for now her talking face, dimmed and cooled; a painted one is to come). Fizz is a trickster, not a
  * villain (Daryll, 2026-10-17: "more playful ... there to bug you and annoy you"), from the four-panel sheet Daryll
  * picked: smirking, chin on hand; cackling and pointing at his own jokes and your mischief; scheming, hand to chin,
  * when he tempts you; peeking round a rock when something is afoot. Which face goes with a line is read from the
- * line itself (LUMI_HURT, FIZZ_CACKLE, FIZZ_SCHEME, FIZZ_PEEK). The little drawn faces they had before are gone.
+ * line itself (LUMI_HURT, LUMI_PEEK, LUMI_CHEER, FIZZ_CACKLE, FIZZ_SCHEME, FIZZ_PEEK). The little drawn faces they had before are gone.
  */
-type Mood = 'speak' | 'hurt' | 'cackle' | 'scheme' | 'peek';
+type Mood = 'speak' | 'hurt' | 'cheer' | 'cackle' | 'scheme' | 'peek';
 const PORTRAIT: Record<Who, Partial<Record<Mood, string>> & { speak: string }> = {
-  spirit: { speak: 'lumi-b', hurt: 'lumi-c' },
+  spirit: { speak: 'lumi-speak', cheer: 'lumi-cheer', peek: 'lumi-peek', hurt: 'lumi-speak' },
   imp: { speak: 'fizz-smirk', cackle: 'fizz-cackle', scheme: 'fizz-scheme', peek: 'fizz-peek' },
 };
 const LUMI_HURT = /^(Oh no|That is not funny|That was somebody|It will\. Sadly|It would also make a hole|Please |Fizz!|Fizz\.\.\.)/;
+const LUMI_PEEK = /^(Something stirs|Oh dear\. Someone is watching|He wants their hearts|Dark clouds|A dark mist|A hand!|His storm|\{?\w*\}?'?s? ?fields are going|.* has turned to him)/;
+/** Her first sentence ends in "!": good news. */
+const LUMI_CHEER = /^[^.?]*!/;
 const FIZZ_CACKLE = /^(Ha\b|Smashing|Whoops|Ooh(?!, a rival)|Delightfully|Delicious|Echo|They bounce|My favourite part|Your golem|And his face)/;
 const FIZZ_SCHEME = /^(Go on\. One little toss|You know, from up here|That boulder would|Dry, you say|Summer\. Prime fire|I am bored|Gifts work too|Or slap it|Feed them better bread)|Drop a boulder near them/;
 const FIZZ_PEEK = /^(\.\.\.Hold on|Are we sightseeing|Translation:|Ooh, a rival)/;
 const moodOf = ({ who, text }: Line): Mood => {
-  if (who === 'spirit') return LUMI_HURT.test(text) ? 'hurt' : 'speak';
+  if (who === 'spirit') return LUMI_HURT.test(text) ? 'hurt' : LUMI_PEEK.test(text) ? 'peek' : LUMI_CHEER.test(text) ? 'cheer' : 'speak';
   if (FIZZ_SCHEME.test(text)) return 'scheme';
   if (FIZZ_PEEK.test(text)) return 'peek';
   return FIZZ_CACKLE.test(text) ? 'cackle' : 'speak';

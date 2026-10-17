@@ -1,5 +1,5 @@
 // Lumi's and Fizz's painted faces (2026-10-16), on the render box: `npm run build && atlas-run dist scripts/test-advisor-faces.mjs <out>`.
-// Says one line per face (Lumi warm and hurt; Fizz smirking, cackling, scheming and peeking), shoots the top of the screen, and checks each
+// Says one line per face (Lumi talking, cheering, peeking and hurt; Fizz smirking, cackling, scheming and peeking), shoots the top of the screen, and checks each
 // card shows the right portrait, loaded. Writes PNGs and report.json.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs/promises';
@@ -32,8 +32,10 @@ await p.getByText('Begin', { exact: false }).first().click({ timeout: 20000 });
 await p.waitForFunction(() => game.pace.confirmed, null, { timeout: 60000 });
 await wait(3000);
 const LINES = [
-  ['lumi-speak', 'spirit', 'Look at them dance!', 'lumi-b'],
-  ['lumi-hurt', 'spirit', 'Oh no. Please be gentler with them.', 'lumi-c'],
+  ['lumi-speak', 'spirit', 'Full tummies make full hearts.', 'lumi-speak'],
+  ['lumi-cheer', 'spirit', 'Look at them dance!', 'lumi-cheer'],
+  ['lumi-peek', 'spirit', 'Something stirs out there. But that is a story for another day.', 'lumi-peek'],
+  ['lumi-hurt', 'spirit', 'Oh no. Please be gentler with them.', 'lumi-speak'],
   ['fizz-speak', 'imp', 'Pointy. I approve.', 'fizz-smirk'],
   ['fizz-cackle', 'imp', 'Ha! Splat. ...I mean, how dreadful.', 'fizz-cackle'],
   ['fizz-scheme', 'imp', 'You know, from up here they look very... throwable.', 'fizz-scheme'],
