@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clamp, smoothstep } from '../util/math';
 import { LOOK } from './lookKit';
+import { DAY_LOOK } from './dayLook';
 
 const DAY_ZENITH = new THREE.Color(0x3d86d6);
 const DAY_HORIZON = new THREE.Color(0xc6e6f5);
@@ -161,6 +162,7 @@ export class Sky {
     const elev = Math.sin(ang);
     this.sunDir.set(Math.cos(ang) * 0.8, elev, 0.45).normalize();
     this.daylight = smoothstep(-0.12, 0.22, elev);
+    DAY_LOOK.uMeadowDeep.value = smoothstep(0.35, 0.85, this.daylight);
     // Golden hour: a flatter sun (long soft shadows) all day; golden strongest when the sun is low.
     const golden = clamp(1 - smoothstep(0.2, 0.8, elev), DAY_GOLD_FLOOR, 1) * this.daylight;
     if (elev > 0) this.sunDir.y = elev * LOOK.sunFlatten + LOOK.sunLift * smoothstep(0, 0.15, elev);

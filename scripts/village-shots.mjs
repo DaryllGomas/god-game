@@ -42,6 +42,10 @@ await shot('v0-street');
 await pose(0, 78, 0.68, 0.5, 0.775);
 await shot('v0-dusk');
 // World look frames (pass 5): sunset dusk, deep night, and the world fallen out of tune (balance pinned low).
+await pose(0, 78, 0.68, 0.5, 0.5);
+await shot('v0-noon');
+await pose(0, 240, 0.7, 0.5, 0.5);
+await shot('mid-noon');
 await pose(0, 78, 0.68, 0.5, 0.735);
 await shot('v0-sunset');
 await pose(0, 78, 0.68, 0.5, 0.0);

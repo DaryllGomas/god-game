@@ -5,6 +5,7 @@ import { TREE_VARIANTS, initTrees, treeVariant, type Tree } from './Nature';
 import { BALANCE_TINT, BALANCE_TINT_GLSL } from '../world/balanceTint';
 import { TREE_TINTS } from '../land/palette';
 import { FOLIAGE_WIND } from '../art/softCanopy';
+import { DAY_LOOK } from '../world/dayLook';
 
 const CAPACITY = 512;
 const WHITE = new THREE.Color(1, 1, 1);
@@ -32,7 +33,7 @@ export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
   // flowers share this material; their geometry is non-indexed with face normals, so they still look faceted.
   mat.flatShading = false;
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, FOREST_SEASON, BALANCE_TINT, FOLIAGE_WIND, { uSpecies: { value: species } });
+    Object.assign(shader.uniforms, FOREST_SEASON, BALANCE_TINT, FOLIAGE_WIND, DAY_LOOK, { uSpecies: { value: species } });
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -42,6 +43,7 @@ export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
         uniform float uBare;
         uniform float uBlossom;
         uniform float uSpecies;
+        uniform float uMeadowDeep;
         uniform float uWindT;
         varying float vSnowK;
         varying float vLeaf;
@@ -83,6 +85,10 @@ export function seasonalMaterial(species: number): THREE.MeshStandardMaterial {
           vec3 grad = mix(vec3(0.42, 0.52, 0.66), vec3(1.1, 1.02, 0.84), topK);
           grad = mix(grad, grad * vec3(0.78, 0.96, 1.04), pine);
           leaf *= grad;
+          // World look pass 6 (storyboard panels 2 and 3): deep, warm canopies, not lime. Bright yellow-green crowns are
+          // pulled down and a touch bluer; autumn colour and blossom are left as they are.
+          float ll = dot(leaf * instanceColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+          leaf *= mix(vec3(1.0), vec3(0.74, 0.8, 0.72), smoothstep(0.05, 0.22, ll) * (1.0 - turn) * (1.0 - petal) * uMeadowDeep);
           vColor.rgb = mix(vColor.rgb, leaf * instanceColor.rgb, isLeaf);
           vColor.rgb = balanceTint(vColor.rgb, 0.4 + 0.6 * isLeaf);
           vLeaf = isLeaf;

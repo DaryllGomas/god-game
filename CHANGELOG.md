@@ -4,6 +4,12 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Changed (world look 2, 2026-10-17: storyboard panels 2 and 3)
+- **Meadows and woods are deep, warm greens by day**, not lime: the ground, the grass and the tree crowns. Nights keep the brightness they had.
+- **Woods have more colour**: dark teal pines, mid greens and olive, and now and then a tree turning gold-orange.
+- **The mountains read as grey stone** under the warm light, not lavender.
+- Unchanged on purpose: the gold edge of your light and the grey drain when the world falls out of tune.
+
 ### Changed (world look, 2026-10-16: storyboard panels 2 and 3)
 - **The day is warmer**, nearer golden hour at midday too (this game's own setting; the look kit shared with the RPG is unchanged). Nights are as bright as before.
 - **Greens are richer and deeper**: the meadows, the grass tufts and the spring and summer grass colours.

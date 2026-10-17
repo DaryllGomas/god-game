@@ -3,6 +3,7 @@ import type { Terrain } from './Terrain';
 import { GROUND_NOISE_GLSL } from './groundNoise';
 import { WORLD_SIZE } from '../config';
 import { BALANCE_TINT, BALANCE_TINT_GLSL } from './balanceTint';
+import { DAY_LOOK } from './dayLook';
 import { LAND_SAMPLE_GLSL, LAND_UNIFORMS } from '../land/groundLook';
 
 // Tuning knobs.
@@ -74,6 +75,7 @@ export class Grass {
       uRadius: { value: HALF_CELLS * CELL },
       ...GRASS_SEASON,
       ...BALANCE_TINT,
+      ...DAY_LOOK,
       ...LAND_UNIFORMS,
     };
 
@@ -108,6 +110,7 @@ export class Grass {
           uniform float uGrassScale;
           uniform float uFlower;
           uniform float uWind;
+          uniform float uMeadowDeep;
           ${GROUND_NOISE_GLSL}
           ${BALANCE_TINT_GLSL}
           ${LAND_SAMPLE_GLSL}
@@ -175,6 +178,9 @@ export class Grass {
             // Season: shift the blade colour toward the season's, keeping root-to-tip shading.
             float bl = dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722));
             vColor.rgb = mix(vColor.rgb, uGrassTarget * (bl / 0.26), uGrassAmt);
+            // Deep, warm meadow (world look pass 6): bright lime blades pulled down like the ground under them.
+            float bl2 = dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+            vColor.rgb *= mix(vec3(1.0), vec3(0.74, 0.8, 0.72), smoothstep(0.08, 0.3, bl2) * uMeadowDeep);
             vColor.rgb = balanceTint(vColor.rgb, 1.0);
           #else
             float pick = r2.x * 4.0;

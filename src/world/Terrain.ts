@@ -4,6 +4,7 @@ import { clamp, lerp, smoothstep } from '../util/math';
 import { SEA_LEVEL, TERRAIN_RES, WORLD_SIZE, type VillageSite } from '../config';
 import { GROUND_NOISE_GLSL } from './groundNoise';
 import { BALANCE_TINT, BALANCE_TINT_GLSL } from './balanceTint';
+import { DAY_LOOK } from './dayLook';
 import { LAND_LOOK_GLSL, LAND_SAMPLE_GLSL, LAND_UNIFORMS } from '../land/groundLook';
 import { LIGHT_SDF_GLSL, type LightShape } from '../reach/Light';
 
@@ -80,6 +81,7 @@ export class Terrain {
     uWet: { value: 0 },
     // The world's balance (see src/balance): drained or rich colour.
     ...BALANCE_TINT,
+    ...DAY_LOOK,
     // The land mask (see src/land): paths, worn ground, forest floor.
     ...LAND_UNIFORMS,
   };
@@ -173,8 +175,10 @@ export class Terrain {
     const grass = new THREE.Color(0x5c8f36);
     const lush = new THREE.Color(0x3d7a2c);
     const dry = new THREE.Color(0x93a048);
-    const rock = new THREE.Color(0x7c8290); // cool slate, not straw: the storyboard's hills are grey-blue under green
-    const darkRock = new THREE.Color(0x4a505e);
+    // Slate grey, not straw: the storyboard's hills are grey stone under green. (World look pass 6: a little less blue, so
+    // under the golden light it reads grey, not lavender.)
+    const rock = new THREE.Color(0x7f8189);
+    const darkRock = new THREE.Color(0x4b4e57);
     const snow = new THREE.Color(0xf2f4f7);
     const c = new THREE.Color();
     const n = new THREE.Vector3();
@@ -256,6 +260,7 @@ export class Terrain {
           uniform float uWet;
           float gWet = 0.0;
           float gBare = 0.0;
+          uniform float uMeadowDeep;
           float gSnow = 0.0;
           ${GROUND_NOISE_GLSL}
           ${BALANCE_TINT_GLSL}
@@ -626,6 +631,13 @@ const GROUND_DETAIL_GLSL = /* glsl */ `
   float gl = dot(grassPart, vec3(0.2126, 0.7152, 0.0722));
   vec3 seasonal = uGrassTarget * (gl / 0.28);
   grassPart = mix(grassPart, seasonal, uGrassAmt * (1.0 - gBare));
+  // World look pass 6: deep, warm meadows (storyboard panels 2 and 3), not lime. Bright yellow-greens are pulled down
+  // and a touch toward blue-green, so after the warm light and grade they land on a deep warm green. Bare earth is left be.
+  {
+    float gL = dot(grassPart, vec3(0.2126, 0.7152, 0.0722));
+    float limeK = smoothstep(0.05, 0.2, gL) * (1.0 - gBare) * uMeadowDeep;
+    grassPart *= mix(vec3(1.0), vec3(0.75, 0.78, 0.66), limeK);
+  }
   diffuseColor.rgb = grassPart * bw.x + diffuseColor.rgb * (sm * bw.y + rm * bw.z + snm * bw.w);
   // The world's balance: meadows drain to grey-olive when it tips (sand and rock a little less).
   diffuseColor.rgb = balanceTint(diffuseColor.rgb, 0.5 + 0.5 * bw.x);
