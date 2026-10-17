@@ -190,8 +190,12 @@ export function cottageGeometry(seed: number): Cottage {
     const dz = D * 0.45;
     const dy = yE + (yR - yE) * 0.55 - 0.1;
     box(1.5, 1.3, 1.4, 0, dy - 0.4, dz - 0.2, plaster, 0.04);
-    const dr = new THREE.ConeGeometry(1.15, 0.9, 4, 1).rotateY(Math.PI / 4).scale(1.05, 1, 1.1).translate(0, dy + 1.3, dz - 0.25);
-    parts.push(paint(dr, roofBase, 0.12, rng));
+    // A little gable roof on the dormer, ridge running out toward the front.
+    for (const sx of [-1, 1]) {
+      const slab = new THREE.BoxGeometry(1.05, 0.14, 1.9).rotateZ(-sx * 0.62).translate(sx * 0.42, dy + 1.18, dz - 0.15);
+      parts.push(paint(slab, roofBase, 0.12, rng));
+    }
+    parts.push(paint(tri(V(-0.75, dy + 0.9, dz + 0.5), V(0.75, dy + 0.9, dz + 0.5), V(0, dy + 1.48, dz + 0.5), V(0, 0, 1)), plaster));
     box(0.9, 0.7, 0.08, 0, dy + 0.0, dz + 0.5, TIMBER);
     panes.push(paint(new THREE.BoxGeometry(0.7, 0.55, 0.1).translate(0, dy + 0.35, dz + 0.52), 0xffffff));
   }

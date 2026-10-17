@@ -140,8 +140,8 @@ export function glowGeometry(): THREE.BufferGeometry {
 
 // ------------------------------------------------------------------ helpers
 
-const SAND = 0xdcbd8a;
-const SAND_DARK = 0xc6a676;
+const SAND = 0xd4b07a;
+const SAND_DARK = 0xbf9c68;
 const PAVE = 0xc4ad86;
 const PAVE_LIGHT = 0xd8c6a2;
 const EARTH = 0xa08660;
@@ -527,7 +527,7 @@ export function pyramidGeometry(): THREE.BufferGeometry {
     const pos = ng.attributes.position as THREE.BufferAttribute;
     if (!ng.attributes.uv) ng.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(pos.count * 2), 2));
     const col = new Float32Array(pos.count * 3);
-    const base = new THREE.Color(i % 2 ? SAND : 0xd6b47c);
+    const base = new THREE.Color(i % 2 ? SAND : 0xc9a46e);
     for (let k = 0; k < pos.count; k++) {
       const t = (pos.getY(k) - y0) / tierH; // 0 foot .. 1 ledge
       const n = 0.93 + rng.next() * 0.1;

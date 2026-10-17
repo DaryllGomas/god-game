@@ -374,7 +374,8 @@ export class VillageDecor {
 
       // ---- walkers (routes get filled in by the land plugin on every repaint)
       const tunic = VILLAGE_SITES.find((s) => s.name === v.name)?.tunic ?? 0x3f6fc4;
-      const count = 14 + v.houses.length * 2 + GATHER;
+      // Village art pass: more people about, as in the storyboard's busy village.
+      const count = 20 + v.houses.length * 3 + GATHER;
       const meshes: THREE.InstancedMesh[] = [];
       for (let k = 0; k < WALKER_LOOKS; k++) {
         const mesh = new THREE.InstancedMesh(walkerGeometry(40 + this.villages.length * 17 + k * 101, tunic), MAT.base, Math.ceil(count / WALKER_LOOKS) + 1);
