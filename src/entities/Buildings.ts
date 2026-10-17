@@ -13,6 +13,8 @@ import {
   storeGeometry,
 } from '../art/Models';
 import { ShrineVisual } from '../shrines/ShrineVisual';
+import { LightRings } from '../shrines/LightRings';
+import { stageIndex } from '../shrines/stages';
 import type { ShrineStage } from '../shrines/stages';
 import { cottageGeometry } from '../art/Cottage';
 import { buildFieldMesh, setCropHeight, type FieldMesh } from '../art/FieldMesh';
@@ -385,12 +387,16 @@ export class WorshipSite extends Entity {
   readonly kind = 'worship' as const;
   village: Village;
   readonly shrine = new ShrineVisual();
+  /** Gold rings of light on the ground round a prayer place of yours (village art pass). */
+  private readonly rings = new LightRings();
+  private ringsStage = '';
+  private ringsT = 0;
   private readonly rotY: number;
 
   constructor(village: Village, x: number, y: number, z: number) {
     super();
     this.village = village;
-    this.object.add(this.shrine.group);
+    this.object.add(this.shrine.group, this.rings.group);
     this.rotY = Math.atan2(village.center.x - x, village.center.z - z);
     this.object.rotation.y = this.rotY;
     this.pos.set(x, y, z);
@@ -419,6 +425,21 @@ export class WorshipSite extends Entity {
   setStage(stage: ShrineStage, animate: boolean) {
     this.shrine.setStage(stage, animate);
     this.radius = this.shrine.pickRadius;
+  }
+
+  /** Per rendered frame: the gold rings (one per age, up to three) show round a prayer place of yours. */
+  frameRings(game: Game, dt: number, night: number) {
+    const mine = this.village.owner === 'player' && !this.village.houses.some((h) => h.fear);
+    const count = mine ? Math.min(3, stageIndex(this.shrine.stage) + 1) : 0;
+    // Lay the strips over the ground once it has settled (pads and courts are levelled after load), and again per age.
+    this.ringsT += dt;
+    if (count > 0 && this.ringsT > 1.5 && (!this.rings.isBuilt || this.ringsStage !== this.shrine.stage)) {
+      this.ringsStage = this.shrine.stage;
+      this.rings.build(game, (lx, lz, out) => this.toWorld(lx, 0, lz, out), this.pos.y);
+      const g = game as unknown as { aoIgnore?: THREE.Object3D[] };
+      if (!g.aoIgnore?.includes(this.rings.group)) (g.aoIgnore ??= []).push(this.rings.group);
+    }
+    this.rings.frame(count, night, dt);
   }
 
   /** Dancers circle the prayer place; slot i of n at the current time. */

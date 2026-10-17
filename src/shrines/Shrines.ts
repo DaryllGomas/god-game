@@ -194,7 +194,10 @@ export class Shrines {
     const g = this.game;
     const night = 1 - clamp(g.sky.daylight * 1.5, 0, 1);
     shrineGlow(night, this.t);
-    for (const v of g.villages) v.worship.shrine.frame(dt, night);
+    for (const v of g.villages) {
+      v.worship.shrine.frame(dt, night);
+      v.worship.frameRings(g, dt, night);
+    }
     const heads = this.streaks.frame(dt);
     this.sparkleT -= dt;
     if (heads.length && this.sparkleT <= 0) {

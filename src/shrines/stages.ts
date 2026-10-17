@@ -58,10 +58,10 @@ export interface StageLayout {
 }
 
 export const LAYOUT: Record<ShrineStage, StageLayout> = {
-  totem: { ring: 6.2, solid: 1.2, top: 9, pick: 8, motes: 2 },
-  stone_circle: { ring: 6.2, solid: 1.2, top: 9, pick: 11, motes: 2 },
-  pyramid: { ring: 8.6, solid: 6.8, top: 11, pick: 11, motes: 10 },
-  temple: { ring: 8.6, solid: 6.8, top: 15, pick: 12, motes: 13 },
+  totem: { ring: 6.2, solid: 1.2, top: 11, pick: 8, motes: 2 },
+  stone_circle: { ring: 6.2, solid: 1.2, top: 11, pick: 11, motes: 2 },
+  pyramid: { ring: 8.6, solid: 6.8, top: 15, pick: 11, motes: 14 },
+  temple: { ring: 8.6, solid: 6.8, top: 19.5, pick: 12, motes: 17.5 },
 };
 
 /** Houses, fields and project plots keep this far from the prayer place's centre (it grows to ~12 m). */

@@ -23,14 +23,14 @@ export const SHRINE = {
   court: 12,
   stones: { count: 12, r: 10.6, w: 1.5, d: 0.85 },
   /** Square pyramid: half-width at its base, base height (top of the plinth), height to the apex, capstone height. */
-  pyr: { hw: 5.0, y: 1.35, h: 8.4, cap: 1.25 },
+  pyr: { hw: 5.0, y: 1.35, h: 12.2, cap: 1.5 },
   /** Temple columns (on the stone ring, between the stones) and the ring they carry. */
-  col: { r: 10.6, h: 7.4, base: 0.35 },
-  ring: { inner: 10.3, outer: 10.9, y: 8.32, h: 0.48 },
+  col: { r: 10.6, h: 10.2, base: 0.35 },
+  ring: { inner: 10.3, outer: 10.9, y: 11.12, h: 0.6 },
   /** Where the lifted capstone hangs, and the little sun under it. */
-  crown: { cap: 12.6, orb: 11.5 },
+  crown: { cap: 17.2, orb: 16.0 },
   /** Obelisks framing the way in, just outside the court. */
-  obelisk: { x: 2.2, z: 12.35, h: 6.2 },
+  obelisk: { x: 2.2, z: 12.35, h: 8.2 },
 };
 
 const P = SHRINE.pyr;
@@ -186,34 +186,88 @@ export function totemFloorGeometry(): THREE.BufferGeometry {
     const h = rng.range(1.4, 2.4);
     parts.push(paint(new THREE.BoxGeometry(0.8, h, 0.6).rotateY(a).translate(Math.cos(a) * 9.5, h / 2, Math.sin(a) * 9.5), 0x8d8983, 0.15, rng));
   }
+  // Torches round the dance floor (the first age only: the stones replace them).
+  for (let k = 0; k < 4; k++) {
+    const a = ((k + 0.5) / 4) * Math.PI * 2;
+    const tx = Math.cos(a) * 6.6;
+    const tz = Math.sin(a) * 6.6;
+    parts.push(cyl(0.12, 0.16, 2.6, 6, tx, 1.3, tz, 0x5a3b22));
+    parts.push(cyl(0.34, 0.2, 0.36, 8, tx, 2.75, tz, 0x6a5238));
+    parts.push(paint(new THREE.ConeGeometry(0.26, 0.7, 6).translate(tx, 3.2, tz), 0xffb347));
+    parts.push(paint(new THREE.ConeGeometry(0.14, 0.5, 6).translate(tx, 3.25, tz), 0xfff0a0));
+  }
   return merge(parts);
 }
 
-const TOTEM_SEGMENTS = [1.5, 1.35, 1.6, 1.3, 1.45];
+const TOTEM_SEGMENTS = [2.0, 1.8, 2.1, 1.75, 1.9];
 const TOTEM_COLORS = [0x8a4a2a, 0x3a6a8a, 0xc9a24a, 0x8a2a2a, 0x2a6a4a];
 
-/** The carved pole, its wings and the fire pit in front of it. */
+/**
+ * The carved pole, its wings and the fire pit in front of it. Village art pass (2026-10-16): a third taller, each block
+ * carved with a face (brows, eyes, a mouth, the odd beak), layered feathered wings, a crest on top, and a ring of
+ * offering stones and torches round the fire.
+ */
 export function totemGeometry(): THREE.BufferGeometry {
   const rng = new Rng(12);
   const parts: THREE.BufferGeometry[] = [];
+  const DARK = 0x2a1a12;
   let y = 0;
   TOTEM_SEGMENTS.forEach((h, i) => {
-    const seg = i % 2 === 0 ? new THREE.CylinderGeometry(0.7, 0.8, h, 8) : new THREE.BoxGeometry(1.4, h, 1.4);
+    const round = i % 2 === 0;
+    const seg = round ? new THREE.CylinderGeometry(0.85, 0.95, h, 10) : new THREE.BoxGeometry(1.75, h, 1.75);
     parts.push(paint(seg.translate(0, y + h / 2, 0), TOTEM_COLORS[i], 0.1, rng));
+    // A band where blocks meet.
+    parts.push(cyl(round ? 1.0 : 1.3, round ? 1.0 : 1.3, 0.16, round ? 10 : 4, 0, y + h - 0.08, 0, 0x5a3420));
+    if (i !== 1) {
+      // A face on the front (+z): heavy brows, eyes, a mouth; the second block's front carries the gold emblem instead.
+      const fz = round ? 0.9 : 0.9;
+      const ey = y + h * 0.62;
+      for (const sx of [-1, 1]) {
+        parts.push(box(0.5, 0.14, 0.18, sx * 0.32, ey + 0.2, fz, 0xe8d6a8));
+        parts.push(box(0.3, 0.26, 0.12, sx * 0.32, ey - 0.12, fz + 0.02, 0xf0e6cc));
+        parts.push(box(0.14, 0.18, 0.1, sx * 0.32, ey - 0.1, fz + 0.08, DARK));
+      }
+      if (i === 3) {
+        // A beak.
+        parts.push(paint(new THREE.ConeGeometry(0.28, 0.9, 4).rotateX(Math.PI / 2).translate(0, ey - 0.35, fz + 0.45), 0xd9a440));
+      } else {
+        parts.push(box(0.8, 0.16, 0.12, 0, y + h * 0.22 + 0.12, fz + 0.02, DARK));
+        for (let k = 0; k < 4; k++) parts.push(box(0.1, 0.12, 0.08, -0.27 + k * 0.18, y + h * 0.22 + 0.2, fz + 0.06, 0xf0e6cc));
+      }
+    }
     y += h;
   });
-  parts.push(box(4, 0.4, 0.5, 0, y - 0.6, 0, 0xc9a24a));
-  parts.push(box(0.7, 0.9, 0.3, 0, y + 0.25, 0, 0x8a4a2a, 0.1, rng));
-  // The fire pit, toward the front.
-  parts.push(cyl(1.1, 0.8, 0.7, 8, 0, 0.35, 4.2, 0x55504a));
+  // Wings: three layered feathered planks either side, swept up, gold-tipped.
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 3; k++) {
+      const len = 2.8 - k * 0.55;
+      const g = new THREE.BoxGeometry(len, 0.42, 0.42).translate((s * len) / 2, 0, 0).rotateZ(s * (0.18 + k * 0.2)).translate(s * 0.9, y - 1.0 - k * 0.42, 0);
+      parts.push(paint(g, k % 2 ? 0x2a6a8a : 0xc9a24a, 0.1, rng));
+      const tip = new THREE.ConeGeometry(0.24, 0.6, 4).rotateZ(-s * Math.PI / 2).translate(s * (len + 0.25), 0, 0).rotateZ(s * (0.18 + k * 0.2)).translate(s * 0.9, y - 1.0 - k * 0.42, 0);
+      parts.push(paint(tip, 0xe9c25a));
+    }
+  }
+  // Crest: a carved head with a feather fan.
+  parts.push(box(0.95, 1.15, 0.5, 0, y, 0, 0x8a4a2a, 0.1, rng));
+  for (let k = -2; k <= 2; k++) {
+    const f = new THREE.BoxGeometry(0.22, 1.3, 0.1).translate(0, 0.65, 0).rotateZ(k * 0.32).translate(0, y + 1.05, -0.05);
+    parts.push(paint(f, k % 2 ? 0x2a6a8a : 0x8a2a2a, 0.08, rng));
+  }
+  // The fire pit, toward the front, ringed with stones; ringed with stones.
+  parts.push(cyl(1.25, 0.9, 0.7, 10, 0, 0.35, 4.2, 0x55504a));
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * Math.PI * 2;
+    const r = 0.28;
+    parts.push(paint(jitterVerts(new THREE.IcosahedronGeometry(r, 0), 0.06, rng).translate(Math.cos(a) * 1.4, 0.2, 4.2 + Math.sin(a) * 1.4), 0x8d8983, 0.15, rng));
+  }
   return merge(parts);
 }
 
 /** The gold emblem carved into the totem's front: a sprout in a ring (the TEND mark's sprout and orb). */
 export function totemEmblemGeometry(): THREE.BufferGeometry {
-  const y = TOTEM_SEGMENTS[0] + TOTEM_SEGMENTS[1] + TOTEM_SEGMENTS[2] * 0.5;
-  const z = 0.76;
-  return merge(emblem(0.5, 0.06).map((g) => g.translate(0, y, z)));
+  const y = TOTEM_SEGMENTS[0] + TOTEM_SEGMENTS[1] * 0.5;
+  const z = 0.92;
+  return merge(emblem(0.62, 0.08).map((g) => g.translate(0, y, z)));
 }
 
 /** Glyph parts in the xy-plane, facing +z: a ring with a sprout rising through it. */
@@ -238,9 +292,10 @@ const TRILITHONS: [number, number][] = [
   [11, 0],
 ];
 function stoneHeight(i: number): number {
-  if (i === 2 || i === 3) return 6.2;
-  if (TRILITHONS.some(([a, b]) => a === i || b === i)) return 5.4;
-  return 4.5 + ((i * 7) % 5) * 0.4;
+  // Village art pass (2026-10-16): the storyboard's stones tower over the people, so they are half as tall again.
+  if (i === 2 || i === 3) return 9.0;
+  if (TRILITHONS.some(([a, b]) => a === i || b === i)) return 7.9;
+  return 6.6 + ((i * 7) % 5) * 0.55;
 }
 export const stoneAngle = (i: number) => ((i + 0.5) / SHRINE.stones.count) * Math.PI * 2;
 
@@ -272,7 +327,8 @@ export function danceInlayGeometry(): THREE.BufferGeometry {
   return merge([ring(8.45, 8.7, 0.25, 0.28, 64, 0xffffff)]);
 }
 
-const GREYS = [0x9c9a92, 0x8e8c86, 0xa6a39a, 0x959088, 0xa09c90] as const;
+/** Slate greys with a little blue, like the storyboard's standing stones. */
+const GREYS = [0x868b93, 0x7b8089, 0x9196a0, 0x828790, 0x8d9199] as const;
 const MOSS = new THREE.Color(0x58762f);
 const MOSS_DRY = new THREE.Color(0x7b8a42);
 const _c = new THREE.Color();
@@ -359,7 +415,7 @@ export function stonesGeometry(): THREE.BufferGeometry {
     const [x, z] = onRing(a, r);
     const lean = rng.range(-0.045, 0.045);
     const lean2 = rng.range(-0.03, 0.03);
-    const s = menhir(w * rng.range(0.86, 1.05), h, d * rng.range(0.9, 1.1), rng, rng.pick(GREYS)).rotateZ(lean).rotateX(lean2);
+    const s = menhir(w * rng.range(1.0, 1.2), h, d * rng.range(0.9, 1.1), rng, rng.pick(GREYS)).rotateZ(lean).rotateX(lean2);
     parts.push(s.rotateY(faceIn(a)).translate(x, -0.05, z));
     for (const f of footing(w, d, rng)) parts.push(f.rotateY(faceIn(a)).translate(x, 0, z));
   }
@@ -368,7 +424,7 @@ export function stonesGeometry(): THREE.BufferGeometry {
     if (k === INNER_RING.skip) continue;
     const rng = new Rng(500 + k);
     const a = (k / INNER_RING.count) * Math.PI * 2;
-    const h = rng.range(2.1, 3.3);
+    const h = rng.range(2.9, 4.4);
     const [x, z] = onRing(a, INNER_RING.r + rng.range(-0.15, 0.15));
     const s = menhir(0.95, h, 0.65, rng, rng.pick(GREYS)).rotateZ(rng.range(-0.05, 0.05)).rotateX(rng.range(-0.04, 0.04));
     parts.push(s.rotateY(faceIn(a)).translate(x, -0.05, z));

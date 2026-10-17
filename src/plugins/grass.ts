@@ -28,7 +28,9 @@ export function install(game: Game): GamePlugin {
           stamps.push({ x: e.pos.x, z: e.pos.z, r: 6.5, core: 0.6 });
           break;
         case 'worship':
-          stamps.push({ x: e.pos.x, z: e.pos.z, r: 11, core: 0.65 });
+          // The trampled ground round the prayer place reaches past its gold light rings (village art pass), so the
+          // meadow never hides them.
+          stamps.push({ x: e.pos.x, z: e.pos.z, r: 22, core: 0.88 });
           break;
         case 'field':
           stamps.push({ x: e.pos.x, z: e.pos.z, r: 0, w: 7.5, d: 5.8, rot: -e.object.rotation.y });
