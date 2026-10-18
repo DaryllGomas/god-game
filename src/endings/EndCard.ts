@@ -179,16 +179,25 @@ export class EndCard {
   show() {
     this.shown = true;
     this.t = 0;
+    this.shownAt = performance.now();
     this.out = -1;
     this.el.classList.add('on');
     this.el.style.opacity = '0';
   }
 
   private readonly choice: { go: { onGo: () => void } } | null;
+  /**
+   * When the card came up (performance.now()). Its hold before a click counts is measured in real seconds: counted in
+   * capped frame steps it stretched to many seconds on a slow machine (the living-room TV, 2026-10-18).
+   */
+  private shownAt = 0;
+  private get held(): boolean {
+    return (performance.now() - this.shownAt) / 1000 >= CARD_HOLD;
+  }
 
   /** Answer the card's question: go on to the next game, or stay on the island. */
   choose(go: boolean) {
-    if (!this.shown || this.out >= 0 || this.t < CARD_HOLD) return;
+    if (!this.shown || this.out >= 0 || !this.held) return;
     if (go && this.choice) this.choice.go.onGo();
     else this.close();
   }
@@ -202,7 +211,7 @@ export class EndCard {
 
   /** Back to the island (after the card has held a moment). */
   close() {
-    if (!this.shown || this.out >= 0 || this.t < CARD_HOLD) return;
+    if (!this.shown || this.out >= 0 || !this.held) return;
     this.out = 0;
   }
 
