@@ -506,3 +506,78 @@ html[data-native-gamepad] .ec-pad {
   opacity: 1;
   transform: translate(-50%, 0);
 }
+
+/* The confrontation and the last word (src/endings/Confrontation.ts): who speaks, large, over the ending. */
+.endings-talk {
+  position: absolute;
+  left: 50%;
+  top: 7vh;
+  width: min(560px, 86vw);
+  transform: translate(-50%, 8px);
+  opacity: 0;
+  text-align: center;
+  pointer-events: none;
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s ease;
+}
+.endings-talk.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.et-face {
+  width: min(220px, 40vw);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #070405;
+  box-shadow: 0 0 0 2px rgba(244, 207, 115, 0.7), 0 0 40px rgba(244, 207, 115, 0.3), 0 18px 60px rgba(0, 0, 0, 0.7);
+}
+.endings-talk[data-who='rival'] .et-face {
+  box-shadow: 0 0 0 2px rgba(255, 96, 50, 0.7), 0 0 46px rgba(255, 60, 20, 0.45), 0 18px 60px rgba(0, 0, 0, 0.7);
+}
+.endings-talk[data-who='spirit'] .et-face {
+  box-shadow: 0 0 0 2px rgba(191, 230, 255, 0.75), 0 0 40px rgba(191, 230, 255, 0.35), 0 18px 60px rgba(0, 0, 0, 0.7);
+}
+.endings-talk[data-who='imp'] .et-face {
+  box-shadow: 0 0 0 2px rgba(255, 157, 107, 0.75), 0 0 40px rgba(255, 120, 60, 0.35), 0 18px 60px rgba(0, 0, 0, 0.7);
+}
+.et-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+}
+/* Ora has no face: its line alone, like its line in play. */
+.endings-talk.ora .et-face {
+  display: none;
+}
+.et-name {
+  margin-top: 14px;
+  font-family: var(--serif);
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(244, 207, 115, 0.85);
+}
+.et-line {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 10px 22px 12px;
+  border-radius: 18px;
+  background: radial-gradient(closest-side, rgba(8, 6, 14, 0.62), rgba(8, 6, 14, 0.38) 70%, transparent);
+  font-variant: normal;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: clamp(19px, 2.2vw, 26px);
+  line-height: 1.4;
+  color: #f6eedc;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8);
+}
+.endings-talk.ora .et-line {
+  color: #cfeeff;
+}

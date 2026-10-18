@@ -1,4 +1,5 @@
 import type { Stage } from './Collapse';
+import { Talk, confrontationLines } from './Confrontation';
 
 /**
  * THE FINAL BATTLE: the hook, not the battle (Daryll, 2026-10-15: "at the end ... a really cool battle thing, which
@@ -35,8 +36,12 @@ export function setFinalBattle(fn: Start | null) {
   start = fn;
 }
 
-/** The Ascension asks for the battle as Whole begins. Today: the stub, done at once (the ending goes on as before). */
+/**
+ * The Ascension asks for this as Whole begins. 2026-10-17/18 (Daryll): there is no battle at the end ("the battle is
+ * building the island out"); what plays here is the confrontation in words (src/endings/Confrontation.ts), which ends
+ * in the reconciliation. The registration hook above stays for anything played that may come later.
+ */
 export function beginFinalBattle(stage: Stage): FinalBattle {
   if (start) return start(stage);
-  return { done: true, outcome: 'reconciled', frame() {} };
+  return new Talk(stage, confrontationLines((stage.rival?.ring.taken ?? 0) > 0));
 }

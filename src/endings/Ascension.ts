@@ -8,6 +8,7 @@ import { aoSkip, type CityLights } from './CityLights';
 import type { Stage } from './Collapse';
 import { beginFinalBattle, type FinalBattle } from './FinalBattle';
 import { Reveal } from './Reveal';
+import { AFTER_LINES, Talk } from './Confrontation';
 import { clamp, lerp, smoothstep } from '../util/math';
 
 // ------------------------------------------------------------------ tuning knobs
@@ -48,6 +49,8 @@ const HAND_SCALE = 0.42;
 const SPIRE_NEAR = 0.95;
 /** Seconds into Whole where the sequence holds while the reveal plays (his spire already near). */
 const REVEAL_HOLD = 0.8;
+/** After Ora's "There you are." (Whole seconds): the clock holds while Lumi and Fizz have the last word. */
+const AFTER_AT = 12.9;
 /** Ora's one line in Whole. */
 export const WHOLE_LINE = 'There you are.';
 
@@ -136,6 +139,7 @@ export class Ascension {
   private readonly look2: HandLook = { ...GOLD_LOOK };
   /** The final battle (src/endings/FinalBattle.ts), asked for once as Whole begins. */
   private battle: FinalBattle | null = null;
+  private after: Talk | null = null;
   /** The reveal (src/endings/Reveal.ts): after the battle, his hood falls and the face is yours; then the hands meet. */
   reveal: Reveal | null = null;
 
@@ -320,6 +324,14 @@ export class Ascension {
       if (!this.reveal.done) {
         this.t = Math.min(this.t, WHOLE_AT + REVEAL_HOLD);
         this.reveal.frame(dt);
+      }
+      // The last word (2026-10-18): once Ora has said "There you are.", Lumi and Fizz speak, the light held.
+      if (this.reveal.done && this.t >= WHOLE_AT + AFTER_AT) {
+        this.after ??= new Talk(s, AFTER_LINES);
+        if (!this.after.done) {
+          this.t = WHOLE_AT + AFTER_AT;
+          this.after.frame(dt);
+        }
       }
     }
     const t = this.t;
@@ -602,6 +614,8 @@ export class Ascension {
 
   dispose() {
     this.reveal?.dispose();
+    (this.battle as { dispose?: () => void } | null)?.dispose?.();
+    this.after?.dispose();
     const g = this.s.game;
     g.scene.remove(this.light);
     for (const h of this.hands) g.scene.remove(h.holder, h.aura);

@@ -4,6 +4,11 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Added (the confrontation, 2026-10-18: Daryll: "this game's a lot about healing more than beating and dominating")
+- **Before his hood falls, Vexahl speaks.** As his spire comes in close he makes his case: "Look at what you made. Every village, every temple. And not one of them fears you." He only wanted it done, the quick way, by fear; he reminds you whether you ever took his ring. Lumi ("He isn't wrong about what you wanted. Only about how.") and Fizz ("For the record, I was the nice one.") answer, he asks you to turn him away again, and Ora says: "Not away. Back." Then the hood falls and the hands meet, as before. There is no fight: the island was the struggle.
+- **The last word.** After Ora's "There you are.", Lumi: "Both of you, in one place at last." Fizz: "Wonderful. Now who do I blame for things?"
+- Every new line is voiced (Vexahl, Lumi, Fizz); Ora speaks as it always does.
+
 ### Added (the last age: the Nexus and Telor, 2026-10-17; Daryll: "you do one last city building where you bring all of the towns together")
 - **Whole is no longer the end of story mode.** The ending plays exactly as before (Ready to See, the reveal, the hands meeting), but its card now reads **WHOLE: "Three villages, ready to become one."** When you click past it you are back on the island at night, and one more age begins.
 - **The Nexus.** Ora names the goal: where the villages' roads meet, at the heart of the island, the three villages will raise the Nexus, a ring of seven standing stones, one for each mark. A soft light marks the place, and a small chip over it counts the stones. You raise it the way you raised every dream: drop boulders on it, and all three villages carry timber and food there. Every prayer you answer and every gift you give, in any village, flies over to it as light. The stones rise one at a time, each with its mark carved on its inner face (the path, the open circle, the chevron, the river, the orbit, the crescent, the rings). There is no prayer bubble and nothing to kneel to. If you leave it alone a long while, the villages quarry a little stone themselves so it never stalls for good.

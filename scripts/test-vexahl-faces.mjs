@@ -176,7 +176,9 @@ await p.evaluate(() => {
 });
 await wait(3000);
 await p.evaluate(() => game.endings.debug('ready'));
-const e0 = Date.now();
+// 2026-10-18: the confrontation (src/endings/Confrontation.ts) plays first; the reveal follows it.
+await p.waitForFunction(() => game.endings.ascension?.reveal, null, { timeout: 180000 });
+const e0 = Date.now() - 13000;
 report.reveal = [];
 for (let ms = 13000; ms <= 34000; ms += 1000) {
   const d = ms - (Date.now() - e0);
