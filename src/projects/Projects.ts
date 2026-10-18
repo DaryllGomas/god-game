@@ -74,8 +74,8 @@ const START_LINES: Record<ProjectId, Line[][]> = {
       { who: 'imp', text: 'Rocks. You throw rocks at things. Finally, a use for your hobby.' },
     ],
   ],
-  temple: [[{ who: 'spirit', text: 'A pyramid! Right where they pray. They are already arguing about the angle.' }, { who: 'imp', text: 'Pointy. I approve.' }]],
-  festival: [[{ who: 'spirit', text: 'A temple of white stone, round their pyramid. And a feast to open it!' }, { who: 'imp', text: 'A feast? Count me in. I hear there will be fireworks. (There will not be fireworks.)' }]],
+  temple: [[{ who: 'spirit', text: 'They want a pyramid, right where they pray. They are already arguing about the angle.' }, { who: 'imp', text: 'Pointy. I approve.' }]],
+  festival: [[{ who: 'spirit', text: 'Now they dream of a temple of white stone, round their pyramid. And a feast to open it!' }, { who: 'imp', text: 'A feast? Count me in. I hear there will be fireworks. (There will not be fireworks.)' }]],
   wonder: [],
   nexus: [],
 };

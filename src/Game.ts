@@ -898,7 +898,8 @@ export class Game {
       const isBuilding = e.kind === 'house' || e.kind === 'store' || e.kind === 'worship' || e.kind === 'field' || e.kind === 'creature' || e.kind === 'site';
       if (!e.grabbable && !isBuilding) continue;
       if (e instanceof Villager && !e.object.visible) continue;
-      this.projV.set(e.pos.x, e.pos.y + Math.min(e.topHeight * 0.5, 3), e.pos.z);
+      // Aim at what you see from above: a tree's crown, not its trunk (2026-10-18: "difficult to grab things sometimes").
+      this.projV.set(e.pos.x, e.pos.y + (e.kind === 'tree' && !isBuilding ? Math.min(e.topHeight * 0.65, 7) : Math.min(e.topHeight * 0.5, 3)), e.pos.z);
       const dist = cam.position.distanceTo(this.projV);
       this.projV.project(cam);
       if (this.projV.z > 1) continue;
@@ -915,9 +916,10 @@ export class Game {
       } else {
         // Forgiving: reach grows with on-screen size (so with entity size and camera distance) plus a
         // fixed margin; villagers > food > rocks > trees when close, and the current hover sticks a little.
-        const reach = Math.max(rPx * 1.3, 18 * (h / 1080)) + 22 * (h / 1080);
-        const pref = e.kind === 'villager' ? 0.8 : e.kind === 'food' ? 0.9 : e.kind === 'tree' ? 1.15 : 1;
-        const score = (d / reach) * pref * (e === prevHover ? 0.8 : 1) + dist * 0.0003;
+        // 2026-10-18 (Daryll: "a little difficult to grab things sometimes"): a wider margin and a stickier hover.
+        const reach = Math.max(rPx * 1.6, 26 * (h / 1080)) + 34 * (h / 1080);
+        const pref = e.kind === 'villager' ? 0.8 : e.kind === 'food' ? 0.9 : e.kind === 'tree' ? 1.08 : 1;
+        const score = (d / reach) * pref * (e === prevHover ? 0.7 : 1) + dist * 0.0003;
         if (score < bestGrabScore) {
           bestGrabScore = score;
           bestGrab = e;

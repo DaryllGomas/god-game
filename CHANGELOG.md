@@ -22,6 +22,8 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ### Changed (2026-10-18: Daryll: "until the end it'll lock them all in")
 - **No village can lose faith from the good ending to the true end** (Caboose's playtest review: in 4 of 5 runs one slipped away while the ending played). If one had already gone, it rejoins when the last age begins.
+- **Lumi no longer speaks of a pyramid or temple before it stands** (Daryll: "they said the pyramid was there before it wasn't even there"). When a village starts dreaming of one she now says "They want a pyramid, right where they pray..." and "Now they dream of a temple of white stone...", voiced.
+- **Easier to grab:** a wider margin around things under the hand, a stickier target so it doesn't flicker away as you click, and trees are picked by their crown, the part you see from above.
 - **Lumi's and Fizz's words show with an ad blocker on.** Their speech text used class names starting "adv-", which ad blockers hide as adverts, so the card showed only a name and a face. Renamed (talk-).
 - **The end cards answer on time on slow machines.** A card ignores clicks for its first 5 seconds; those seconds were counted in capped frame steps, so on the living-room TV the card could ignore the controller for much longer. They are real seconds now.
 - **No repeated lines:** Lumi and Fizz never say the same line twice within 90 seconds, and a reaction that has waited more than a minute is dropped.
