@@ -88,7 +88,7 @@ export const CITY_LINES = (names: string[]): Record<string, Line[]> => ({
     { who: 'imp', text: `${names[1]} is pretending it is not excited. It is very excited. I can tell.` },
   ],
   walls: [
-    { who: 'imp', text: 'Walls! To keep out... nobody. There is nobody left. I checked.' },
+    { who: 'imp', text: "Walls! To keep out... whom, exactly? He's gone. I checked. Twice." },
     { who: 'spirit', text: 'Walls to come home to, Fizz. Not to keep anyone out.' },
   ],
 });

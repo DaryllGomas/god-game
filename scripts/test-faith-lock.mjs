@@ -36,6 +36,24 @@ await p.keyboard.press('Escape');
 await p.waitForFunction(() => game.nexus.phase === 'done', null, { timeout: 60000 }).catch(() => {});
 report.after = await starve();
 check(report.after.phase === 'done' && report.after.owner !== 'player', `after the true end, the old rules: a village at zero faith turns away (${JSON.stringify(report.after)})`);
+
+// A fresh island for the gap Caboose's review found: a village starving during the good ending itself.
+await p.reload();
+await p.waitForFunction(() => window.game, null, { timeout: 120000 });
+await p.evaluate(() => { for (const s of document.querySelectorAll('style')) if (s.textContent.includes('visibility: hidden !important')) s.remove(); });
+await p.getByText('Begin', { exact: false }).first().click({ timeout: 20000 }).catch(() => {});
+await p.waitForFunction(() => game.pace.confirmed, null, { timeout: 60000 }).catch(() => {});
+// The gap Caboose's review found: during the good ending itself (Ready to See), a starving village must stay too.
+report.ending = await p.evaluate(() => {
+  for (const v of game.villages) if (v.owner !== 'player') v.convert(game);
+  game.endings.debug('ready');
+  const v = game.villages.find((x) => !x.isHome);
+  v.belief = 0.5;
+  for (const h of v.villagers) h.hunger = 1;
+  game.advance(20);
+  return { name: v.name, owner: v.owner, belief: Math.round(v.belief), ending: game.endings.phase };
+});
+check(report.ending.owner === 'player', `during the ending a starving village stays yours (${JSON.stringify(report.ending)})`);
 report.errors = errors; check(!errors.length, `no page errors ${errors.slice(0, 2)}`);
 await fs.writeFile(`${process.env.OUT_DIR}/report.json`, JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report));

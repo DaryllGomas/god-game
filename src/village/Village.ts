@@ -436,8 +436,11 @@ export class Village {
       // The last age (src/nexus), up to the true end: the villages understand you and are becoming one, so none can
       // lose faith (Daryll, 2026-10-18: "until the end it'll lock them all in"). Neglect only slows them. After the
       // true end, staying on the island brings the old rules back: tending them is the game.
+      // Also through the good ending itself (Ready to See, Whole, its card): the island keeps living behind it, and a
+      // village slipping away there broke the moment (Caboose's playtest review, 4 of 5 runs).
       const phase = (game as unknown as { nexus?: { phase: string } }).nexus?.phase;
-      const locked = phase === 'ring' || phase === 'city' || phase === 'lit';
+      const ending = (game as unknown as { endings?: { phase: string } }).endings?.phase;
+      const locked = phase === 'ring' || phase === 'city' || phase === 'lit' || ending === 'ready' || ending === 'whole' || ending === 'card';
       if (this.belief <= 0 && !this.isHome && !locked) this.abandon(game);
       this.belief = Math.max(this.isHome ? 5 : locked ? 25 : 0, this.belief);
     } else {

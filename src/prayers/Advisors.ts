@@ -15,6 +15,8 @@ const ANSWER_CHANCE = 0.3;
 const TEMPT_AFTER = 5;
 const ARGUMENT_GAP = 0.35;
 const STORE_KEY = 'godgame.advisors.v1';
+/** Real seconds before the exact same line may be said again. */
+const REPEAT_GAP = 90;
 
 export type Who = 'spirit' | 'imp';
 export interface Line {
@@ -165,6 +167,8 @@ export class Advisors {
   private readonly queue: Queued[] = [];
   private readonly topics = new Map<string, number>();
   private moodTopic = 0;
+  /** When each line was last shown (real-seconds clock), for REPEAT_GAP. */
+  private readonly saidAt = new Map<string, number>();
   /** Real seconds the hand has held its current temptation. */
   private holding = 0;
   /** The golem has eaten someone and the first time has not been said yet (it waits for a free moment, never skipped). */
@@ -315,8 +319,11 @@ export class Advisors {
   /** Offer something for the advisors to say. Returns false if it was held back (muted, too soon...). */
   say(lines: Line | Line[], opts: { pri?: Priority; topic?: string; cooldown?: number; argument?: boolean } = {}): boolean {
     if (this.muted) return false;
-    const arr = (Array.isArray(lines) ? lines : [lines]).filter((line) => line.text.trim());
-    if (!arr.length) return false;
+    const all = (Array.isArray(lines) ? lines : [lines]).filter((line) => line.text.trim());
+    if (!all.length) return false;
+    // Never the same line twice within REPEAT_GAP (a queued beat replayed: Caboose's playtest review, 2026-10-18).
+    const arr = all.filter((line) => this.clock - (this.saidAt.get(line.text) ?? -1e9) >= REPEAT_GAP);
+    if (!arr.length) return true;
     const pri = opts.pri ?? 'chat';
     const topic = opts.topic;
     if (topic && this.clock - (this.topics.get(topic) ?? -1e9) < (opts.cooldown ?? TOPIC_COOLDOWN)) return false;
@@ -374,6 +381,7 @@ export class Advisors {
     this.card.dataset.face = moodOf(q.line);
     this.nameEl.textContent = NAME[who];
     this.textEl.textContent = text;
+    this.saidAt.set(text, this.clock);
     this.showing = true;
     this.cardLife = Math.max(Math.min(9.5, 3.8 + text.length * 0.05), (clip?.duration ?? 0) + 0.6);
     this.place();

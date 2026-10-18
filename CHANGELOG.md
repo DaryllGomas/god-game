@@ -21,6 +21,9 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 - **Lumi and Fizz speak the new lines aloud** in their own voices (every line of the last age, with each village's name).
 
 ### Changed (2026-10-18: Daryll: "until the end it'll lock them all in")
+- **No village can lose faith from the good ending to the true end** (Caboose's playtest review: in 4 of 5 runs one slipped away while the ending played). If one had already gone, it rejoins when the last age begins.
+- **No repeated lines:** Lumi and Fizz never say the same line twice within 90 seconds, and a reaction that has waited more than a minute is dropped.
+- **Fizz's walls line** is now "Walls! To keep out... whom, exactly? He's gone. I checked. Twice."
 - **In the last age no village can lose faith.** While the three villages raise the Nexus and build the city, a village you neglect only slows down; it never turns away (its faith stays at a quarter or more). After the true end, if you stay on the island, the old rules come back: looking after them is the game.
 
 ### Fixed (2026-10-18, the living-room TV: Daryll: moving the hand with the controller "did not work well")

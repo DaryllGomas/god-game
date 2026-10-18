@@ -20,7 +20,12 @@ interface Queued {
   /** Seconds to wait before this line. */
   delay: number;
   tries: number;
+  /** When it was queued (performance.now() seconds): a reaction that has waited past STALE is dropped. */
+  born: number;
 }
+
+/** Real seconds a queued line may wait before its moment has passed (2026-10-18 playtest: stale replays). */
+const STALE = 60;
 
 /** What the chip shows about the current scheme (null: between schemes). */
 export interface ChipScheme {
@@ -258,7 +263,7 @@ export class RivalUI {
   /** Queue lines (his, Lumi's, Fizz's) to be said in order. */
   say(lines: Line | Line[], opts: { delay?: number } = {}) {
     const arr = Array.isArray(lines) ? lines : [lines];
-    arr.forEach((line, i) => this.queue.push({ line, delay: i === 0 ? (opts.delay ?? 0) : 0.8, tries: 0 }));
+    arr.forEach((line, i) => this.queue.push({ line, delay: i === 0 ? (opts.delay ?? 0) : 0.8, tries: 0, born: performance.now() / 1000 }));
   }
 
   /** Drop everything queued (not what is showing). */
@@ -298,6 +303,10 @@ export class RivalUI {
     }
     const q = this.queue[0];
     if (!q) return;
+    if (performance.now() / 1000 - q.born > STALE) {
+      this.queue.shift();
+      return;
+    }
     if (q.line.who === 'rival') {
       // Lumi's and Fizz's cards share the top centre with his: let a card of theirs that is up finish first.
       if (this.game.hud.root.querySelector('.adv-card.show') && ++q.tries < 1800) return;

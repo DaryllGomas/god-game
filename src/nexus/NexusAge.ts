@@ -277,6 +277,8 @@ export class NexusAge {
       console.warn('The Nexus found no ground at the heart of the island.');
       return false;
     }
+    // The villages become one: any that had slipped away comes back for the last age (2026-10-18).
+    for (const v of g.villages) if (v.owner !== 'player') v.convert(g);
     const site = this.placeSite(heart.x, heart.y, heart.z);
     this.phase = 'ring';
     this.stoneAt = g.time;
