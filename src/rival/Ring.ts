@@ -100,7 +100,7 @@ export class Ring {
     const endings = (g as unknown as { endings?: { phase: string } }).endings;
     if (endings && endings.phase !== 'play') return false;
     if (g.hud.helpOpen || this.rival.glancing || this.rival.ui.talking) return false;
-    return !g.hud.root.querySelector('.adv-card.show');
+    return !g.hud.root.querySelector('.talk-card.show');
   }
 
   /**

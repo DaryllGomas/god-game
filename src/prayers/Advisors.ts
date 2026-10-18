@@ -188,16 +188,16 @@ export class Advisors {
     }
 
     this.card = document.createElement('div');
-    this.card.className = 'adv-card';
+    this.card.className = 'talk-card';
     this.card.setAttribute('role', 'status');
     this.card.setAttribute('aria-live', 'polite');
-    this.card.innerHTML = '<div class="adv-face"><img alt="" draggable="false"></div><div class="adv-body"><div class="adv-name"></div><div class="adv-text"></div></div>';
-    this.faceEl = this.card.querySelector('.adv-face')!;
+    this.card.innerHTML = '<div class="talk-face"><img alt="" draggable="false"></div><div class="talk-body"><div class="talk-name"></div><div class="talk-text"></div></div>';
+    this.faceEl = this.card.querySelector('.talk-face')!;
     this.faceImg = this.faceEl.querySelector('img')!;
     // Warm the cache, so the first line of each face never shows an empty circle.
     for (const who of ['spirit', 'imp'] as const) for (const id of Object.values(PORTRAIT[who])) new Image().src = advisorPortraitUrl(id, 192);
-    this.nameEl = this.card.querySelector('.adv-name')!;
-    this.textEl = this.card.querySelector('.adv-text')!;
+    this.nameEl = this.card.querySelector('.talk-name')!;
+    this.textEl = this.card.querySelector('.talk-text')!;
     this.card.onclick = () => (this.cardLife = 0);
     game.hud.root.appendChild(this.card);
 
@@ -374,7 +374,7 @@ export class Advisors {
     const { who, text } = q.line;
     this.argument = q.argument;
     const wasUp = this.card.classList.contains('show');
-    this.card.className = `adv-card ${who}${wasUp ? ' show' : ''}`;
+    this.card.className = `talk-card ${who}${wasUp ? ' show' : ''}`;
     const face = portraitOf(q.line);
     this.faceImg.src = advisorPortraitUrl(face, 192);
     this.faceImg.srcset = `${advisorPortraitUrl(face, 192)} 1x, ${advisorPortraitUrl(face, 384)} 2x`;

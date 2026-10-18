@@ -355,7 +355,7 @@
   }
 }
 
-.adv-card {
+.talk-card {
   /* The one place Lumi and Fizz speak: a bubble at the top centre, where the eye already is. */
   position: absolute;
   left: 50%;
@@ -382,20 +382,20 @@
   transform: translate(-50%, -10px) scale(0.96);
   transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.3s ease, box-shadow 0.3s ease, visibility 0s linear 0.4s;
 }
-.adv-card.show {
+.talk-card.show {
   pointer-events: auto;
   visibility: visible;
   opacity: 1;
   transform: translate(-50%, 0);
   transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.3s ease, box-shadow 0.3s ease, visibility 0s;
 }
-.adv-card.spirit {
+.talk-card.spirit {
   --adv: #bfe6ff;
 }
-.adv-card.imp {
+.talk-card.imp {
   --adv: #ff9d6b;
 }
-.adv-face {
+.talk-face {
   flex: none;
   width: var(--talk-face);
   height: var(--talk-face);
@@ -404,7 +404,7 @@
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--adv) 40%, #1b1824), #14111c 75%);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--adv) 60%, transparent);
 }
-.adv-face img {
+.talk-face img {
   width: 100%;
   height: 100%;
   display: block;
@@ -412,24 +412,24 @@
   user-select: none;
 }
 /* Their painted faces (2026-10-16): Lumi's light breathes while she speaks (not when she is hurt); Fizz bobs when he cackles. */
-.adv-card.show.spirit:not([data-face='hurt']) .adv-face img {
-  animation: adv-breathe 3.2s ease-in-out infinite;
+.talk-card.show.spirit:not([data-face='hurt']) .talk-face img {
+  animation: talk-breathe 3.2s ease-in-out infinite;
 }
-.adv-card.show.imp[data-face='cackle'] .adv-face img {
-  animation: adv-cackle 0.32s ease-in-out 5;
+.talk-card.show.imp[data-face='cackle'] .talk-face img {
+  animation: talk-cackle 0.32s ease-in-out 5;
 }
-@keyframes adv-breathe {
+@keyframes talk-breathe {
   50% {
     filter: brightness(1.12);
     transform: scale(1.03);
   }
 }
-@keyframes adv-cackle {
+@keyframes talk-cackle {
   50% {
     transform: translateY(-2px) rotate(-2deg) scale(1.04);
   }
 }
-.adv-name {
+.talk-name {
   font-family: var(--serif);
   font-size: 10.5px;
   letter-spacing: 0.14em;
@@ -437,14 +437,14 @@
   color: var(--adv);
   margin-bottom: 2px;
 }
-.adv-text {
+.talk-text {
   font-size: 15.5px;
   line-height: 1.4;
   color: var(--text);
 }
 
 @media (max-width: 720px) {
-  .adv-card {
+  .talk-card {
     width: calc(100vw - 28px);
     min-width: 0;
     border-radius: 18px;

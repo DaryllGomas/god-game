@@ -281,7 +281,7 @@ export class Ora {
     this.remindEl.classList.remove('fresh');
     const text = this.currentGoal();
     if (!text || this.showing || this.game.hud.helpOpen) return false;
-    if (this.game.hud.root.querySelector('.adv-card.show, .rv-card.show')) return false;
+    if (this.game.hud.root.querySelector('.talk-card.show, .rv-card.show')) return false;
     // A repeat of a goal waiting in the queue is said now instead of twice.
     const i = this.guideQueue.indexOf(text);
     if (i >= 0) this.guideQueue.splice(i, 1);
@@ -376,7 +376,7 @@ export class Ora {
     const g = this.game;
     const hidden = g.hud.helpOpen;
     // Ora shares the top centre with the speaking characters: it steps aside while one of them talks.
-    const card = !!g.hud.root.querySelector('.adv-card.show, .rv-card.show');
+    const card = !!g.hud.root.querySelector('.talk-card.show, .rv-card.show');
     this.el.classList.toggle('away', hidden || card);
     this.updateRemind(dt, hidden, card);
     if (hidden) return;
@@ -448,7 +448,7 @@ export class Ora {
 
   /** Keep out of Lumi's and Fizz's way, and count their cards (for the "two sides" insight). */
   private watchAdvisors() {
-    const card = this.game.hud.root.querySelector<HTMLElement>('.adv-card');
+    const card = this.game.hud.root.querySelector<HTMLElement>('.talk-card');
     const showing = !!card?.classList.contains('show');
     if (showing && !this.advisorWasShowing && card) {
       if (card.classList.contains('spirit')) this.advisorCards.spirit++;

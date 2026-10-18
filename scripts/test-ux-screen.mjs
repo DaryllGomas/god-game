@@ -108,12 +108,12 @@ async function fresh(query) {
 
   // 5. The advisor card: shown, then hidden, it keeps no name in the page.
   await p.evaluate(() => game.prayerSystem.advisors.say({ who: 'spirit', text: 'Lovely! A new roof means a happy family.' }, { pri: 'important', cooldown: 0 }));
-  await p.waitForFunction(() => document.querySelector('.adv-card.show'), null, { timeout: 30000 });
-  evidence.cardWhileShowing = await p.evaluate(() => document.querySelector('.adv-card').innerText.replace(/\s+/g, ' '));
-  await p.waitForFunction(() => !document.querySelector('.adv-card.show'), null, { timeout: 30000 });
+  await p.waitForFunction(() => document.querySelector('.talk-card.show'), null, { timeout: 30000 });
+  evidence.cardWhileShowing = await p.evaluate(() => document.querySelector('.talk-card').innerText.replace(/\s+/g, ' '));
+  await p.waitForFunction(() => !document.querySelector('.talk-card.show'), null, { timeout: 30000 });
   await p.waitForTimeout(800);
   evidence.cardAfter = await p.evaluate(() => {
-    const c = document.querySelector('.adv-card');
+    const c = document.querySelector('.talk-card');
     return { text: c.textContent.trim(), visibility: getComputedStyle(c).visibility, pointer: getComputedStyle(c).pointerEvents, bodyHasLumi: /lumi/i.test(document.body.innerText) };
   });
   check(!evidence.cardAfter.text && evidence.cardAfter.visibility === 'hidden' && !evidence.cardAfter.bodyHasLumi, `hidden card keeps no name: ${JSON.stringify(evidence.cardAfter)}`);

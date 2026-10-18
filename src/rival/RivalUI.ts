@@ -309,7 +309,7 @@ export class RivalUI {
     }
     if (q.line.who === 'rival') {
       // Lumi's and Fizz's cards share the top centre with his: let a card of theirs that is up finish first.
-      if (this.game.hud.root.querySelector('.adv-card.show') && ++q.tries < 1800) return;
+      if (this.game.hud.root.querySelector('.talk-card.show') && ++q.tries < 1800) return;
       this.queue.shift();
       void this.showRival(q.line.text, q, q.line.face);
     } else {
@@ -344,7 +344,7 @@ export class RivalUI {
     }
     this.loading = false;
     // A Lumi or Fizz card came up while his voice loaded: never stack on it; wait and try again.
-    if (q && this.game.hud.root.querySelector('.adv-card.show') && q.tries < 1800) {
+    if (q && this.game.hud.root.querySelector('.talk-card.show') && q.tries < 1800) {
       this.queue.unshift(q);
       return;
     }

@@ -45,11 +45,11 @@ for (const [name, who, text, want] of LINES) {
   await p.evaluate(() => game.rival.ui.advisors.finish?.());
   await wait(800);
   await p.evaluate(([who, text]) => game.rival.ui.advisors.say({ who, text }, { pri: 'important', cooldown: 0 }), [who, text]);
-  await p.waitForFunction(() => document.querySelector('.adv-card.show .adv-face img')?.complete, null, { timeout: 20000 }).catch(() => {});
+  await p.waitForFunction(() => document.querySelector('.talk-card.show .talk-face img')?.complete, null, { timeout: 20000 }).catch(() => {});
   await wait(1200);
   const got = await p.evaluate(() => {
-    const img = document.querySelector('.adv-card.show .adv-face img');
-    return img && { src: img.currentSrc || img.src, w: img.naturalWidth, face: img.closest('.adv-card').dataset.face, text: document.querySelector('.adv-card.show .adv-text')?.textContent };
+    const img = document.querySelector('.talk-card.show .talk-face img');
+    return img && { src: img.currentSrc || img.src, w: img.naturalWidth, face: img.closest('.talk-card').dataset.face, text: document.querySelector('.talk-card.show .talk-text')?.textContent };
   });
   report.faces[name] = got;
   if (!got || !got.src.includes(`/advisors/${want}-`) || !got.w) report.failures.push(`${name}: wanted ${want}, got ${JSON.stringify(got)}`);

@@ -170,10 +170,10 @@ await p.evaluate(() => { game.player.addPower(5000); });
   try { await p.waitForFunction(() => [...document.querySelectorAll('.cp-learn')].find((r) => r.textContent.trim() === 'Eating villagers')?.classList.contains('current'), null, { timeout: 3000 }); row = true; } catch {}
   await p.screenshot({ path: `${OUT}/04-golem-ate-panel.png` });
   let said = false;
-  try { await p.waitForFunction(() => [...document.querySelectorAll('.adv-text')].some((e) => e.textContent.includes('Your golem just ate a villager')), null, { timeout: 25000 }); said = true; } catch {}
+  try { await p.waitForFunction(() => [...document.querySelectorAll('.talk-text')].some((e) => e.textContent.includes('Your golem just ate a villager')), null, { timeout: 25000 }); said = true; } catch {}
   await p.waitForTimeout(600);
   await p.screenshot({ path: `${OUT}/04-golem-ate-fizz.png` });
-  res.eaten = { ...st, rowLit: row, said, cards: await p.evaluate(() => [...document.querySelectorAll('.adv-text, .rv-card.show')].map((e) => e.className + ':' + e.textContent.slice(0, 60))), ok: said && row && st.after > st.before };
+  res.eaten = { ...st, rowLit: row, said, cards: await p.evaluate(() => [...document.querySelectorAll('.talk-text, .rv-card.show')].map((e) => e.className + ':' + e.textContent.slice(0, 60))), ok: said && row && st.after > st.before };
 }
 res.errors = errors;
 await fs.writeFile(`${OUT}/ux-world.json`, JSON.stringify(res, null, 2));
