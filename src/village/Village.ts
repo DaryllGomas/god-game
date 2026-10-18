@@ -433,8 +433,13 @@ export class Village {
       if (this.starving > 0) this.belief -= dt * 0.35 * this.starving;
       else this.belief += dt * 0.4;
       this.belief = Math.min(100, this.belief);
-      if (this.belief <= 0 && !this.isHome) this.abandon(game);
-      this.belief = Math.max(this.isHome ? 5 : 0, this.belief);
+      // The last age (src/nexus), up to the true end: the villages understand you and are becoming one, so none can
+      // lose faith (Daryll, 2026-10-18: "until the end it'll lock them all in"). Neglect only slows them. After the
+      // true end, staying on the island brings the old rules back: tending them is the game.
+      const phase = (game as unknown as { nexus?: { phase: string } }).nexus?.phase;
+      const locked = phase === 'ring' || phase === 'city' || phase === 'lit';
+      if (this.belief <= 0 && !this.isHome && !locked) this.abandon(game);
+      this.belief = Math.max(this.isHome ? 5 : locked ? 25 : 0, this.belief);
     } else {
       // Families that have come to believe dance for you at the totem, and their prayer reaches you (half strength).
       this.prayerRate = this.owner === null ? this.dancers * PLAYER.powerPerWorshipper * 0.5 : 0;

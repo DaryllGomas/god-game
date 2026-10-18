@@ -20,6 +20,9 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 - **Lumi and Fizz speak the new lines aloud** in their own voices (every line of the last age, with each village's name).
 
+### Changed (2026-10-18: Daryll: "until the end it'll lock them all in")
+- **In the last age no village can lose faith.** While the three villages raise the Nexus and build the city, a village you neglect only slows down; it never turns away (its faith stays at a quarter or more). After the true end, if you stay on the island, the old rules come back: looking after them is the game.
+
 ### Fixed (2026-10-18, the living-room TV: Daryll: moving the hand with the controller "did not work well")
 - **The controller follows the pad in your hands.** With two pads connected (the TV has two), the game now listens to whichever pad you last used, and stays with it until another pad does something. It used to pick a pad by how far its stick was pushed, and fell back to the first pad.
 - **No more creeping hand.** Both TV pads reported their left stick about halfway up while resting (a stale value the driver keeps until a stick is first moved), so the hand crept up the screen and the game kept choosing the wrong pad. A stick reading that has never moved since the pad appeared now counts as centred.
