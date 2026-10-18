@@ -132,26 +132,67 @@ export class GamepadInput {
     document.body.classList.add('pad-on');
   }
 
-  private read(): { pad: Gamepad | null } {
-    let pad: Gamepad | null = null;
+  /**
+   * Per connected pad (by index): its axes when it first appeared, which axes have moved since (an axis the driver
+   * still reports from before, but that has never moved, is not trusted), its last axes and buttons, and when it last
+   * changed. 2026-10-18, the living-room TV: both Xbox pads reported the left stick ~58% up at rest (a stale kernel
+   * value until the stick is first moved), so the hand crept up on its own and the busy-pad pick always took the
+   * first pad, ignoring the one in your hands.
+   */
+  private readonly pads = new Map<number, { first: number[]; live: boolean[]; last: number[]; buttons: boolean[]; changed: number }>();
+  private padIndex = -1;
+
+  private read(): { pad: Gamepad | null; axes: number[] } {
+    let list: Gamepad[] = [];
     try {
-      // Any pad that's being used wins (a second pad on the couch, or the TV's test pad); else the first one.
-      const pads = [...(navigator.getGamepads?.() ?? [])].filter((p): p is Gamepad => !!p && p.connected);
-      pad = pads.find((p) => p.buttons.some((b) => b.pressed) || p.axes.slice(0, 4).some((a) => Math.abs(a) > 0.3)) ?? pads[0] ?? null;
+      list = [...(navigator.getGamepads?.() ?? [])].filter((p): p is Gamepad => !!p && p.connected);
     } catch {
-      pad = null;
+      list = [];
     }
-    return { pad };
+    const now = performance.now();
+    for (const k of [...this.pads.keys()]) if (!list.some((p) => p.index === k)) this.pads.delete(k);
+    for (const p of list) {
+      const axes = Array.from(p.axes);
+      const buttons = p.buttons.map((b, i) => i !== B.GUIDE && b.pressed);
+      let info = this.pads.get(p.index);
+      if (!info) {
+        info = { first: axes.slice(), live: axes.map(() => false), last: axes.slice(), buttons, changed: buttons.some(Boolean) ? now : 0 };
+        this.pads.set(p.index, info);
+        continue;
+      }
+      let moved = false;
+      axes.forEach((a, i) => {
+        if (!info!.live[i] && Math.abs(a - info!.first[i]) > 0.05) info!.live[i] = true;
+        if (info!.live[i] && Math.abs(a - info!.last[i]) > 0.08) moved = true;
+      });
+      const pressed = buttons.some((b, i) => b && !info!.buttons[i]);
+      // Which pad you're using: the last one that changed (a press, or a stick that truly moved), and it stays yours
+      // until another pad does something. A pad that is only reporting old values never takes over.
+      if (pressed || moved) info.changed = now;
+      info.last = axes;
+      info.buttons = buttons;
+    }
+    let best: Gamepad | null = list.find((p) => p.index === this.padIndex) ?? null;
+    for (const p of list) {
+      const c = this.pads.get(p.index)!.changed;
+      if (c > (best ? this.pads.get(best.index)!.changed : -1)) best = p;
+    }
+    best ??= list[0] ?? null;
+    this.padIndex = best?.index ?? -1;
+    if (!best) return { pad: null, axes: [] };
+    const info = this.pads.get(best.index)!;
+    // Untrusted (never-moved) axes read as centred.
+    return { pad: best, axes: Array.from(best.axes).map((a, i) => (info.live[i] ? a : 0)) };
   }
 
   update(dt: number, realTime: number) {
-    const { pad } = this.read();
+    const { pad, axes } = this.read();
     if (!pad) {
       if (this.active && !this.flagged) this.hide();
       return;
     }
     this.flag();
-    const st: PadState = { axes: Array.from(pad.axes), buttons: [] };
+    const st: PadState = { axes, buttons: [] };
     for (let i = 0; i < 16; i++) st.buttons[i] = !!pad.buttons[i]?.pressed; // button 16 (Guide) is never read
     const edge = (i: number) => st.buttons[i] && !this.prev[i];
     const up = (i: number) => !st.buttons[i] && this.prev[i];
@@ -530,15 +571,16 @@ export function startEarlyPad() {
   };
   const loop = () => {
     if ((window as unknown as { game?: unknown }).game && !document.querySelector('.intro')) return;
-    let pad: Gamepad | null = null;
+    let pads: Gamepad[] = [];
     try {
-      for (const p of navigator.getGamepads?.() ?? []) if (p && p.connected) pad = p;
+      pads = [...(navigator.getGamepads?.() ?? [])].filter((p): p is Gamepad => !!p && p.connected);
     } catch {
-      pad = null;
+      pads = [];
     }
-    if (pad) {
+    if (pads.length) {
       (window as unknown as { __nativeGamepad?: boolean }).__nativeGamepad = true;
-      const cur = Array.from({ length: 16 }, (_, i) => !!pad!.buttons[i]?.pressed);
+      // Any pad's press counts (2026-10-18: the TV has two pads; only the last one used to be heard).
+      const cur = Array.from({ length: 16 }, (_, i) => pads.some((p) => !!p.buttons[i]?.pressed));
       const edge = (i: number) => cur[i] && !prev[i];
       if (document.querySelector('.intro')) {
         if (edge(B.A) || edge(B.START) || edge(B.RT)) key('Enter');

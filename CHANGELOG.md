@@ -20,6 +20,11 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 - **Lumi and Fizz speak the new lines aloud** in their own voices (every line of the last age, with each village's name).
 
+### Fixed (2026-10-18, the living-room TV: Daryll: moving the hand with the controller "did not work well")
+- **The controller follows the pad in your hands.** With two pads connected (the TV has two), the game now listens to whichever pad you last used, and stays with it until another pad does something. It used to pick a pad by how far its stick was pushed, and fell back to the first pad.
+- **No more creeping hand.** Both TV pads reported their left stick about halfway up while resting (a stale value the driver keeps until a stick is first moved), so the hand crept up the screen and the game kept choosing the wrong pad. A stick reading that has never moved since the pad appeared now counts as centred.
+- **The intro hears every pad**, not only the last one connected.
+
 ### Fixed (2026-10-17)
 - **On the living-room TV, "Beyond the Nexus" opens the TV's own copy of the RPG** at the Nexus (it pointed at the studio website's page, which the TV doesn't serve).
 - **Vexahl's glances always come back** (Daryll: "when he's done ... we should go back"). The camera stays out at sea only if you moved it yourself during the glance (a drag, keys, the wheel, a click that flies somewhere); anything else, and it glides back to where you were.
