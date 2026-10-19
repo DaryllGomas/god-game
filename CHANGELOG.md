@@ -26,6 +26,8 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 - An island saved mid-season, mid-celebration or mid-growth reloads where it was. Islands from before this update load as they were, and if the true end is already behind them, the loop starts fresh from where they stand.
 - For tests: `game.after.debug('festival' | 'grant' | 'celebrate' | 'boat' | 'land' | 'grow' | 'care')` and `game.after.state()`; `scripts/test-after-loop.mjs`.
 
+- Lumi and Fizz speak every new line aloud.
+
 ### Fixed (2026-10-18, from Caboose's v0.11 playtest review)
 - **Lumi speaks up when a village of yours is starving.** In fast playthroughs Ashford lost up to 29 people to hunger and nobody said a word (only a small message in the corner). Now, once someone has been starving for a few seconds, Lumi peeks round the wall and names the village: "Ashford is going hungry. They need bread, and soon." (or, with several starving, "Ashford is starving. Please, can you help them?"). Sometimes Fizz adds a dry word after hers. It is once per village per bout of hunger, with a four-minute cooldown, and never during the last age, the endings or just after them. Every line is new and needs its voice.
 - **Village name labels stay on screen.** In a wide view a label near the edge of the screen was cut off, and gold names on a temple's golden glow lost their first letters ("STONEMERE" read "ONEMERE"). Labels are now kept fully inside the screen (a label that is mostly off screen is hidden instead), and the names have a dark halo so they read over the glow.

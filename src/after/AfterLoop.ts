@@ -69,6 +69,8 @@ interface AfterSave {
   boats: number;
   families: FamilySave[];
   said: string[];
+  /** Feast food still to be cleared (a save in the half second after it was given; Codex review 2026-10-18). */
+  piles?: { x: number; z: number; at: number }[];
 }
 
 /**
@@ -561,6 +563,7 @@ export class AfterLoop {
       boats: this.boats,
       families: this.newcomers!.save(),
       said: [...this.said],
+      piles: this.piles.map((p) => ({ x: r(p.x), z: r(p.z), at: r(p.at) })),
     };
   }
 
@@ -582,6 +585,7 @@ export class AfterLoop {
     this.nextBoatAt = d.nextBoatAt ?? g.time + FIRST_BOAT_AT;
     this.boats = d.boats ?? 0;
     for (const s of d.said ?? []) this.said.add(s);
+    for (const p of d.piles ?? []) this.piles.push({ x: p.x, z: p.z, at: p.at });
     this.growth!.buildTo(d.grown ?? 0);
     const f = d.fest;
     if (f && SEASON_IDS.includes(f.kind) && (f.phase === 'asked' || f.phase === 'ready' || f.phase === 'on')) {
