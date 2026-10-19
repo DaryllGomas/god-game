@@ -294,7 +294,7 @@ export class Telor {
     this.lampGlow = new THREE.Points(
       geo,
       new THREE.ShaderMaterial({
-        uniforms: { uMap: { value: glowTexture() }, uColor: { value: LAMP_LIGHT }, uScale: { value: 900 } },
+        uniforms: { uMap: { value: glowTexture() }, uColor: { value: LAMP_LIGHT.clone() }, uScale: { value: 900 } },
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
