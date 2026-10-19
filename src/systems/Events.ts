@@ -90,6 +90,12 @@ export interface GameEvents {
   telorStep: { step: string };
   /** The true end: it begins, its card shows, or the card has closed and the island goes on. */
   trueEnd: { phase: 'begin' | 'card' | 'done' };
+  /** After the true end (src/after): a festival of Telor's is asked, granted, begun or over (or let pass). */
+  telorFestival: { kind: 'spring' | 'summer' | 'autumn' | 'winter'; phase: 'asked' | 'granted' | 'begun' | 'over' | 'lapsed' };
+  /** After the true end: Telor grew a step at its edge. */
+  telorGrew: { kind: 'lane' | 'house' | 'garden'; step: number };
+  /** After the true end: a boat of newcomers sets out, lies in at the shore, or its family is home. */
+  telorBoat: { phase: 'sailing' | 'landed' | 'home' };
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;

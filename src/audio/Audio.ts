@@ -849,6 +849,41 @@ export class Audio {
     [0, 2, 4, 7, 4, 9, 7, 12].forEach((st, i) => this.bell(o, this.pentaNear(base + st), 1.8, 0.2, t + i * 0.22));
   }
 
+  /**
+   * One bar of a Telor festival's music (after the true end, src/after), scheduled exactly: a frame drum (strong on
+   * the one), and a little pentatonic tune on bells that changes bar to bar. `kind` 0..3: spring, summer, autumn,
+   * winter (each sits in its own register). Called about every 2.2 s while a celebration plays.
+   */
+  festivalBar(pos: THREE.Vector3, kind: number, bar: number) {
+    if (!this.ok('festbar', 1.6)) return;
+    const o = this.out(pos, 0.42);
+    if (!o) return;
+    const t = this.ctx!.currentTime + 0.02;
+    const beat = 0.52;
+    for (let b = 0; b < 4; b++) {
+      const at = t + b * beat;
+      this.tone(o, b === 0 ? 92 : 120, 0.28, b === 0 ? 0.32 : 0.16, { to: b === 0 ? 52 : 70, at });
+      this.noise(o, 0.09, b === 0 ? 0.08 : 0.05, { type: 'bandpass', freq: 1800, q: 0.9 }, { at: at + beat / 2 });
+    }
+    const base = [79, 74, 72, 77][kind % 4];
+    const tunes = [[0, 2, 4, 7, 9, 7], [4, 2, 0, 2, 4, 4], [7, 9, 12, 9, 7, 4], [2, 4, 7, 4, 2, 0]];
+    tunes[bar % tunes.length].forEach((st, i) => this.bell(o, this.pentaNear(base + st), 1.2, 0.17, t + i * (beat * 4 / 6)));
+  }
+
+  /** Fireworks over Telor at Midwinter (src/after): the hiss of a rocket going up, or its burst (a soft boom and crackle). */
+  firework(pos: THREE.Vector3, phase: 'launch' | 'burst') {
+    const o = this.out(pos, phase === 'burst' ? 0.55 : 0.25);
+    if (!o) return;
+    const t = this.ctx!.currentTime;
+    if (phase === 'launch') {
+      this.noise(o, 1.3, 0.12, { type: 'bandpass', freq: 900, to: 3800, q: 2.5 }, { attack: 0.05 });
+      return;
+    }
+    this.tone(o, 70, 0.9, 0.5, { to: 32 });
+    this.noise(o, 0.5, 0.3, { type: 'lowpass', freq: 2400, to: 300, q: 0.4 });
+    for (let i = 0; i < 6; i++) this.noise(o, 0.05, 0.08, { type: 'highpass', freq: 4000 }, { at: t + 0.25 + Math.random() * 0.8 });
+  }
+
   /** All three villages are yours: the Wonder calls. Low swell, three slow bells rising. */
   wonderCalls() {
     const o = this.out(null, 0.5);

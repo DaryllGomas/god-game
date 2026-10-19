@@ -4,6 +4,28 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Added (after the true end: Telor's seasons and a city that keeps growing, 2026-10-18; Daryll: "a couple of interesting things to do if you just want to keep playing, without getting too crazy about it ... Some sort of loop.")
+- **Stay on the island after the true end and Telor keeps its seasons.** Once a season the city holds a celebration and asks you for one thing. Ora says what it is short of, once, and a small chip over the Nexus shows the festival and what it wants (click it to fly there):
+  - **Blossom Day** (spring) wants rain.
+  - **The Harvest Feast** (summer) wants food. Its long tables stand bare on the plaza until it comes.
+  - **Lantern Night** (autumn) wants timber for the lantern frames.
+  - **Midwinter Fire** (winter) wants a spark. Seven woodpiles stand ready in the ring, one between each pair of stones.
+- **Give it in Telor and the celebration plays out round the Nexus.** Cast rain or food over the city, set a tree down there, or throw your Fire into it (lighting the midwinter fires is a gift, so it does not count against you). Poles go up round the plaza with strings of lanterns, and by day bunting too. A warm light falls on the paving. About a hundred people come in off the streets to dance in rings round the stones, and there is music. Each festival has its own touches:
+  - Blossom Day: pink and white bunting, with petals drifting over the plaza.
+  - The Harvest Feast: the tables are laid with bread, pies, fruit, cheese and jugs, with people at every one.
+  - Lantern Night: red and gold paper lanterns, and as it goes on every family lets a lantern go up into the night sky.
+  - Midwinter Fire: the seven fires burn, and there are fireworks over the city, ending in a finale.
+  - Lantern Night and Midwinter Fire wait for dark if you give their gift by day.
+  - A celebration lasts about two minutes and lifts every village of yours a little.
+  - If you never give what was asked, the festival passes quietly when the next season's comes round. Nothing is lost.
+- **Fizz was right about the fireworks, he says.** At Midwinter: "Fireworks! What did I tell you? I said there would be fireworks." Lumi: "You said there would NOT be fireworks." Fizz: "In brackets. Brackets don't count. Everyone knows that."
+- **Telor keeps growing while you tend the island.** Every prayer you answer, every gift, rain over a village and every festival you help counts toward it. Now and then, at most about once a minute, the city adds a lane, a house or a kitchen garden at its edge, outside its walls. First comes a paved road round the wall with lamps, then townhouses facing it with their gardens behind, then a second ring further out. It grows first on the side nearest the harbour shore.
+- **Newcomers arrive by boat.** Every seven minutes or so a little sailing boat with a lantern at its bow comes in from the open sea to the shore below Telor. A family steps off into the shallows and walks up to the edge of the city, where their house will stand. They wait there until it does, then go in at the door. The first boat brings a word from Lumi.
+- **Neglect it and it simply stops growing.** Nobody leaves and nothing is lost: the families wait, and no more than two wait at once. There is no pressure, no fail state and no ending.
+- New lines for Lumi, Fizz and Ora (text only for now; the voices come later). Free play, and everything before the true end, is unchanged.
+- An island saved mid-season, mid-celebration or mid-growth reloads where it was. Islands from before this update load as they were, and if the true end is already behind them, the loop starts fresh from where they stand.
+- For tests: `game.after.debug('festival' | 'grant' | 'celebrate' | 'boat' | 'land' | 'grow' | 'care')` and `game.after.state()`; `scripts/test-after-loop.mjs`.
+
 ### Fixed (2026-10-18, from Caboose's v0.11 playtest review)
 - **Lumi speaks up when a village of yours is starving.** In fast playthroughs Ashford lost up to 29 people to hunger and nobody said a word (only a small message in the corner). Now, once someone has been starving for a few seconds, Lumi peeks round the wall and names the village: "Ashford is going hungry. They need bread, and soon." (or, with several starving, "Ashford is starving. Please, can you help them?"). Sometimes Fizz adds a dry word after hers. It is once per village per bout of hunger, with a four-minute cooldown, and never during the last age, the endings or just after them. Every line is new and needs its voice.
 - **Village name labels stay on screen.** In a wide view a label near the edge of the screen was cut off, and gold names on a temple's golden glow lost their first letters ("STONEMERE" read "ONEMERE"). Labels are now kept fully inside the screen (a label that is mostly off screen is hidden instead), and the names have a dark halo so they read over the glow.
