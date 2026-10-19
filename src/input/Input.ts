@@ -5,6 +5,9 @@ export type InputEvent =
   | { type: 'dblclick'; x: number; y: number }
   | { type: 'key'; key: string; code: string };
 
+/** e.buttons bit for each e.button (left 0, middle 1, right 2). */
+const BIT: Record<number, number> = { 0: 1, 1: 4, 2: 2, 3: 8, 4: 16 };
+
 /** Raw pointer/keyboard state for the canvas, plus an event queue drained once per frame. */
 export class Input {
   x = 0;
@@ -15,6 +18,8 @@ export class Input {
   inside = false;
   readonly buttons = new Set<number>();
   readonly keys = new Set<string>();
+  /** The mouse buttons held (the gamepad's presses are kept apart, in buttons only). */
+  private readonly mouse = new Set<number>();
   private queue: InputEvent[] = [];
   private movedX = 0;
   private movedY = 0;
@@ -28,14 +33,17 @@ export class Input {
         // Synthetic events (tests, automation) have no capturable pointer.
       }
       this.onMove(e);
-      this.buttons.add(e.button);
-      this.queue.push({ type: 'down', button: e.button, x: e.clientX, y: e.clientY });
+      this.syncButtons(e, e.button, true);
       e.preventDefault();
     });
     el.addEventListener('pointerup', (e) => {
       this.onMove(e);
-      this.buttons.delete(e.button);
-      this.queue.push({ type: 'up', button: e.button, x: e.clientX, y: e.clientY });
+      this.syncButtons(e, e.button, false);
+    });
+    // The pointer was taken away mid-press (the window lost it, a system gesture): every held button is let go.
+    el.addEventListener('pointercancel', () => this.releaseMouse());
+    el.addEventListener('lostpointercapture', (e) => {
+      if (!e.buttons) this.releaseMouse();
     });
     el.addEventListener('pointerenter', () => (this.inside = true));
     el.addEventListener('pointerleave', () => (this.inside = false));
@@ -66,12 +74,44 @@ export class Input {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => {
       this.keys.clear();
+      this.releaseMouse();
       this.buttons.clear();
     });
   }
 
   private onMove(e: PointerEvent) {
     this.moveTo(e.clientX, e.clientY);
+    if (e.type === 'pointermove') this.syncButtons(e);
+  }
+
+  /**
+   * Mouse buttons from the pointer's own record of what is held (e.buttons). A second button pressed while another is
+   * down arrives only as a pointermove, and so does a release that leaves one held (pointer events are "chorded"), so
+   * each change is turned into its own down/up here. 2026-10-18 (Daryll): a middle-drag with another button pressed
+   * left the controls stuck turning or throwing, and nothing could be grabbed or set down after it.
+   */
+  private syncButtons(e: PointerEvent, button = -1, down = false) {
+    let mask = e.buttons;
+    // Synthetic events (tests, automation) may not fill in e.buttons: trust the button they name.
+    if (button >= 0) mask = down ? mask | (BIT[button] ?? 0) : mask & ~(BIT[button] ?? 0);
+    for (const b of [0, 1, 2]) {
+      const now = (mask & BIT[b]) !== 0;
+      if (now === this.mouse.has(b)) continue;
+      if (now) this.mouse.add(b);
+      else this.mouse.delete(b);
+      if (now) this.buttons.add(b);
+      else this.buttons.delete(b);
+      this.queue.push({ type: now ? 'down' : 'up', button: b, x: e.clientX, y: e.clientY });
+    }
+  }
+
+  /** Let go of every held mouse button (each one sends its 'up', so a drag or a throw ends properly). */
+  private releaseMouse() {
+    for (const b of [...this.mouse]) {
+      this.mouse.delete(b);
+      this.buttons.delete(b);
+      this.queue.push({ type: 'up', button: b, x: this.x, y: this.y });
+    }
   }
 
   /** Put the pointer at a client position (the mouse, or the gamepad's hand). */

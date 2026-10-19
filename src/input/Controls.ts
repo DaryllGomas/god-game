@@ -58,6 +58,13 @@ export class Controls {
     if (this.mode !== 'none') this.dragDist += Math.abs(dx) + Math.abs(dy);
 
     for (const ev of this.input.consume()) this.handle(ev, realTime);
+    // A drag whose button is no longer held (its release was lost) ends as if it had been let go, so the hand is never
+    // left stuck turning, panning or mid-throw with nothing able to grab or set down (2026-10-18).
+    if (this.mode !== 'none' && this.input.buttons.size === 0) {
+      const button = this.mode === 'throw' || this.mode === 'rotate' ? 2 : 0;
+      this.handle({ type: 'up', button, x: this.input.x, y: this.input.y }, realTime);
+      this.mode = 'none';
+    }
 
     if (this.mode === 'pan' && cam.isGrabbing && this.dragDist > CLICK_SLOP) {
       this.ndc.set(this.input.nx, this.input.ny);
