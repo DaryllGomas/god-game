@@ -919,7 +919,10 @@ export class Game {
         // 2026-10-18 (Daryll: "a little difficult to grab things sometimes"): a wider margin and a stickier hover.
         const reach = Math.max(rPx * 1.6, 26 * (h / 1080)) + 34 * (h / 1080);
         const pref = e.kind === 'villager' ? 0.8 : e.kind === 'food' ? 0.9 : e.kind === 'tree' ? 1.08 : 1;
-        const score = (d / reach) * pref * (e === prevHover ? 0.7 : 1) + dist * 0.0003;
+        // Something outside your light can't be taken: at the edge of the light (the shore) it gives way to one
+        // inside that is nearly as close, and is only picked when nothing takeable is near (it then says why).
+        const out = this.inInfluence(e.pos.x, e.pos.z) ? 1 : 1.6;
+        const score = (d / reach) * pref * out * (e === prevHover ? 0.7 : 1) + dist * 0.0003;
         if (score < bestGrabScore) {
           bestGrabScore = score;
           bestGrab = e;

@@ -126,7 +126,10 @@ export class Controls {
         if (ev.button === 0) {
           const target = hand.hover;
           if (target && !hand.held) {
-            if (hand.blocked) g.message('That is outside your area of influence.', 'warn', 'influence');
+            // What counts is where the thing stands, not the ground under the pointer: by the shore or at the edge of
+            // your light the pointer often lands just outside it (on the water), and a tree or rock well inside your
+            // light refused to come (2026-10-18, Daryll: "the trees over by the shore are hard as well").
+            if (!g.inInfluence(target.pos.x, target.pos.z)) g.message('That is outside your area of influence.', 'warn', 'influence');
             else {
               hand.grab(g, target);
               this.actedAt = realTime;
