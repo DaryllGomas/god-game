@@ -4,6 +4,11 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Fixed (2026-10-18, from Caboose's v0.11 playtest review)
+- **Lumi speaks up when a village of yours is starving.** In fast playthroughs Ashford lost up to 29 people to hunger and nobody said a word (only a small message in the corner). Now, once someone has been starving for a few seconds, Lumi peeks round the wall and names the village: "Ashford is going hungry. They need bread, and soon." (or, with several starving, "Ashford is starving. Please, can you help them?"). Sometimes Fizz adds a dry word after hers. It is once per village per bout of hunger, with a four-minute cooldown, and never during the last age, the endings or just after them. Every line is new and needs its voice.
+- **Village name labels stay on screen.** In a wide view a label near the edge of the screen was cut off, and gold names on a temple's golden glow lost their first letters ("STONEMERE" read "ONEMERE"). Labels are now kept fully inside the screen (a label that is mostly off screen is hidden instead), and the names have a dark halo so they read over the glow.
+- **"No worshippers" no more.** The prayer line under your power counted only the people dancing this very moment, so it said "no worshippers" under a standing temple at night, in snow, and at the start of a game. It now says why the dance is quiet: "resting for the night", "gathering to pray", "the people are hungry", or "none dancing just now".
+
 ### Added (the confrontation, 2026-10-18: Daryll: "this game's a lot about healing more than beating and dominating")
 - **Before his hood falls, Vexahl speaks.** As his spire comes in close he makes his case: "Look at what you made. Every village, every temple. And not one of them fears you." He only wanted it done, the quick way, by fear; he reminds you whether you ever took his ring. Lumi ("He isn't wrong about what you wanted. Only about how.") and Fizz ("For the record, I was the nice one.") answer, he asks you to turn him away again, and Ora says: "Not away. Back." Then the hood falls and the hands meet, as before. There is no fight: the island was the struggle.
 - **The last word.** After Ora's "There you are.", Lumi: "Both of you, in one place at last." Fizz: "Wonderful. Now who do I blame for things?"

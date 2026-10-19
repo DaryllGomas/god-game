@@ -21,6 +21,9 @@ function ageOf(v: Village): { n: number; name: string; next: ShrineStage | null;
   return { n: i + 1, name: AGE_NAME[v.shrineStage], next, part };
 }
 
+/** Village name labels keep this far (px) inside the screen's edge. */
+const LABEL_EDGE = 6;
+
 type Tone = 'good' | 'bad' | 'info' | 'warn' | 'divine';
 
 interface FloatText {
@@ -42,6 +45,7 @@ export class HUD {
   readonly root: HTMLDivElement;
   private readonly powerFill: HTMLDivElement;
   private readonly powerVal: HTMLDivElement;
+  private powerHtml = '';
   private readonly alignMarker: HTMLDivElement;
   private readonly alignName: HTMLSpanElement;
   private readonly clock: HTMLDivElement;
@@ -52,6 +56,10 @@ export class HUD {
   private readonly detail: HTMLDivElement;
   private readonly labels = new Map<Village, HTMLDivElement>();
   private readonly labelLayer: HTMLDivElement;
+  /** Each label's last measured box (layout px, before its scale), for keeping it on screen. */
+  private labelMeasureT = 0;
+  private readonly labelSig = new Map<HTMLDivElement, string>();
+  private readonly labelSize = new Map<HTMLDivElement, { w: number; h: number }>();
   private readonly messages: HTMLDivElement;
   private readonly help: HTMLDivElement;
   private readonly win: HTMLDivElement;
@@ -369,7 +377,8 @@ export class HUD {
     // Power
     this.powerFill.style.width = `${(p.power / p.maxPower) * 100}%`;
     const rate = g.villages.reduce((s, v) => s + v.prayerRate, 0);
-    this.powerVal.innerHTML = `${Math.floor(p.power)} <span class="rate">${rate > 0 ? `+${rate.toFixed(1)}/s` : 'no worshippers'}</span>`;
+    const power = `${Math.floor(p.power)} <span class="rate">${rate > 0 ? `+${rate.toFixed(1)}/s` : this.quietNote()}</span>`;
+    if (power !== this.powerHtml) this.powerVal.innerHTML = this.powerHtml = power;
 
     // Alignment: left = evil, right = good
     this.alignMarker.style.left = `${(p.alignment * 0.5 + 0.5) * 100}%`;
@@ -396,7 +405,7 @@ export class HUD {
     const icon = g.sky.isNight ? '🌙' : '☀️';
     this.clock.textContent = `${icon} Day ${g.day}  ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 
-    this.updateLabels();
+    this.updateLabels(dt);
     this.updateStoreTip();
     this.updateFloats(dt);
 
@@ -413,6 +422,23 @@ export class HUD {
     }
   }
 
+  /**
+   * The prayer line's words while nobody is dancing this very instant. It counts dancers, not believers (2026-10-18
+   * playtest: "no worshippers" showed under a standing temple, at night, in snow and at the start of a game), so it says
+   * why the dance is quiet instead.
+   */
+  private quietNote(): string {
+    const g = this.game;
+    if (g.sky.isNight) return 'resting for the night';
+    let hungry = false;
+    for (const v of g.villages) {
+      if (v.owner === 'rival') continue;
+      if (v.worshipperCount > 0) return 'gathering to pray';
+      if (v.owner === 'player' && v.villagers.some((p) => !p.dead && p.hunger >= 0.6)) hungry = true;
+    }
+    return hungry ? 'the people are hungry' : 'none dancing just now';
+  }
+
   private project(pos: THREE.Vector3): { x: number; y: number; visible: boolean; dist: number } {
     const cam = this.game.godCam.camera;
     const dist = cam.position.distanceTo(pos);
@@ -426,16 +452,23 @@ export class HUD {
     };
   }
 
-  private updateLabels() {
+  private updateLabels(dt: number) {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    // Pass 1: where each label hangs from, and what it says (written only when it changed).
+    const shown: { v: Village; label: HTMLDivElement; x: number; y: number; scale: number }[] = [];
+    const measure: HTMLDivElement[] = [];
+    this.labelMeasureT -= dt;
+    const remeasure = this.labelMeasureT <= 0; // fonts load late and text changes: look again now and then
+    if (remeasure) this.labelMeasureT = 2;
     for (const [v, label] of this.labels) {
       const s = this.project(new THREE.Vector3(v.center.x, v.center.y + 18, v.center.z));
       if (!s.visible || s.dist > 1400) {
         label.style.display = 'none';
         continue;
       }
+      const wasHidden = label.style.display === 'none';
       label.style.display = '';
-      const scale = Math.max(0.65, Math.min(1.1, 260 / s.dist));
-      label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%) scale(${scale})`;
       const fill = label.querySelector<HTMLDivElement>('.vl-fill')!;
       const name = label.querySelector<HTMLDivElement>('.vl-name')!;
       const owned = v.owner === 'player';
@@ -453,8 +486,38 @@ export class HUD {
       const segs = label.querySelector<HTMLDivElement>('.v-segs')!;
       if (age) segments(segs, SHRINE_STAGES.length, age.n, age.part);
       else segments(segs, neutral ? n : 0, f, neutral ? v.nextFamilyProgress() : 0);
-      label.querySelector<HTMLDivElement>('.vl-age')!.textContent = age ? `${age.name} · ${age.n}/${SHRINE_STAGES.length}` : '';
-      name.textContent = owned ? `${v.name} ✦` : rival ? `☾ ${v.name}  ${Math.floor(v.belief)}%` : `${v.name}  ${f}/${n} ✦`;
+      const ageText = age ? `${age.name} · ${age.n}/${SHRINE_STAGES.length}` : '';
+      const nameText = owned ? `${v.name} ✦` : rival ? `☾ ${v.name}  ${Math.floor(v.belief)}%` : `${v.name}  ${f}/${n} ✦`;
+      const ageEl = label.querySelector<HTMLDivElement>('.vl-age')!;
+      if (ageEl.textContent !== ageText) ageEl.textContent = ageText;
+      if (name.textContent !== nameText) name.textContent = nameText;
+      // Its box changes with what it says: measure again when that changes (or when it has just come back into view).
+      const sig = `${nameText}|${ageText}|${segs.childElementCount}|${owned ? 1 : rival ? 2 : 0}`;
+      if (wasHidden || remeasure || sig !== this.labelSig.get(label)) {
+        this.labelSig.set(label, sig);
+        measure.push(label);
+      }
+      shown.push({ v, label, x: s.x, y: s.y, scale: Math.max(0.65, Math.min(1.1, 260 / s.dist)) });
+    }
+    // Pass 2: measure the ones that need it, all at once (one layout, not one per label).
+    for (const label of measure) this.labelSize.set(label, { w: label.offsetWidth, h: label.offsetHeight });
+    // Pass 3: place them. A label hangs from its bottom centre. Keep its whole box on screen (a wide view puts villages
+    // by the edge, and the layer clips what pokes out: "STONEMERE" read "ONEMERE"): nudge it in, or hide one that is
+    // mostly out. It keeps following its village all the while.
+    for (const { label, x: sx, y: sy, scale } of shown) {
+      const size = this.labelSize.get(label);
+      let x = sx;
+      let y = sy;
+      let hide = false;
+      if (size && size.w > 0) {
+        const bw = size.w * scale;
+        const bh = size.h * scale;
+        hide = Math.min(x + bw / 2, W) - Math.max(x - bw / 2, 0) < bw * 0.5 || Math.min(y, H) - Math.max(y - bh, 0) < bh * 0.5;
+        x = Math.min(Math.max(x, bw / 2 + LABEL_EDGE), W - bw / 2 - LABEL_EDGE);
+        y = Math.min(Math.max(y, bh + LABEL_EDGE), H - LABEL_EDGE);
+      }
+      label.style.visibility = hide ? 'hidden' : '';
+      label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%) scale(${scale})`;
     }
   }
 

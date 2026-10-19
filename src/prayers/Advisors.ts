@@ -17,11 +17,26 @@ const ARGUMENT_GAP = 0.35;
 const STORE_KEY = 'godgame.advisors.v1';
 /** Real seconds before the exact same line may be said again. */
 const REPEAT_GAP = 90;
+/**
+ * Hunger warnings (2026-10-18 playtest review: Ashford had 29 starvation deaths and nobody said a word). One warning per
+ * village per bout of hunger: it begins when somebody has been starving this long (real seconds) and ends when nobody has
+ * been for HUNGER_CALM. Even so, the same village is not warned about more than once in HUNGER_COOLDOWN, nor any two
+ * villages within HUNGER_GAP of each other. Never over the endings or the Nexus age, nor for HUNGER_QUIET_AFTER seconds after.
+ */
+const HUNGER_AFTER = 3;
+const HUNGER_CALM = 20;
+const HUNGER_COOLDOWN = 240;
+const HUNGER_GAP = 60;
+const HUNGER_QUIET_AFTER = 90;
+/** After Lumi's warning, the chance that Fizz has a dry word too. */
+const HUNGER_FIZZ_CHANCE = 0.5;
 
 export type Who = 'spirit' | 'imp';
 export interface Line {
   who: Who;
   text: string;
+  /** Which painted face to wear, when the words themselves do not say (a line that opens with a village's name). */
+  mood?: Mood;
 }
 type Priority = 'important' | 'chat';
 
@@ -54,7 +69,8 @@ const LUMI_CHEER = /^[^.?]*!/;
 const FIZZ_CACKLE = /^(Ha\b|Smashing|Whoops|Ooh(?!, a rival)|Delightfully|Delicious|A temple! Fantastic|They bounce|My favourite part|Your golem|And his face)/;
 const FIZZ_SCHEME = /^(Go on\. One little toss|You know, from up here|That boulder would|Dry, you say|Summer\. Prime fire|I am bored|Gifts work too|Or slap it|Feed them better bread)|Drop a boulder near them/;
 const FIZZ_PEEK = /^(\.\.\.Hold on|Are we sightseeing|Translation:|Ooh, a rival)/;
-const moodOf = ({ who, text }: Line): Mood => {
+const moodOf = ({ who, text, mood }: Line): Mood => {
+  if (mood) return mood;
   if (who === 'spirit') return LUMI_HURT.test(text) ? 'hurt' : LUMI_PEEK.test(text) ? 'peek' : LUMI_CHEER.test(text) ? 'cheer' : 'speak';
   if (FIZZ_SCHEME.test(text)) return 'scheme';
   if (FIZZ_PEEK.test(text)) return 'peek';
@@ -137,6 +153,33 @@ const TEMPT_BOULDER: Line[][] = [
   ],
 ];
 
+/**
+ * Lumi's warning when a village of yours has people starving (she peeks round the wall: the face is set here, since the
+ * line opens with the village's name). Named, short and kind; no contractions. The second is for when more than one is
+ * starving. Fizz may add a dry word after: a dark joke, a fake backpedal, and then he does mean it.
+ */
+const HUNGRY_LUMI = (name: string, many: boolean): Line => ({
+  who: 'spirit',
+  mood: 'peek',
+  text: many ? `${name} is starving. Please, can you help them?` : `${name} is going hungry. They need bread, and soon.`,
+});
+const HUNGRY_FIZZ: Line[] = [
+  { who: 'imp', text: 'An empty stomach builds such faith. ...Breaks. I meant breaks. Feed them.' },
+  { who: 'imp', text: 'A hungry crowd will do anything for a loaf. ...Pray. I meant pray.' },
+];
+
+/** One village's run of hunger (see HUNGER_AFTER). */
+interface HungerBout {
+  /** Real seconds somebody has been starving, without a break. */
+  starvingFor: number;
+  /** Real seconds nobody has been starving. */
+  calmFor: number;
+  /** This bout has had its warning. */
+  warned: boolean;
+  /** When the village was last warned (real-seconds clock). */
+  at: number;
+}
+
 // ---------------------------------------------------------------- the class
 
 interface Queued {
@@ -174,6 +217,10 @@ export class Advisors {
   /** The golem has eaten someone and the first time has not been said yet (it waits for a free moment, never skipped). */
   private eatenPending = false;
   private eatenSaid = false;
+  private readonly bouts = new Map<Village, HungerBout>();
+  private lastHungerWarning = -1e9;
+  /** Hunger warnings keep quiet until this time on the clock (an ending or the Nexus age is under way, or just was). */
+  private hungerQuietUntil = 0;
 
   /**
    * Lumi and Fizz are characters, not a tutorial (the no-hints rule): they react to what you do,
@@ -420,6 +467,7 @@ export class Advisors {
 
     this.watchMood();
     this.watchTemptation(dt);
+    this.watchHunger(dt);
     this.place();
   }
 
@@ -448,6 +496,52 @@ export class Advisors {
         ],
         { pri: 'chat', topic: 'cruel', cooldown: 400 },
       );
+    }
+  }
+
+  /** The endings and the Nexus age have their own words: no warnings over them. */
+  private inSequence(): boolean {
+    const g = this.game as unknown as { nexus?: { phase: string }; endings?: { phase: string } };
+    const n = g.nexus?.phase;
+    const e = g.endings?.phase;
+    return (!!n && n !== 'off' && n !== 'done') || (!!e && e !== 'play' && e !== 'after');
+  }
+
+  /**
+   * Lumi tells you when a village of yours has people starving (2026-10-18 playtest review: 29 starved in Ashford, no
+   * word from anyone but a line in the corner). Once per village per bout of hunger, so she never nags.
+   */
+  private watchHunger(dt: number) {
+    if (this.inSequence()) {
+      this.hungerQuietUntil = this.clock + HUNGER_QUIET_AFTER;
+      return;
+    }
+    for (const v of this.game.villages) {
+      let b = this.bouts.get(v);
+      if (!b) this.bouts.set(v, (b = { starvingFor: 0, calmFor: 0, warned: false, at: -1e9 }));
+      if (v.owner !== 'player') {
+        // Not (or no longer) yours: whatever it was going through is over.
+        b.starvingFor = 0;
+        b.warned = false;
+        continue;
+      }
+      if (v.starving > 0) {
+        b.starvingFor += dt;
+        b.calmFor = 0;
+      } else {
+        b.starvingFor = 0;
+        b.calmFor += dt;
+        if (b.calmFor >= HUNGER_CALM) b.warned = false; // the bout is over; the next one gets its own word
+      }
+      if (b.warned || b.starvingFor < HUNGER_AFTER) continue;
+      if (this.clock < this.hungerQuietUntil || this.clock - b.at < HUNGER_COOLDOWN || this.clock - this.lastHungerWarning < HUNGER_GAP) continue;
+      const lines = [HUNGRY_LUMI(v.name, v.starving > 1)];
+      if (Math.random() < HUNGER_FIZZ_CHANCE) lines.push(pick(HUNGRY_FIZZ));
+      // Held back (muted, or another important word is waiting): try again next frame.
+      if (!this.say(lines, { pri: 'important', topic: `hunger-${v.name}`, cooldown: HUNGER_COOLDOWN })) continue;
+      b.warned = true;
+      b.at = this.clock;
+      this.lastHungerWarning = this.clock;
     }
   }
 

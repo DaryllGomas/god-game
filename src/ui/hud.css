@@ -497,6 +497,11 @@ canvas {
   letter-spacing: 0.06em;
   color: #fff;
   white-space: nowrap;
+  /* A dark halo: gold on a temple's golden glow lost its first letters ("STONEMERE" read "ONEMERE"). */
+  text-shadow:
+    0 0 2px rgba(14, 8, 2, 0.95),
+    0 0 5px rgba(14, 8, 2, 0.85),
+    0 0 12px rgba(14, 8, 2, 0.6);
 }
 .v-label.owned .vl-name {
   color: var(--gold);
