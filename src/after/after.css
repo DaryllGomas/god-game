@@ -1,0 +1,17 @@
+/* After the true end (src/after): the chip over the Nexus while a festival of Telor's is asked or under way. Shares
+   the project chips' look (projects.css). */
+.pj-chip.after-chip {
+  border-color: rgba(255, 190, 140, 0.55);
+  box-shadow: 0 0 14px rgba(255, 170, 110, 0.2);
+}
+.pj-chip.after-chip .pj-ic {
+  font-size: 13px;
+}
+.pj-chip.after-chip .pj-pc {
+  color: #ffd9a0;
+  font-size: 12px;
+}
+.pj-chip.after-chip.on {
+  border-color: rgba(255, 214, 140, 0.8);
+  box-shadow: 0 0 18px rgba(255, 200, 120, 0.35);
+}

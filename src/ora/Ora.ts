@@ -271,8 +271,9 @@ export class Ora {
   private currentGoal(): string | null {
     const st = (this.game as unknown as { story?: { active: boolean; goalLine(): string | null } }).story;
     if (st?.active) return st.goalLine();
-    // The last age (src/nexus): the Nexus is the goal.
-    return (this.game as unknown as { nexus?: { goalLine(): string | null } }).nexus?.goalLine() ?? null;
+    // The last age (src/nexus): the Nexus is the goal. After the true end (src/after): what a festival is short of.
+    const g = this.game as unknown as { nexus?: { goalLine(): string | null }; after?: { goalLine(): string | null } };
+    return g.nexus?.goalLine() ?? g.after?.goalLine() ?? null;
   }
 
   /** The reminder was looked at: say the current goal again, now, unless Ora (or a character) is already talking. */
