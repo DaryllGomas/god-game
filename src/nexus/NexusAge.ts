@@ -622,7 +622,10 @@ export class NexusAge {
     this.cityT = d.phase === 'city' ? (d.cityT ?? 0) : CITY.built + END_DELAY;
     this.telor.build(Math.max(0, Math.min(this.cityT, CITY.built + 1)), true);
     if (d.phase === 'lit') this.resumeEnd = true; // the true end was cut off: play it again from its start
-    else if (d.phase === 'done') this.afterSaid = true;
+    else if (d.phase === 'done') {
+      this.afterSaid = true;
+      markTrueEnd(); // saves that finished before the flag existed still get Continue on the ? screen
+    }
   }
 
   // ------------------------------------------------------------- debug
