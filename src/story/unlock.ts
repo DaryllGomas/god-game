@@ -28,3 +28,22 @@ export function unlockFreePlay() {
     /* storage unavailable: it unlocks again next time */
   }
 }
+
+/** Set once the true end has played (Telor stands): from then on the ? screen offers Beyond the Nexus again. */
+export const TRUE_END_KEY = 'godgame.trueend.v1';
+
+export function trueEndSeen(): boolean {
+  try {
+    return localStorage.getItem(TRUE_END_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markTrueEnd() {
+  try {
+    localStorage.setItem(TRUE_END_KEY, '1');
+  } catch {
+    /* storage unavailable */
+  }
+}

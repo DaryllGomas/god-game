@@ -292,7 +292,7 @@ await p.evaluate(() => game.nexus.debug('end'));
 await p.waitForFunction(() => game.nexus.state().end?.card, null, { timeout: 90000 }).catch(() => {});
 await wait(6000);
 const errorsBefore = errors.length;
-const going = p.waitForRequest((r) => r.isNavigationRequest() && /\/rpg\/?$/.test(r.url()), { timeout: 20000 }).then((r) => r.url()).catch(() => null);
+const going = p.waitForRequest((r) => r.isNavigationRequest() && /\/rpg\/play\/\?scene=nexus$/.test(r.url()), { timeout: 20000 }).then((r) => r.url()).catch(() => null);
 await p.keyboard.press('Enter');
 report.steps.goOn = await going;
 check(!!report.steps.goOn, `A / Enter goes on to the next game (${report.steps.goOn})`);

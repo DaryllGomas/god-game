@@ -6,6 +6,8 @@ import { mountCloudPanel } from '../cloud/CloudPanel';
 import { getLink } from '../cloud/Cloud';
 import { SHRINE_STAGES, STAGE_OF_PROJECT, stageIndex, type ShrineStage } from '../shrines/stages';
 import type { Entity } from '../entities/Entity';
+import { RPG_URL } from '../nexus/TrueEnd';
+import { trueEndSeen } from '../story/unlock';
 import './hud.css';
 
 /** The prayer place's ages, as the village list and labels name them (Totem 1/4 ... Temple 4/4). */
@@ -206,10 +208,15 @@ export class HUD {
         </div>
         <div class="save-summary hidden"></div>
         <button class="begin">Begin</button>
+        <button class="talk-next hidden" type="button"><span class="talk-next-label">Continue to Beyond the Nexus</span><small>in development</small></button>
         <div class="new-island"></div>
         <button class="help-toggle" type="button" aria-expanded="false">controls</button>
       </div>`;
     this.help.querySelector<HTMLButtonElement>('.begin')!.onclick = () => this.toggleHelp(false);
+    this.help.querySelector<HTMLButtonElement>('.talk-next')!.onclick = () => {
+      this.game.saves.save('quiet');
+      window.location.href = RPG_URL;
+    };
     const more = this.help.querySelector<HTMLButtonElement>('.help-toggle')!;
     more.onclick = () => {
       const open = this.help.classList.toggle('show-controls');
@@ -263,6 +270,7 @@ export class HUD {
 
   toggleHelp(force?: boolean) {
     const show = force ?? !this.helpOpen;
+    if (show) this.help.querySelector('.talk-next')?.classList.toggle('hidden', !trueEndSeen());
     this.help.classList.toggle('hidden', !show);
     if (!show) {
       // Closing the title screen starts (or continues) the island: from here on it is autosaved.

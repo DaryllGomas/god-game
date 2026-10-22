@@ -4,6 +4,11 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Added (v0.12.2, 2026-10-21; Daryll: "would you want to continue to the RPG? ... So we'll have to tie that together.")
+- **The true end offers Beyond the Nexus.** The end card asks "Would you like to go on to the next game?" with two answers: **Beyond the Nexus** (marked "in development"; A or Enter) opens the RPG's concept build at the Nexus (`/rpg/play/?scene=nexus`), and **Stay on this island** (B or Escape) goes on into the after-ending loop as before. Your island is saved first (`src/nexus/TrueEnd.ts`).
+- **You can go back to it later.** Once the true end has played, the ? screen (H, or the D-pad) shows a **Continue to Beyond the Nexus** button under Begin/Resume, so the choice is there without replaying the ending (`src/ui/HUD.ts`, `src/story/unlock.ts`).
+- `scripts/test-nexus-age.mjs` now expects the new address.
+
 ### Fixed (v0.12.1, 2026-10-20; Daryll's playtest: "it's just kind of hard to pick up things ... over by the coast", "now I can't even pick up anything")
 - **The hand never gets stuck after turning the camera.** A second mouse button pressed while another was held (a middle-drag, then a click) lost its release, which left the controls stuck turning or mid-throw: nothing could be grabbed or set down, and rain and food would not drop. Presses and releases now come from the pointer's own record of held buttons, every button is let go if the window loses the pointer, and a drag whose button is gone ends by itself (`src/input/Input.ts`, `Controls.ts`; `scripts/test-chorded-mouse.mjs`).
 - **Grabbing by the shore.** Whether something can be taken now depends on where it stands, not on the ground under the pointer, which often fell just outside your light on the water. When hovering, things outside your light give way to ones inside (`scripts/test-grab-rocks.mjs`).

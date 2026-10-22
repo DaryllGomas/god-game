@@ -34,13 +34,13 @@ export const ASK = 'Would you like to go on to the next game?';
 export const NEXT_GAME = 'Beyond the Nexus';
 export const STAY_LABEL = 'Stay on this island';
 /**
- * Where "Beyond the Nexus" goes. On the web: the RPG's page on the studio site (the game is served at
- * /the-first-world/play/; the RPG is not playable online yet). On the living-room TV (THE JUNCTION serves each game
+ * Where "Beyond the Nexus" goes. On the web: the RPG's concept build on the studio site, at the Nexus (same-origin absolute path;
+ * this game is served at /the-first-world/play/). On the living-room TV (THE JUNCTION serves each game
  * on its own *.junction.localhost host): the TV's own copy of the RPG, opened at the Nexus.
  */
 export const RPG_URL = /\.junction\.localhost$/.test(location.hostname)
   ? `${location.protocol}//nexus.junction.localhost${location.port ? ':' + location.port : ''}/?scene=nexus`
-  : '../../rpg/';
+  : '/rpg/play/?scene=nexus';
 
 const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
@@ -126,7 +126,7 @@ export class TrueEnd {
       { t: 25.5, pos: low(29, 24), look: v3(c.x, c.y + 8, c.z) },
       { t: 30, pos: dir(1.2, 150, 100), look: v3(c.x, c.y + 6, c.z) },
     ];
-    this.card = new EndCard(g.hud.root, CUT_LINE, onDownload, { kicker: CITY_NAME, choice: { ask: ASK, go: { label: NEXT_GAME, note: 'the next game', onGo }, stay: { label: STAY_LABEL } } });
+    this.card = new EndCard(g.hud.root, CUT_LINE, onDownload, { kicker: CITY_NAME, choice: { ask: ASK, go: { label: NEXT_GAME, note: 'in development', onGo }, stay: { label: STAY_LABEL } } });
     this.card.onClosed = () => this.onDone?.();
   }
 

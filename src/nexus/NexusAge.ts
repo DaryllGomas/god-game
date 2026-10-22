@@ -10,7 +10,7 @@ import { Beacon } from '../story/Beacon';
 import { circle } from '../reach/Light';
 import { aoSkip } from '../endings/CityLights';
 import { downloadLegacy } from '../endings/Legacy';
-import { unlockFreePlay } from '../story/unlock';
+import { markTrueEnd, unlockFreePlay } from '../story/unlock';
 import { SEA_LEVEL } from '../config';
 import { CH_PATH } from '../land/LandMask';
 import type { LandApi } from '../plugins/land';
@@ -422,6 +422,7 @@ export class NexusAge {
   private toRpg() {
     const g = this.game;
     unlockFreePlay();
+    markTrueEnd();
     this.phase = 'done';
     g.events.emit('trueEnd', { phase: 'done' });
     g.saves.save('quiet');
@@ -434,6 +435,7 @@ export class NexusAge {
     const en = this.endings;
     this.phase = 'done';
     unlockFreePlay();
+    markTrueEnd();
     this.end?.dispose();
     if (en) {
       en.cine.setVeil(0);
