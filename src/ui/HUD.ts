@@ -213,6 +213,9 @@ export class HUD {
         <button class="help-toggle" type="button" aria-expanded="false">controls</button>
       </div>`;
     this.help.querySelector<HTMLButtonElement>('.begin')!.onclick = () => this.toggleHelp(false);
+    // The ? screen is already up as the title when the page loads (toggleHelp never runs then), so decide Continue's
+    // visibility now too; otherwise it only showed after closing and reopening the screen.
+    this.help.querySelector('.talk-next')!.classList.toggle('hidden', !trueEndSeen());
     this.help.querySelector<HTMLButtonElement>('.talk-next')!.onclick = () => {
       this.game.saves.save('quiet');
       window.location.href = RPG_URL;

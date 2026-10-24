@@ -4,6 +4,9 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Fixed (v0.12.3, 2026-10-23; full play-test on the render box)
+- **Continue to Beyond the Nexus shows on the opening screen.** After the true end, the Continue button was only there once you closed the ? screen and opened it again; on a fresh load of the page (the title screen) it stayed hidden. Its visibility is now decided when the screen is built, not only when it is toggled (`src/ui/HUD.ts`). Found by `atlas-hd2d/tools/playtest-atlas.mjs` (case 3).
+
 ### Added (v0.12.2, 2026-10-21; Daryll: "would you want to continue to the RPG? ... So we'll have to tie that together.")
 - **The true end offers Beyond the Nexus.** The end card asks "Would you like to go on to the next game?" with two answers: **Beyond the Nexus** (marked "in development"; A or Enter) opens the RPG's concept build at the Nexus (`/rpg/play/?scene=nexus`), and **Stay on this island** (B or Escape) goes on into the after-ending loop as before. Your island is saved first (`src/nexus/TrueEnd.ts`).
 - **You can go back to it later.** Once the true end has played, the ? screen (H, or the D-pad) shows a **Continue to Beyond the Nexus** button under Begin/Resume, so the choice is there without replaying the ending (`src/ui/HUD.ts`, `src/story/unlock.ts`).
