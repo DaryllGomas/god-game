@@ -975,7 +975,8 @@ export class Game {
         // beside it still took the hand in 7 to 11% of tries in a village (scripts/test-every-rock.mjs). Rocks only:
         // people and trees keep the reach they had, so nothing else is harder to take than before.
         // "On" is within the rock's own drawn size, and never less than a fingertip (far away a rock is 10 px wide).
-        const on = e.kind === 'rock' && d <= Math.max(rPx, 14 * (h / 1080)) ? 0.35 : 1;
+        // (Only a rock inside your light gets this: one you cannot take must not win over a neighbour you can.)
+        const on = e.kind === 'rock' && out === 1 && d <= Math.max(rPx, 14 * (h / 1080)) ? 0.35 : 1;
         const score = (d / reach) * pref * out * on * (e === prevHover ? 0.7 : 1) + dist * 0.0003;
         if (score < bestGrabScore) {
           bestGrabScore = score;
