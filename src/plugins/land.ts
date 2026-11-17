@@ -200,7 +200,7 @@ export function install(game: Game): GamePlugin {
   // Every scattered rock can be picked up: one near the hand becomes a real boulder, looking exactly as it did.
   const loose = new LooseRocks(
     game,
-    flora.sets.filter((s) => s.kind === 'rock').map((s, i) => ({ set: s.set, geo: i })),
+    flora.sets.filter((s) => s.kind === 'rock').map((s) => s.set),
     ROCK_TINTS,
   );
   game.wakeRocks = (x, z, r) => loose.wake(x, z, r);
@@ -217,7 +217,7 @@ export function install(game: Game): GamePlugin {
       if (tidyIn <= 0) {
         tidyIn = 0.5;
         const h = game.hand;
-        if (h.valid) loose.tidy(h.ground.x, h.ground.z, Math.max(30, game.godCam.distance * 0.5));
+        if (h.valid) loose.tidy(h.ground.x, h.ground.z, loose.lastReach * 1.6 + 3);
         else loose.tidy(1e9, 1e9, 0);
       }
       decor.frame(realDt, game.godCam.distance);

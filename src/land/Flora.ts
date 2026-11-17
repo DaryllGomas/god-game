@@ -197,30 +197,40 @@ export function buildFlora(game: Game, roads: LandPainter): Flora {
   const rockGeos = [0, 1, 2, 3].map((i) => rockGeometry(700 + i * 17, 1));
   const rockItems: ScatterItem[][] = rockGeos.map(() => []);
   let rocks = 0;
-  const addRock = (x: number, z: number, y: number, s: number, flat: number, tint: number) => {
+  // The rocks have their own dice, and every candidate spends the same rolls whether or not a real tree, house or
+  // field stands there now (`keep`), so the rocks lie in the same places on every load. They used to be dealt from
+  // the shared dice after the trees, so half of them moved each time the island was loaded after some play, and the
+  // hand's taken rocks (land/LooseRocks.ts) could not be matched to their old places (2026-11-17).
+  const rockRng = new Rng(0x70c5a);
+  const addRock = (x: number, z: number, y: number, s: number, flat: number, tint: number, keep = true) => {
     if (rocks >= ROCK_CAP) return;
-    rockItems[rng.int(0, 3)].push({ x, y, z, yaw: rng.range(0, 6.28), sx: s * rng.range(0.9, 1.5), sy: s * flat, sz: s * rng.range(0.9, 1.4), tint });
-    rocks++;
+    const item = { x, y, z, yaw: rockRng.range(0, 6.28), sx: s * rockRng.range(0.9, 1.5), sy: s * flat, sz: s * rockRng.range(0.9, 1.4), tint };
+    const set = rockRng.int(0, 3);
+    rocks++; // (counted even when not kept, so the cap falls at the same candidate every time)
+    if (keep) rockItems[set].push(item);
   };
   // Hills and open ground.
   for (let i = 0; i < 9000 && rocks < ROCK_CAP * 0.55; i++) {
-    const x = rng.range(-half, half);
-    const z = rng.range(-half, half);
+    const x = rockRng.range(-half, half);
+    const z = rockRng.range(-half, half);
     const h = terrain.heightAt(x, z);
     if (h < 3.0 || h > 62) continue;
     terrain.normalAt(x, z, nrm);
     const steep = 1 - nrm.y;
-    if (rng.next() > 0.08 + steep * 1.6 + smoothstep(30, 55, h) * 0.5) continue;
-    if (villageDist(x, z) < 1.1 || roadAt(x, z) > 0.1 || nearReal(x, z)) continue;
-    const s = rng.range(0.5, 1.1) * (1 + steep * 2.2);
-    addRock(x, z, h - 0.1 * s, s, rng.range(0.6, 0.95), rng.next() < 0.35 ? 2 : rng.next() < 0.5 ? 0 : 3);
+    if (rockRng.next() > 0.08 + steep * 1.6 + smoothstep(30, 55, h) * 0.5) continue;
+    if (villageDist(x, z) < 1.1 || roadAt(x, z) > 0.1) continue;
+    const s = rockRng.range(0.5, 1.1) * (1 + steep * 2.2);
+    const flat = rockRng.range(0.6, 0.95);
+    const t1 = rockRng.next();
+    const t2 = rockRng.next();
+    addRock(x, z, h - 0.1 * s, s, flat, t1 < 0.35 ? 2 : t2 < 0.5 ? 0 : 3, !nearReal(x, z));
   }
   // Shore: boulders in clusters and long stone ledges where the shore is steep enough to read as a cliff foot.
   for (let gz = -half; gz < half; gz += 3) {
     for (let gx = -half; gx < half; gx += 3) {
       if (rocks >= ROCK_CAP) break;
-      const x = gx + rng.range(0, 3);
-      const z = gz + rng.range(0, 3);
+      const x = gx + rockRng.range(0, 3);
+      const z = gz + rockRng.range(0, 3);
       const h = terrain.heightAt(x, z);
       if (h < 0.1 || h > 3.4) continue;
       // Is open water close by?
@@ -232,15 +242,15 @@ export function buildFlora(game: Game, roads: LandPainter): Flora {
       if (!water) continue;
       const shoreN = noiseS.noise(x * 0.025 + 40, z * 0.025);
       const rocky = smoothstep(-0.05, 0.4, shoreN);
-      if (rng.next() > 0.05 + 0.5 * rocky * rocky) continue;
-      if (villageDist(x, z) < 0.9 && rng.next() < 0.7) continue;
-      const cluster = rng.int(1, 3);
+      if (rockRng.next() > 0.05 + 0.5 * rocky * rocky) continue;
+      if (villageDist(x, z) < 0.9 && rockRng.next() < 0.7) continue;
+      const cluster = rockRng.int(1, 3);
       for (let c = 0; c < cluster; c++) {
-        const ox = rng.range(-2, 2);
-        const oz = rng.range(-2, 2);
+        const ox = rockRng.range(-2, 2);
+        const oz = rockRng.range(-2, 2);
         const y = Math.max(terrain.heightAt(x + ox, z + oz), 0.15);
-        const big = rocky > 0.6 && rng.next() < 0.5;
-        addRock(x + ox, z + oz, y - 0.25, big ? rng.range(1.7, 3.0) : rng.range(0.6, 1.5), big ? rng.range(0.7, 1.1) : rng.range(0.55, 0.9), big ? 3 : rng.next() < 0.5 ? 1 : 0);
+        const big = rocky > 0.6 && rockRng.next() < 0.5;
+        addRock(x + ox, z + oz, y - 0.25, big ? rockRng.range(1.7, 3.0) : rockRng.range(0.6, 1.5), big ? rockRng.range(0.7, 1.1) : rockRng.range(0.55, 0.9), big ? 3 : rockRng.next() < 0.5 ? 1 : 0);
       }
     }
   }

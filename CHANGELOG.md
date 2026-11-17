@@ -5,10 +5,18 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 ## [Unreleased]
 
 ### Fixed (v0.12.4, 2026-11-17; Daryll: "almost any rock is unable to be picked up. I have to move the hand all over randomly and I get lucky if I pick up a rock")
-- **Every rock you can see is a rock you can pick up.** This was the real fault. The island draws about 970 scattered rocks (since the v0.6 land update) with the same shape and stone as the 64 real boulders, and they were scenery: the hand passed through them. Looking over the first village, 45 rocks were on screen inside your light and 2 could be taken. Now a scattered rock near the hand becomes a real boulder where it lies, same size, turn and tint, so nothing is seen to change, and it is grabbed, thrown and built with like any other (`src/land/LooseRocks.ts`, `src/entities/Nature.ts`, `src/Game.ts`).
+- **Every rock you can see is a rock you can pick up.** This was the real fault. The island draws about 1,000 scattered rocks (since the v0.6 land update) with the same shape and stone as the 64 real boulders, and they were scenery: the hand passed through them. Looking over the first village, 45 rocks were on screen inside your light and 2 could be taken. Now a scattered rock near the hand becomes a real boulder where it lies, same size, turn and tint, so nothing is seen to change, and it is grabbed, thrown and built with like any other (`src/land/LooseRocks.ts`, `src/entities/Nature.ts`, `src/Game.ts`).
   - Measured (`scripts/test-any-rock.mjs`: story mode, three views over the home village, every rock on screen inside your light clicked once): **7 of 142 (5%) on the live build, 117 of 119 (98%) now.**
-  - A rock you took, threw or moved is saved as a real boulder and its scattered twin stays gone. One the hand only passed over is scenery again on the next load. Old islands load as they were.
+  - A rock you took, threw or moved is saved as a real boulder with its own shape, turn and tint, and its scattered twin stays gone. One the hand only passed over goes back to being scenery when the hand moves on. Old islands load as they were.
+  - **A rock you set down stays where you put it.** Set down on a hillside it used to roll off, often into the sea (17 of 30 in a test); a thrown rock still rolls (`src/hand/Hand.ts`, `src/systems/Physics.ts`).
+  - **The scattered rocks lie in the same places every time you load.** They were dealt from dice shared with the trees, so about half of them moved after any play; they now have their own (`src/land/Flora.ts`). This moves them once, with this update.
+  - **Boulders still tumble in from the hills** however many scattered rocks you have taken (taken rocks used to fill the island's limit of 60, and the supply stopped at about 26 taken).
+  - Found by a bug hunt on the render box (story play-bot on both builds, the old tests on both builds, and probes for building, the golem, throwing, setting down, save and reload three times, and speed): the play-bot reaches the true end on this build as on the live one, within about two game minutes at every milestone.
   - The three earlier rounds on this (10-18, 10-20, and the one below) only ever tested the 64 real boulders, which is why they kept passing.
+
+### Fixed (v0.12.4, winter, 2026-11-17; from Daryll's own day-95 frame)
+- **The cliff tops along the shore take snow.** They stayed summer green while the rest of the island was white (`src/coast/cliffMaterial.ts`).
+- **Boulders carry the same snow as the trees.** They kept one small white facet and read as black holes in the snow (`src/seasons/snowRoofs.ts`).
 
 ### Also fixed (v0.12.4, 2026-11-17; found while testing the real boulders)
 - **A rock under the pointer is the rock you take.** Measured on every rock on the island: nine places on the part of each rock you can see, seven camera views, three screen shapes, mouse and controller (`scripts/test-every-rock.mjs`). Rocks lying out in the wild were already fine (99.9% of 3,235 tries; now 100% of 3,536). The misses were in a village, where you carry rocks to build:

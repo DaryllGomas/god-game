@@ -304,7 +304,9 @@ export class Game {
   /** Keeps the island stocked with boulders (the golem eats and throws them). */
   private spawnBoulder() {
     let rocks = 0;
-    for (const e of this.entities) if (e.kind === 'rock' && e.alive) rocks++;
+    // (Rocks the hand woke or took from the island's scattered ones are not counted: the natural supply went dry once
+    // a player had taken about 26 of them, 2026-11-17.)
+    for (const e of this.entities) if (e.kind === 'rock' && e.alive && !(e as Rock).loose) rocks++;
     if (rocks >= 60) return;
     const half = WORLD_SIZE / 2;
     for (let i = 0; i < 20; i++) {
@@ -931,7 +933,7 @@ export class Game {
     const focal = h / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     // The scattered rocks round the pointer become real boulders before the pick (land/LooseRocks.ts): every rock you
     // can see is one you can take.
-    if (!hand.held) this.wakeRocks?.(hand.ground.x, hand.ground.z, Math.max(4, ((130 * (h / 1080)) / focal) * cam.position.distanceTo(hand.ground)));
+    if (!hand.held) this.wakeRocks?.(hand.ground.x, hand.ground.z, Math.max(4, ((105 * (h / 1080)) / focal) * cam.position.distanceTo(hand.ground)));
     let bestGrab: Entity | null = null;
     let bestGrabScore = 1;
     let bestOn = false;

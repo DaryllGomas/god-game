@@ -226,6 +226,9 @@ export interface RockLook {
   sx: number;
   sy: number;
   sz: number;
+  /** Which scattered set and tint the shape came from, so a taken rock looks the same after a reload. */
+  set: number;
+  tint: number;
 }
 
 export class Rock extends Entity {
@@ -243,19 +246,40 @@ export class Rock extends Entity {
     this.seed = seed;
     this.radius = radius;
     this.mass = radius * radius * radius;
-    this.groundOffset = (look ? look.sy : radius) * 0.55;
+    this.groundOffset = radius * 0.55;
     this.grabbable = true;
     this.canRoll = true;
     if (look) {
       this.mesh = sharedMesh(look.geo, MAT.base);
-      this.mesh.rotation.y = look.yaw;
-      this.mesh.scale.set(look.sx, look.sy, look.sz);
+      this.wear(look);
     } else {
       this.mesh = ownedMesh(rockGeometry(seed, radius), MAT.base);
       this.mesh.rotation.y = seed;
     }
     this.object.add(this.mesh);
     this.pos.set(x, 0, z);
+  }
+
+  /** The look of the scattered rock this was, if it was one (saved by land/LooseRocks.ts). */
+  look: RockLook | null = null;
+
+  /** Take a scattered rock's shape, turn and stretch (a taken rock loaded from a save gets its own look back). */
+  wear(look: RockLook) {
+    if (this.mesh.geometry !== look.geo) {
+      if (this.mesh.userData.ownsGeometry) this.mesh.geometry.dispose();
+      this.mesh.userData.ownsGeometry = false;
+      this.mesh.geometry = look.geo;
+    }
+    this.mesh.rotation.y = look.yaw;
+    this.mesh.scale.set(look.sx, look.sy, look.sz);
+    this.groundOffset = look.sy * 0.55;
+    this.look = look;
+  }
+
+  /** Loaded from a save as a rock the hand had taken: never scenery again. */
+  adopt(key: string) {
+    this.loose = key;
+    this.touched = true;
   }
 
   onPickup() {
