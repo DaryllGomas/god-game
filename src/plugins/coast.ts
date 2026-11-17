@@ -6,6 +6,7 @@ import { Rng } from '../util/rng';
 import { smoothstep } from '../util/math';
 import { ScatterSet, type ScatterItem } from '../land/Scatter';
 import { ISLE_POS } from '../rival/RivalVisuals';
+import { FOREST_SEASON } from '../entities/Forest';
 import { cliffMaterial, cliffSlabGeometry, cliffStackGeometry, cliffUniforms } from '../coast/cliffMaterial';
 
 /**
@@ -196,6 +197,7 @@ export function install(game: Game): GamePlugin {
       const t = fin(game.realTime);
       cliffUniforms.uCliffTime.value = t;
       cliffUniforms.uCliffSea.value = SEA_LEVEL;
+      cliffUniforms.uCliffSnow.value = FOREST_SEASON.uSnowT.value;
       if (!built) {
         const home = game.villages.find((v) => v.isHome);
         if (home && (game as unknown as { waterJetty?: unknown }).waterJetty !== undefined) build();

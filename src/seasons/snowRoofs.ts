@@ -19,11 +19,12 @@ export function patchSnowOnBase() {
         `#include <normal_fragment_maps>
         {
           vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-          float cover = smoothstep(0.35, 0.7, dot(normal, upV)) * uSnowT;
+          // (0.2..0.6 is the trees' own range: boulders used to keep only one small white facet and read as black holes in the snow)
+          float cover = smoothstep(0.2, 0.6, dot(normal, upV)) * uSnowT;
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.92, 0.98), cover * 0.9);
         }`,
       );
   };
-  mat.customProgramCacheKey = () => 'base-snow';
+  mat.customProgramCacheKey = () => 'base-snow-2';
   mat.needsUpdate = true;
 }

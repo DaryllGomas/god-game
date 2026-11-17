@@ -46,13 +46,15 @@ export function cliffSlabGeometry(seed: number): THREE.BufferGeometry {
   return flat;
 }
 
-export const cliffUniforms = { uCliffTime: { value: 0 }, uCliffSea: { value: 0 } };
+/** uCliffSnow: 0..1, the same winter cover the trees and roofs use (set each frame in plugins/coast.ts). */
+export const cliffUniforms = { uCliffTime: { value: 0 }, uCliffSea: { value: 0 }, uCliffSnow: { value: 0 } };
 
 export function cliffMaterial(): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0, flatShading: false });
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uCliffTime = cliffUniforms.uCliffTime;
     shader.uniforms.uCliffSea = cliffUniforms.uCliffSea;
+    shader.uniforms.uCliffSnow = cliffUniforms.uCliffSnow;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vCWP;\nvarying float vCTop;\nvarying float vCDrop;')
       .replace(
@@ -78,6 +80,7 @@ export function cliffMaterial(): THREE.MeshStandardMaterial {
         varying float vCDrop;
         uniform float uCliffTime;
         uniform float uCliffSea;
+        uniform float uCliffSnow;
         float ch(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float cn(vec2 p) {
           vec2 i = floor(p), f = fract(p);
@@ -112,11 +115,15 @@ export function cliffMaterial(): THREE.MeshStandardMaterial {
           vec3 grassC = pow(vec3(0.34, 0.52, 0.2), vec3(2.2)) * (0.85 + 0.3 * cn(wp.xz * 0.5));
           float lip = 0.12 + 0.5 * cn(wp.xz * 1.9 + 4.0);
           float g = max(smoothstep(0.55, 0.85, vCTop), 1.0 - smoothstep(lip * 0.6, lip, vCDrop));
+          // Winter: the grass cap and every upward face whiten with the rest of the island (2026-11-17: the cliff tops
+          // stayed summer green in the snow).
+          grassC = mix(grassC, vec3(0.80, 0.86, 0.96), uCliffSnow * 0.92);
           rock = mix(rock, grassC, clamp(g, 0.0, 1.0));
+          rock = mix(rock, vec3(0.80, 0.86, 0.96), uCliffSnow * 0.85 * smoothstep(0.35, 0.75, vCTop) * smoothstep(uCliffSea + 0.9, uCliffSea + 2.6, wp.y));
           diffuseColor.rgb *= rock;
         }`,
       );
   };
-  mat.customProgramCacheKey = () => 'cliff-v1';
+  mat.customProgramCacheKey = () => 'cliff-v2';
   return mat;
 }
