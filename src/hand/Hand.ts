@@ -151,6 +151,7 @@ export class Hand {
     this.hasPickedFrom = e.kind !== 'orb';
     this.held = e;
     e.held = true;
+    e.setDown = false;
     e.airborne = false;
     e.rolling = false;
     e.vel.set(0, 0, 0);
@@ -170,6 +171,7 @@ export class Hand {
     this.held = null;
     e.held = false;
     e.airborne = true;
+    e.setDown = false;
     e.vel.copy(vel);
     const s = vel.length() * 0.08;
     e.spin.set((Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
@@ -191,6 +193,7 @@ export class Hand {
     e.pos.set(at.x, at.y + e.groundOffset + 0.8, at.z);
     e.vel.set(0, -2, 0);
     e.airborne = true;
+    e.setDown = true; // a rock set down stays put (2026-11-17: 17 of 30 set down on the hillside rolled into the sea)
     e.thrownByPlayer = false;
     e.impressPending = false;
     e.onDrop(game);

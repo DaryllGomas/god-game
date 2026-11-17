@@ -78,6 +78,13 @@ for (const [name, pose] of [['looking over the village', { x: home.x, z: home.z,
 }
 const pct = (a) => `${a[0]} of ${a[1]}` + (a[1] ? ` (${Math.round((100 * a[0]) / a[1])}%)` : '');
 console.log(`TOTAL ${W}x${H}: every rock on screen in your light, clicked once: scattered rocks ${pct(total.scattered)}, real boulders ${pct(total.real)}, all ${pct([total.scattered[0] + total.real[0], total.scattered[1] + total.real[1]])}`);
+// the hand sweeps the whole view, then leaves: woken rocks that were never taken go back to being scenery
+for (let y = 120; y < H - 100; y += 110) for (let x = 120; x < W - 100; x += 160) await p.mouse.move(x, y, { steps: 2 });
+await p.waitForTimeout(700);
+const swept = await p.evaluate(() => ({ ...game.looseRocks.count, rocks: game.entities.filter((e) => e.alive && e.kind === 'rock').length }));
+await p.mouse.move(40, H - 40); await p.evaluate(() => { game.input.inside = false; }); await p.waitForTimeout(1600);
+const left = await p.evaluate(() => ({ ...game.looseRocks.count, rocks: game.entities.filter((e) => e.alive && e.kind === 'rock').length }));
+console.log(`after sweeping the hand over the whole view: ${JSON.stringify(swept)};  after the hand left: ${JSON.stringify(left)}  (asleep + woken + taken stays ${swept.asleep + swept.woken + swept.taken} -> ${left.asleep + left.woken + left.taken})`);
 console.log('page errors', errors.length, errors.slice(0, 2));
 await fs.writeFile(`${OUT}/any-rock-${W}x${H}.json`, JSON.stringify({ total, views, errors }, null, 1));
 await b.close();

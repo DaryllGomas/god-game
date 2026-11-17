@@ -17,7 +17,7 @@ import type { ScatterItem, ScatterSet } from './Scatter';
  */
 export class LooseRocks {
   private readonly cells = new Map<number, { item: ScatterItem; set: ScatterSet; geo: number }[]>();
-  private readonly woken = new Map<string, Rock>();
+  private readonly woken = new Map<string, { rock: Rock; item: ScatterItem; set: ScatterSet }>();
   private readonly taken = new Set<string>();
   private readonly tinted = new Map<number, THREE.BufferGeometry>();
   private static readonly CELL = 16;
@@ -88,10 +88,35 @@ export class LooseRocks {
           rock.pos.set(item.x, item.y, item.z); // where it lay, half sunk in the ground, not set on top of it
           rock.home.copy(rock.pos);
           rock.syncObject();
-          this.woken.set(rock.loose, rock);
+          this.woken.set(rock.loose, { rock, item, set });
           n++;
         }
       }
+    }
+    return n;
+  }
+
+  /**
+   * Woken rocks the hand has left behind (more than `r` metres from (x, z)) and never touched go back to being
+   * scenery, so the island never carries more than a handful of extra boulders however far the hand roams. A rock
+   * that was taken, moved or destroyed is counted as taken for good. Returns how many went back to sleep.
+   */
+  tidy(x: number, z: number, r: number): number {
+    let n = 0;
+    for (const [key, w] of this.woken) {
+      if (!w.rock.stillScenery) {
+        this.taken.add(key);
+        this.woken.delete(key);
+        continue;
+      }
+      if (Math.hypot(w.item.x - x, w.item.z - z) <= r || this.game.hand.hover === w.rock) continue;
+      this.game.remove(w.rock);
+      (w.item as ScatterItem & { gone?: boolean }).gone = false;
+      w.set.items.push(w.item);
+      w.set.invalidate();
+      this.cell(w.item.x, w.item.z, true)!.push({ item: w.item, set: w.set, geo: 0 });
+      this.woken.delete(key);
+      n++;
     }
     return n;
   }
@@ -105,7 +130,7 @@ export class LooseRocks {
 
   save(): unknown {
     const out = new Set(this.taken);
-    for (const [k, rock] of this.woken) if (!rock.stillScenery) out.add(k);
+    for (const [k, w] of this.woken) if (!w.rock.stillScenery) out.add(k);
     return { taken: [...out] };
   }
 

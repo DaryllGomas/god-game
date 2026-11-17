@@ -1,5 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
-import { mkdirSync, readdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // The playtest note key (B, or both sticks pressed in; src/dev/PlaytestNote.ts): a dev-server-only endpoint that writes
@@ -25,6 +25,16 @@ function marks(): Plugin {
   return {
     name: 'first-world-playtest-marks',
     configureServer(server) {
+      // The dev sound probe (src/dev/SoundProbe.ts): one line a second of what the game's sound is doing.
+      server.middlewares.use('/__sound', async (req, res) => {
+        try {
+          mkdirSync(join(process.cwd(), 'shots'), { recursive: true });
+          appendFileSync(join(process.cwd(), 'shots', 'sound-probe.log'), (await body(req)) + '\n');
+        } catch {
+          // a probe line that cannot be written is simply lost
+        }
+        res.end('{}');
+      });
       server.middlewares.use('/__mark', async (req, res) => {
         res.setHeader('content-type', 'application/json');
         if (req.method === 'GET') return void res.end('{"marks":true}'); // "the tool is here"

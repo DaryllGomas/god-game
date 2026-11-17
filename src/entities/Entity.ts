@@ -20,6 +20,8 @@ export abstract class Entity {
   airborne = false;
   rolling = false;
   canRoll = false;
+  /** Set down by the hand, not thrown: it stays where it lands instead of rolling off down the slope. */
+  setDown = false;
   /** Seconds spent rolling slowly; lets rocks settle in steep gullies instead of jittering forever. */
   slowRoll = 0;
   /** Picking / collision radius. */

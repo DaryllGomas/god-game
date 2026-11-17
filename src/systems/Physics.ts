@@ -65,7 +65,7 @@ function stepAirborne(game: Game, e: Entity, dt: number) {
     if (Math.abs(e.vel.y) < 3.5) {
       e.airborne = false;
       e.vel.y = 0;
-      if (e.canRoll && Math.hypot(e.vel.x, e.vel.z) > 1.5) e.rolling = true;
+      if (e.canRoll && !e.setDown && Math.hypot(e.vel.x, e.vel.z) > 1.5) e.rolling = true;
       else settle(e);
       break;
     }
@@ -105,6 +105,7 @@ function stepRolling(game: Game, e: Entity, dt: number) {
 }
 
 function settle(e: Entity) {
+  e.setDown = false;
   e.vel.set(0, 0, 0);
   e.spin.set(0, 0, 0);
   e.thrownByPlayer = false;

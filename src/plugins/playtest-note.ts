@@ -16,6 +16,8 @@ export function install(game: Game): GamePlugin | void {
       this.note?.rendered();
     },
   };
+  // ?soundprobe: once a second, write what the game's sound is doing to shots/sound-probe.log (src/dev/SoundProbe.ts).
+  if (new URLSearchParams(location.search).has('soundprobe')) void import('../dev/SoundProbe').then((m) => m.startSoundProbe(game));
   void import('../dev/PlaytestNote').then((m) => {
     plugin.note = new m.PlaytestNote(game);
     (game as unknown as { playtestNote: unknown }).playtestNote = plugin.note;

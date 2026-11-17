@@ -204,6 +204,7 @@ export function install(game: Game): GamePlugin {
     ROCK_TINTS,
   );
   game.wakeRocks = (x, z, r) => loose.wake(x, z, r);
+  let tidyIn = 0;
   (game as unknown as { looseRocks: LooseRocks }).looseRocks = loose;
 
   return {
@@ -211,6 +212,14 @@ export function install(game: Game): GamePlugin {
     save: () => loose.save(),
     load: (data) => loose.load(data),
     frame(realDt) {
+      // Woken rocks the hand has left go back to being scenery (twice a second is plenty).
+      tidyIn -= realDt;
+      if (tidyIn <= 0) {
+        tidyIn = 0.5;
+        const h = game.hand;
+        if (h.valid) loose.tidy(h.ground.x, h.ground.z, Math.max(30, game.godCam.distance * 0.5));
+        else loose.tidy(1e9, 1e9, 0);
+      }
       decor.frame(realDt, game.godCam.distance);
       timer -= realDt;
       if (timer <= 0) {
