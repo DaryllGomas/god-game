@@ -107,6 +107,9 @@ export class Controls {
       case 'down': {
         if (this.mode !== 'none') return;
         this.dragDist = 0;
+        // What was under the pointer when it was pressed, not a frame before: a click made as the hand arrives takes
+        // what it lands on.
+        g.refreshCursor(ev.x, ev.y);
         const onCreature = !hand.held && g.hoverBuilding instanceof Golem;
         if (onCreature && (ev.button === 1 || (ev.button === 0 && (this.input.keys.has('ShiftLeft') || this.input.keys.has('ShiftRight'))))) {
           this.mode = 'leash';

@@ -8,6 +8,10 @@ export type InputEvent =
 /** e.buttons bit for each e.button (left 0, middle 1, right 2). */
 const BIT: Record<number, number> = { 0: 1, 1: 4, 2: 2, 3: 8, 4: 16 };
 
+/** The tags that float over the world and take clicks (a dream's tag, a prayer's bubble, a village's prayer mark). */
+export const WORLD_TAGS = '.pj-chip, .pr-bubble, .pr-mark';
+const onTag = (t: EventTarget | null): boolean => t instanceof Element && !!t.closest(WORLD_TAGS);
+
 /** Raw pointer/keyboard state for the canvas, plus an event queue drained once per frame. */
 export class Input {
   x = 0;
@@ -21,6 +25,11 @@ export class Input {
   /** The mouse buttons held (the gamepad's presses are kept apart, in buttons only). */
   private readonly mouse = new Set<number>();
   private queue: InputEvent[] = [];
+  /** Set by the game: is there a thing right under the pointer here that a press should take, though a tag is on top? */
+  underTag: ((clientX: number, clientY: number) => boolean) | null = null;
+  private overTag = false;
+  private throughTag = false;
+  private swallowClick = false;
   private movedX = 0;
   private movedY = 0;
 
@@ -47,6 +56,56 @@ export class Input {
     });
     el.addEventListener('pointerenter', () => (this.inside = true));
     el.addEventListener('pointerleave', () => (this.inside = false));
+    // Under a floating tag the hand keeps following the pointer (the tag is small and the land is right under it), and
+    // a press with the pointer right on a rock there takes it instead of pressing the tag (2026-11-17).
+    window.addEventListener(
+      'pointermove',
+      (e) => {
+        if (onTag(e.target)) {
+          this.overTag = true;
+          this.moveTo(e.clientX, e.clientY);
+        } else if (this.overTag) {
+          this.overTag = false;
+          if (e.target !== el) this.inside = false;
+        }
+      },
+      true,
+    );
+    window.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (e.button !== 0 || !onTag(e.target) || !this.underTag?.(e.clientX, e.clientY)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.throughTag = this.swallowClick = true;
+        this.moveTo(e.clientX, e.clientY);
+        this.buttons.add(0);
+        this.queue.push({ type: 'down', button: 0, x: e.clientX, y: e.clientY });
+      },
+      true,
+    );
+    window.addEventListener(
+      'pointerup',
+      (e) => {
+        if (!this.throughTag || e.button !== 0) return;
+        this.throughTag = false;
+        this.buttons.delete(0);
+        this.queue.push({ type: 'up', button: 0, x: e.clientX, y: e.clientY });
+      },
+      true,
+    );
+    window.addEventListener(
+      'click',
+      (e) => {
+        if (!this.swallowClick) return;
+        this.swallowClick = false;
+        if (onTag(e.target)) {
+          e.preventDefault();
+          e.stopPropagation(); // the press took the thing under the tag: the tag itself is not clicked
+        }
+      },
+      true,
+    );
     el.addEventListener(
       'wheel',
       (e) => {

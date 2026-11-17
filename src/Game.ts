@@ -44,6 +44,8 @@ export interface GamePlugin {
   update?(dt: number): void;
   /** Every rendered frame, in real seconds (camera, UI, visuals). */
   frame?(realDt: number): void;
+  /** Straight after the frame is drawn (the canvas still holds it: the dev playtest note reads its picture here). */
+  rendered?(): void;
   resize?(width: number, height: number): void;
   /** Save/load: this plugin's state as plain JSON-able data (see systems/Save.ts). */
   save?(): unknown;
@@ -126,6 +128,7 @@ export class Game {
     this.godCam = new GodCamera(window.innerWidth / window.innerHeight);
     this.hand = new Hand(this.scene);
     this.input = new Input(this.renderer.domElement);
+    this.input.underTag = (x, y) => !!this.thingUnderTag(x, y);
     this.controls = new Controls(this, this.input);
 
     // Continue a saved island if there is one (terrain is regenerated from the seed, everything on it from the save).
@@ -871,6 +874,40 @@ export class Game {
 
   // ----------------------------------------------------------- picking
 
+  /**
+   * Pick again, now, at the place a press was made. The pick is otherwise a frame old when a press is handled (the
+   * controls run before the cursor each frame), so a click made as the hand arrives acted on where the pointer WAS:
+   * at 30 frames a second a quick hand is 30 to 60 px away from there, more than a rock is wide (2026-11-17).
+   */
+  /** The pointer is directly on the hovered rock's own body (not merely near it). */
+  private hoverOn = false;
+
+  /**
+   * A rock lying under one of the tags that float over a village (a dream's tag, a prayer's bubble), with the
+   * pointer right on it: the press takes the rock, not the tag. A rock set down beside a building site sat under
+   * the site's tag and could not be picked up again (2026-11-17: 24 of 612 tries in a village). Only rocks: people
+   * walk under the tags all the time, and the tag would stop answering.
+   */
+  thingUnderTag(clientX: number, clientY: number): Entity | null {
+    if (this.hand.held || this.controls.mode !== 'none') return null;
+    this.refreshCursor(clientX, clientY);
+    const h = this.hand.hover;
+    if (!h || !this.hoverOn || h.kind !== 'rock') return null;
+    return this.inInfluence(h.pos.x, h.pos.z) ? h : null;
+  }
+
+  refreshCursor(clientX: number, clientY: number) {
+    const i = this.input;
+    const keep = { x: i.x, y: i.y, nx: i.nx, ny: i.ny };
+    const r = this.renderer.domElement.getBoundingClientRect();
+    i.x = clientX;
+    i.y = clientY;
+    i.nx = ((clientX - r.left) / r.width) * 2 - 1;
+    i.ny = -((clientY - r.top) / r.height) * 2 + 1;
+    this.updateCursor();
+    Object.assign(i, keep); // the pointer may have moved on since the press; the frame's own pick follows it as before
+  }
+
   private updateCursor() {
     const cam = this.godCam.camera;
     this.ndc.set(this.input.nx, this.input.ny);
@@ -881,6 +918,7 @@ export class Game {
 
     const prevHover = hand.hover;
     hand.hover = null;
+    this.hoverOn = false;
     this.hoverBuilding = null;
     if (!hand.valid || this.controls.mode !== 'none' || this.hud.helpOpen) return;
 
@@ -891,6 +929,7 @@ export class Game {
     const focal = h / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     let bestGrab: Entity | null = null;
     let bestGrabScore = 1;
+    let bestOn = false;
     let bestBuild: Entity | null = null;
     let bestBuildScore = 1;
     for (const e of this.entities) {
@@ -899,7 +938,9 @@ export class Game {
       if (!e.grabbable && !isBuilding) continue;
       if (e instanceof Villager && !e.object.visible) continue;
       // Aim at what you see from above: a tree's crown, not its trunk (2026-10-18: "difficult to grab things sometimes").
-      this.projV.set(e.pos.x, e.pos.y + (e.kind === 'tree' && !isBuilding ? Math.min(e.topHeight * 0.65, 7) : Math.min(e.topHeight * 0.5, 3)), e.pos.z);
+      // A rock's place is already its middle (it sits 0.55 of its radius above the ground), so it is aimed at there.
+      const aimUp = e.kind === 'tree' && !isBuilding ? Math.min(e.topHeight * 0.65, 7) : e.kind === 'rock' ? e.radius * 0.1 : Math.min(e.topHeight * 0.5, 3);
+      this.projV.set(e.pos.x, e.pos.y + aimUp, e.pos.z);
       const dist = cam.position.distanceTo(this.projV);
       this.projV.project(cam);
       if (this.projV.z > 1) continue;
@@ -922,14 +963,22 @@ export class Game {
         // Something outside your light can't be taken: at the edge of the light (the shore) it gives way to one
         // inside that is nearly as close, and is only picked when nothing takeable is near (it then says why).
         const out = this.inInfluence(e.pos.x, e.pos.z) ? 1 : 1.6;
-        const score = (d / reach) * pref * out * (e === prevHover ? 0.7 : 1) + dist * 0.0003;
+        // A rock the pointer is ON beats a thing it is only near (2026-11-17, Daryll: "you can't pick up all the
+        // rocks very well"): with the pointer on a rock you could see, a villager, a tree or another rock standing
+        // beside it still took the hand in 7 to 11% of tries in a village (scripts/test-every-rock.mjs). Rocks only:
+        // people and trees keep the reach they had, so nothing else is harder to take than before.
+        // "On" is within the rock's own drawn size, and never less than a fingertip (far away a rock is 10 px wide).
+        const on = e.kind === 'rock' && d <= Math.max(rPx, 14 * (h / 1080)) ? 0.35 : 1;
+        const score = (d / reach) * pref * out * on * (e === prevHover ? 0.7 : 1) + dist * 0.0003;
         if (score < bestGrabScore) {
           bestGrabScore = score;
           bestGrab = e;
+          bestOn = on < 1;
         }
       }
     }
     hand.hover = hand.held ? null : bestGrab;
+    this.hoverOn = !!hand.hover && bestOn;
     this.hoverBuilding = bestGrab ? null : bestBuild;
   }
 
@@ -967,6 +1016,7 @@ export class Game {
     this.creaturePanel.update(realDt);
     for (const p of this.plugins) p.frame?.(realDt);
     this.render();
+    for (const p of this.plugins) p.rendered?.();
   }
 
   /** Feed the audio engine the camera and what's around the view (sea, fires, rain). */

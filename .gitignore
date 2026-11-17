@@ -3,3 +3,5 @@ dist
 *.log
 # Blender auto-backups
 *.blend1
+# playtest marks (B on the dev server): Daryll's notes and frames stay local, like Signal Arena's
+shots/

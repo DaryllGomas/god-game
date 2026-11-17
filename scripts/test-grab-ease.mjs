@@ -46,7 +46,7 @@ for (let i = 0; i < 40; i++) {
   await p.mouse.move(cx - 30, cy - 20);
   await p.mouse.move(cx, cy, { steps: 6 });
   await p.waitForTimeout(250);
-  const pre = await p.evaluate(() => ({ hover: game.hand.hover?.kind ?? null, valid: game.hand.valid, blocked: game.hand.blocked, mode: game.controls.mode, held: game.hand.held?.kind ?? null, bld: game.hoverBuilding?.kind ?? null }));
+  const pre = await p.evaluate(() => ({ hoverInLight: game.hand.hover ? game.inInfluence(game.hand.hover.pos.x, game.hand.hover.pos.z) : null, hover: game.hand.hover?.kind ?? null, valid: game.hand.valid, blocked: game.hand.blocked, mode: game.controls.mode, held: game.hand.held?.kind ?? null, bld: game.hoverBuilding?.kind ?? null }));
   await p.mouse.click(cx, cy);
   await p.waitForTimeout(400);
   const held = await p.evaluate(() => game.hand.held?.kind ?? null);

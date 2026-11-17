@@ -75,6 +75,16 @@ Plug in a pad and touch a stick or button: a ring of light (your hand) appears a
 
 Not mapped: the Xbox/Guide button (it belongs to the system) and drawing marks (Ctrl-drag). Code: `src/input/Gamepad.ts`. Test without a pad: add `?padtest` to the URL and drive `window.__fakePad` (see `scripts/test-gamepad.mjs`).
 
+### Playtest notes (B, dev server only)
+
+The same note tool as Signal Arena's. It exists only on the dev server (`npm run dev`, http://localhost:5173); a built game has none of it, so nothing of it is on the public site.
+
+- **B** on the keyboard, or **both sticks pressed in together** on a controller, saves a mark at once: where the camera and the hand are, what the hand is on, the day, the villages, and the frame on screen.
+- A one-line note box opens. Type (or dictate) and press **Enter** to save the note. Enter on an empty box skips it; **Esc** skips too. On a controller, **A**, **B** or **Start** closes the box (the mark is already saved). Nothing typed there reaches the game, and the controller is quiet until the box closes. The Xbox button is never read.
+- Marks go to `shots/marks/<date>/<n>.json` and `<n>.png` in this folder (not in git). The picture is the 3D view only: the HUD is page elements and is not in it.
+- Read them: `node scripts/marks.mjs` (every day) or `node scripts/marks.mjs 2026-11-17`. It lists each mark and writes a contact sheet, `shots/marks/<date>/contact.png`.
+- Code: `src/dev/PlaytestNote.ts`, `src/plugins/playtest-note.ts`, the endpoint in `vite.config.ts`. Test: `scripts/test-playtest-note.mjs` (its header has the command).
+
 Your hand only works inside the golden ring of influence around villages that worship you. You can still **throw** things beyond it, and that's how you reach unconverted villages.
 
 ## How the game works

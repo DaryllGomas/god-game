@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Game } from '../Game';
-import type { Input } from './Input';
+import { WORLD_TAGS, type Input } from './Input';
 import { Golem } from '../creature/Golem';
 import './gamepad.css';
 
@@ -185,6 +185,13 @@ export class GamepadInput {
     return { pad: best, axes: Array.from(best.axes).map((a, i) => (info.live[i] ? a : 0)) };
   }
 
+  /**
+   * The pad is being used for something else (the dev playtest note's box, src/dev/PlaytestNote.ts): nothing it does
+   * reaches the game, and buttons held when it comes back are not taken as fresh presses.
+   */
+  quiet = false;
+  private settling = false;
+
   update(dt: number, realTime: number) {
     const { pad, axes } = this.read();
     if (!pad) {
@@ -194,6 +201,14 @@ export class GamepadInput {
     this.flag();
     const st: PadState = { axes, buttons: [] };
     for (let i = 0; i < 16; i++) st.buttons[i] = !!pad.buttons[i]?.pressed; // button 16 (Guide) is never read
+    if (this.quiet || (this.settling && st.buttons.some(Boolean))) {
+      // ...and it stays quiet until every button is let go, so neither the press that closed the box nor its release
+      // is read as a grab, a set-down or a call to the golem.
+      this.settling = true;
+      this.prev = st.buttons.map(() => false);
+      return;
+    }
+    this.settling = false;
     const edge = (i: number) => st.buttons[i] && !this.prev[i];
     const up = (i: number) => !st.buttons[i] && this.prev[i];
     const anyEdge = st.buttons.some((b, i) => b && !this.prev[i]);
@@ -325,8 +340,9 @@ export class GamepadInput {
     const input = this.input;
     this.aSinceGrab = now;
     // Over a HUD control (a button, a village row, the worship slider): press it.
+    // (Not a floating tag with a rock right under the hand: A takes the rock, as the mouse does.)
     const ui = this.uiUnderHand();
-    if (ui) {
+    if (ui && !(ui.closest(WORLD_TAGS) && g.thingUnderTag(this.px, this.py))) {
       this.pressElement(ui);
       this.aMode = 'tap';
       return;

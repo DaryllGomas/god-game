@@ -4,6 +4,20 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+### Fixed (v0.12.4, 2026-11-17; Daryll: "the first world, you can't pick up all the rocks very well")
+- **A rock under the pointer is the rock you take.** Measured on every rock on the island: nine places on the part of each rock you can see, seven camera views, three screen shapes, mouse and controller (`scripts/test-every-rock.mjs`). Rocks lying out in the wild were already fine (99.9% of 3,235 tries; now 100% of 3,536). The misses were in a village, where you carry rocks to build:
+  - **A person standing beside the rock took the hand instead** (people are favoured so they are easy to catch). A rock the pointer is on now beats anything it is only near. People and trees keep the reach they had (`src/Game.ts`).
+  - **The tag floating over a building site, and the prayer marks, covered the rock under them**, so the hand never got there. The hand now follows the pointer under those tags, and a press right on a rock takes the rock. A tag with no rock under it still does what it did (`src/input/Input.ts`, `Gamepad.ts`).
+  - A press now takes what is under the pointer where it was pressed, not where the pointer was a frame before (2 of 204 quick clicks missed that way).
+  - In a village (rocks set beside the storehouse, the prayer place, houses, fields, a building site and people), pointing at the rock: 549 of 612 (89.7%) before, 1,956 of 1,968 (99.4%) after over three screen shapes; the 12 left are two rocks touching, where you get the other rock.
+  - Real presses in that village, the same test on the live build and on this one: mouse 129 of 141 (91%) before, 130 of 131 after; rocks under a tag 0 of 7 before, 5 of 5 after. Controller 106 of 119 (89%) before, 110 of 118 (93%) after; what is left is the stick stopping a few pixels off a rock 10 to 20 px wide.
+  - `scripts/test-rock-under-tag.mjs` puts a rock right under a dream's tag and takes it by mouse and by controller, and checks the tag still flies you to the site when no rock is there. `scripts/test-grab-ease.mjs`, `test-gamepad.mjs` and `test-chorded-mouse.mjs` read the same as on the live build.
+  - Still so: a person or a tree under one of those tags is not taken through it (only rocks are; people walk under the tags all the time).
+- **Not changed, by design:** the hand only works inside your light. At the start that is 5 to 7 of the island's 62 to 64 rocks; the others answer "That is outside your area of influence." until your light grows.
+
+### Added (a playtest note key, dev server only, 2026-11-17; Daryll: "add into both games the same tool that lets us make in-game feedback that the grapple game has")
+- **B leaves a note.** On the dev server (`npm run dev`), B on the keyboard, or both sticks pressed in on a controller, saves where the camera and the hand are, what the game was doing and the frame on screen to `shots/marks/<date>/`, then opens a one-line note box (Enter saves the note, an empty Enter or Esc skips; on a controller A, B or Start closes it). `node scripts/marks.mjs` lists them and makes a contact sheet. It is the same tool as Signal Arena's. None of it is in a built game (`src/dev/PlaytestNote.ts`, `src/plugins/playtest-note.ts`, `vite.config.ts`; `scripts/test-playtest-note.mjs`). README: "Playtest notes".
+
 ### Fixed (v0.12.3, 2026-10-23; full play-test on the render box)
 - **Continue to Beyond the Nexus shows on the opening screen.** After the true end, the Continue button was only there once you closed the ? screen and opened it again; on a fresh load of the page (the title screen) it stayed hidden. Its visibility is now decided when the screen is built, not only when it is toggled (`src/ui/HUD.ts`). Found by `atlas-hd2d/tools/playtest-atlas.mjs` (case 3).
 
