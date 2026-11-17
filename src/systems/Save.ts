@@ -165,7 +165,7 @@ export function serialize(game: Game): SaveData {
       if (e.isFelling || !dry(e.pos.x, e.pos.z)) continue;
       trees.push([e.seed, r2(e.pos.x), r2(e.pos.z), r2(e.growth), r2(e.chopped), e.charred ? 1 : 0]);
     } else if (e instanceof Rock) {
-      if (!dry(e.pos.x, e.pos.z)) continue;
+      if (!dry(e.pos.x, e.pos.z) || e.stillScenery) continue; // (an untouched scattered rock is scenery again on the next load)
       rocks.push([e.seed, r2(e.pos.x), r2(e.pos.z), r2(e.radius)]);
     } else if (e instanceof Pile) {
       if (e.amount < 0.5 || !dry(e.pos.x, e.pos.z)) continue;

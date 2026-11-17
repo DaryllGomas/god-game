@@ -28,7 +28,7 @@ const MAX_TREE_H = 54;
 const MIN_TREE_NY = 0.6; // steeper than this stays bare rock
 
 const LEAF_TINTS = TREE_TINTS;
-const ROCK_TINTS = [new THREE.Color(1, 1, 1), new THREE.Color(0.88, 0.8, 0.7), new THREE.Color(0.7, 0.8, 0.62), new THREE.Color(0.66, 0.63, 0.62)];
+export const ROCK_TINTS = [new THREE.Color(1, 1, 1), new THREE.Color(0.88, 0.8, 0.7), new THREE.Color(0.7, 0.8, 0.62), new THREE.Color(0.66, 0.63, 0.62)];
 const WHITE = [new THREE.Color(1, 1, 1)];
 
 /** A shrub: two or three low jittered blobs. */

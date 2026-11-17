@@ -3,7 +3,8 @@ import { VILLAGE_SITES } from '../config';
 import { LAND_RES, setLandMask } from '../land/groundLook';
 import { CH_FLOOR, CH_PATH, CH_WORN, LandPainter } from '../land/LandMask';
 import { findRoad, type Path } from '../land/Roads';
-import { buildFlora } from '../land/Flora';
+import { ROCK_TINTS, buildFlora } from '../land/Flora';
+import { LooseRocks } from '../land/LooseRocks';
 import { VillageDecor } from '../land/VillageDecor';
 import type { Village } from '../village/Village';
 
@@ -182,8 +183,10 @@ export function install(game: Game): GamePlugin {
         let w = 0;
         for (let i = 0; i < items.length; i++) {
           const it = items[i];
-          if (drop(it.x, it.z)) n++;
-          else items[w++] = it;
+          if (drop(it.x, it.z)) {
+            n++;
+            (it as typeof it & { gone?: boolean }).gone = true; // (a scattered rock cleared here can no longer wake: land/LooseRocks.ts)
+          } else items[w++] = it;
         }
         if (w !== items.length) {
           items.length = w;
@@ -194,8 +197,19 @@ export function install(game: Game): GamePlugin {
     },
   };
 
+  // Every scattered rock can be picked up: one near the hand becomes a real boulder, looking exactly as it did.
+  const loose = new LooseRocks(
+    game,
+    flora.sets.filter((s) => s.kind === 'rock').map((s, i) => ({ set: s.set, geo: i })),
+    ROCK_TINTS,
+  );
+  game.wakeRocks = (x, z, r) => loose.wake(x, z, r);
+  (game as unknown as { looseRocks: LooseRocks }).looseRocks = loose;
+
   return {
     name: 'land',
+    save: () => loose.save(),
+    load: (data) => loose.load(data),
     frame(realDt) {
       decor.frame(realDt, game.godCam.distance);
       timer -= realDt;

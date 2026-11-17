@@ -94,6 +94,8 @@ export class Game {
   paused = false;
   selectedVillage: Village | null = null;
   hoverBuilding: Entity | null = null;
+  /** Set by the land plugin: turn the scattered rocks within r metres of a point into real boulders. */
+  wakeRocks: ((x: number, z: number, r: number) => number) | null = null;
   private won = false;
 
   private readonly raycaster = new THREE.Raycaster();
@@ -927,6 +929,9 @@ export class Game {
     const sx = this.input.x;
     const sy = this.input.y;
     const focal = h / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+    // The scattered rocks round the pointer become real boulders before the pick (land/LooseRocks.ts): every rock you
+    // can see is one you can take.
+    if (!hand.held) this.wakeRocks?.(hand.ground.x, hand.ground.z, Math.max(4, ((130 * (h / 1080)) / focal) * cam.position.distanceTo(hand.ground)));
     let bestGrab: Entity | null = null;
     let bestGrabScore = 1;
     let bestOn = false;

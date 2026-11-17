@@ -4,7 +4,13 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
-### Fixed (v0.12.4, 2026-11-17; Daryll: "the first world, you can't pick up all the rocks very well")
+### Fixed (v0.12.4, 2026-11-17; Daryll: "almost any rock is unable to be picked up. I have to move the hand all over randomly and I get lucky if I pick up a rock")
+- **Every rock you can see is a rock you can pick up.** This was the real fault. The island draws about 970 scattered rocks (since the v0.6 land update) with the same shape and stone as the 64 real boulders, and they were scenery: the hand passed through them. Looking over the first village, 45 rocks were on screen inside your light and 2 could be taken. Now a scattered rock near the hand becomes a real boulder where it lies, same size, turn and tint, so nothing is seen to change, and it is grabbed, thrown and built with like any other (`src/land/LooseRocks.ts`, `src/entities/Nature.ts`, `src/Game.ts`).
+  - Measured (`scripts/test-any-rock.mjs`: story mode, three views over the home village, every rock on screen inside your light clicked once): **7 of 142 (5%) on the live build, 117 of 119 (98%) now.**
+  - A rock you took, threw or moved is saved as a real boulder and its scattered twin stays gone. One the hand only passed over is scenery again on the next load. Old islands load as they were.
+  - The three earlier rounds on this (10-18, 10-20, and the one below) only ever tested the 64 real boulders, which is why they kept passing.
+
+### Also fixed (v0.12.4, 2026-11-17; found while testing the real boulders)
 - **A rock under the pointer is the rock you take.** Measured on every rock on the island: nine places on the part of each rock you can see, seven camera views, three screen shapes, mouse and controller (`scripts/test-every-rock.mjs`). Rocks lying out in the wild were already fine (99.9% of 3,235 tries; now 100% of 3,536). The misses were in a village, where you carry rocks to build:
   - **A person standing beside the rock took the hand instead** (people are favoured so they are easy to catch). A rock the pointer is on now beats anything it is only near. People and trees keep the reach they had (`src/Game.ts`).
   - **The tag floating over a building site, and the prayer marks, covered the rock under them**, so the hand never got there. The hand now follows the pointer under those tags, and a press right on a rock takes the rock. A tag with no rock under it still does what it did (`src/input/Input.ts`, `Gamepad.ts`).

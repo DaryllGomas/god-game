@@ -219,23 +219,52 @@ export class Tree extends Entity {
 
 // ---------------------------------------------------------------------- rock
 
+/** The look of a scattered rock that became a real one (land/LooseRocks.ts): its own shape, turn and stretch. */
+export interface RockLook {
+  geo: THREE.BufferGeometry;
+  yaw: number;
+  sx: number;
+  sy: number;
+  sz: number;
+}
+
 export class Rock extends Entity {
   readonly kind = 'rock' as const;
   readonly seed: number;
   private readonly mesh: THREE.Mesh;
+  /** Set when this rock was one of the island's scattered rocks (its key there). */
+  loose: string | null = null;
+  /** Where a scattered rock lay when it woke. */
+  readonly home = new THREE.Vector3();
+  private touched = false;
 
-  constructor(seed: number, x: number, z: number, radius: number) {
+  constructor(seed: number, x: number, z: number, radius: number, look?: RockLook) {
     super();
     this.seed = seed;
     this.radius = radius;
     this.mass = radius * radius * radius;
-    this.groundOffset = radius * 0.55;
+    this.groundOffset = (look ? look.sy : radius) * 0.55;
     this.grabbable = true;
     this.canRoll = true;
-    this.mesh = ownedMesh(rockGeometry(seed, radius), MAT.base);
-    this.mesh.rotation.y = seed;
+    if (look) {
+      this.mesh = sharedMesh(look.geo, MAT.base);
+      this.mesh.rotation.y = look.yaw;
+      this.mesh.scale.set(look.sx, look.sy, look.sz);
+    } else {
+      this.mesh = ownedMesh(rockGeometry(seed, radius), MAT.base);
+      this.mesh.rotation.y = seed;
+    }
     this.object.add(this.mesh);
     this.pos.set(x, 0, z);
+  }
+
+  onPickup() {
+    this.touched = true;
+  }
+
+  /** A scattered rock that woke under the hand but was never taken or moved: still scenery, so it is not saved. */
+  get stillScenery(): boolean {
+    return !!this.loose && this.alive && !this.touched && !this.held && this.pos.distanceToSquared(this.home) < 0.25;
   }
 
   get topHeight() {
