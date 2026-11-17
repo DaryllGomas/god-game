@@ -102,6 +102,11 @@ export function castMiracle(game: Game, id: MiracleId, x: number, z: number, vel
         }
         game.fx.sparkle(x, y + 2, z, 50, 0xffe28a, 6);
         game.impress(x, z, 25, 0.02, 'A gift of food');
+        // Cast inside a village but not on its storehouse: the people carry it in, and it still answers their hunger.
+        // It used to leave the prayer open (345 power spent, the store filled, the prayer expired: 2026-11-17). Half
+        // the worth of one landed on the store, as for food set down by hand away from it.
+        const fed = game.villages.find((o) => o.contains(x, z, 1.3));
+        if (fed) game.events.emit('gift', { village: fed, kind: 'food', amount: 55 });
       }
       game.player.shiftAlignment(0.03);
       break;

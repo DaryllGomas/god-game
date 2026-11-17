@@ -118,6 +118,8 @@ export class Prayers {
   private listener: PrayerListener | null = null;
   private lastSpawn = -999;
   private firstDone = false;
+  /** When rain last fell on each village (a fire prayer is answered by rain, not by the fire dying on its own). */
+  private readonly rainedAt = new Map<Village, number>();
   private tick = 0;
   private readonly tmp = new THREE.Vector3();
   /** Villages whose rain (from a cast that already answered a prayer there) answers nothing more, until this game time. */
@@ -140,6 +142,7 @@ export class Prayers {
     // One miracle answers ONE prayer (2026-10-14): a Water cast over a village answers its rain prayer if it has one,
     // else its call for a sign; Food on a storehouse answers the hunger (through the gift), else a sign.
     ev.on('rainedOn', ({ village }) => {
+      this.rainedAt.set(village, this.game.time);
       if ((this.rainSpent.get(village) ?? -1) > this.game.time) return;
       this.answerFirst('rain', village);
     });
@@ -157,8 +160,8 @@ export class Prayers {
         }
         return;
       }
-      // Food: landing on the storehouse feeds a hunger prayer (the gift answers it); then it is no sign as well.
-      if (this.game.storeNear(x, z, 10)?.village === v && mine.some((p) => p.kind === 'food')) return;
+      // Food: cast in a village with a hunger prayer, it feeds that prayer (the gift answers it); then it is no sign as well.
+      if (mine.some((p) => p.kind === 'food')) return;
       const sign = mine.find((p) => p.kind === 'sign');
       if (sign) this.fulfil(sign);
     });
@@ -262,7 +265,8 @@ export class Prayers {
     for (const p of [...this.active]) {
       if (p.kind !== 'fire' || !p.house) continue;
       if (p.house.destroyed || !p.house.alive) this.drop(p);
-      else if (!p.house.burning) this.fulfil(p);
+      // Put out by your rain: answered. Burnt out on its own: the prayer just ends (it used to pay as if answered).
+      else if (!p.house.burning) (g.time - (this.rainedAt.get(p.village) ?? -1e9) < 45 ? this.fulfil(p) : this.drop(p));
     }
 
     // Expiry (gentle: no penalty, the bubble just fades).
@@ -382,7 +386,9 @@ export class Prayers {
       g.terrain.isLand(x, z, 2) &&
       g.terrain.heightAt(x, z) > SEA_LEVEL + 1.5 &&
       g.terrain.normalAt(x, z, this.tmp).y > 0.82 &&
-      !g.villages.some((o) => o.contains(x, z, 1.3));
+      !g.villages.some((o) => o.contains(x, z, 1.3)) &&
+      // ...and inside your light: 10 of 40 children waited where the hand answers "outside your area of influence" (2026-11-17)
+      g.inInfluence(x, z);
     const trees = g.entities.filter((e) => e.kind === 'tree' && e.alive && ((e as unknown as { growth?: number }).growth ?? 1) > 0.5);
     for (let i = 0; i < 160 && trees.length; i++) {
       const t = trees[Math.floor(Math.random() * trees.length)];

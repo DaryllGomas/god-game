@@ -132,8 +132,9 @@ export class Whispers extends Scheme {
   onGift(v: Village) {
     if (v === this.village) this.add(REPEL.gift);
   }
-  onMiracle(_id: string, x: number, z: number) {
-    if (this.village.contains(x, z, 1.5)) this.add(REPEL.miracle);
+  onMiracle(id: string, x: number, z: number) {
+    // (a kind miracle: setting the village on fire used to count as driving the whispers off)
+    if (id !== 'fire' && this.village.contains(x, z, 1.5)) this.add(REPEL.miracle);
   }
   onPrayerAnswered(v: Village) {
     if (v === this.village) this.add(REPEL.prayer);

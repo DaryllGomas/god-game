@@ -18,6 +18,24 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 - **The cliff tops along the shore take snow.** They stayed summer green while the rest of the island was white (`src/coast/cliffMaterial.ts`).
 - **Boulders carry the same snow as the trees.** They kept one small white facet and read as black holes in the snow (`src/seasons/snowRoofs.ts`).
 
+### Fixed (v0.12.4, an objective playtest on the render box, 2026-11-17; Daryll: "look for what is pain points and is not working correctly")
+Five testers played the build with real input: a new player, a controller on the TV, the game's systems, the screen at five shapes, and a long session. What was plainly broken is fixed here; the pain points that are design calls are listed for Daryll, not changed.
+- **Touching the worship slider no longer kills the keys.** With the slider focused, Esc, P, Space, the speed keys and the miracle keys all did nothing until the village panel was closed (`src/input/Input.ts`).
+- **The golem panel folds instead of covering other panels.** It sat on the village panel and its worship slider on any screen under about 950 px tall, and on the dream and prayers panels at 1080. It folds to its header, thought, needs and buttons when the column is full, and a click on its header folds or opens it by hand (`src/ui/CreaturePanel.ts`).
+- **A Food miracle cast in a village but off its storehouse answers the hunger prayer.** It used to cost about 345 power, fill the store and leave the prayer open (`src/miracles/Miracles.ts`, `src/prayers/Prayers.ts`).
+- **A lost child waits inside your light.** One in four waited where the hand answers "outside your area of influence" (`src/prayers/Prayers.ts`).
+- **A fire that burns itself out is not an answered prayer.** It used to pay as if you had put it out.
+- **Fire in a village no longer drives off Vexahl's whispers.** Only Water and Food do (`src/rival/Schemes.ts`).
+- **The very first prayer is answered by one tree**, as Ora says ("Lift a tree"). It asked for 25 wood and the first tree left it at 23 with nothing said.
+- **Advisor cards stay clear of the clock bar at 1920 wide** (they cut "SPRING Day 2" to "SPRING").
+- **Banners:** a soft dark backing so pale gold reads over a bright sky; a village's name, tags and prayer marks step aside while a banner is over them ("ASHFORD: WE ASHFORD OMPLETE!"); never behind Vexahl's card on a short screen.
+- **"Saved" has its own strip under the messages** (it printed over the newest one).
+- **The sound and music switches are remembered** between visits.
+- **The controls list** names W A S D and the arrows, the speed keys, K and Shift+K, and the advisors button.
+- **Smaller:** the title screen sits over the golem panel; the three 10 px labels are 11 to 12 px; K and Shift+K each show their message; messages are more opaque (they read grey on snow).
+- README brought in line with the game: seasons are 5 days; ignored prayers dip the balance a little; Vexahl does not retreat (that rule belonged to the retired Wonder); the golem follows on a leash; the title buttons' names.
+- `scripts/test-hud-fixes.mjs` checks these at 1280x720, 1366x768, 1600x900 and 1920x1080.
+
 ### Fixed (v0.12.4, the HUD, 2026-11-17; found by the play-bot's screenshots)
 - **Village names, dream tags and prayer bubbles no longer draw over the HUD panels.** With a village under the top-left corner, its name and tags sat on top of the Prayer Power and Villages panels and garbled them. They now pass under the panels (`.label-layer`, `.pj-layer`, `.prayer-layer`).
 
