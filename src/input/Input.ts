@@ -79,6 +79,7 @@ export class Input {
         e.stopPropagation();
         this.throughTag = this.swallowClick = true;
         this.moveTo(e.clientX, e.clientY);
+        this.mouse.add(0); // held, as far as the canvas is concerned: a move onto the canvas must not press it again
         this.buttons.add(0);
         this.queue.push({ type: 'down', button: 0, x: e.clientX, y: e.clientY });
       },
@@ -89,6 +90,8 @@ export class Input {
       (e) => {
         if (!this.throughTag || e.button !== 0) return;
         this.throughTag = false;
+        if (!this.mouse.has(0)) return; // the canvas already saw it let go
+        this.mouse.delete(0);
         this.buttons.delete(0);
         this.queue.push({ type: 'up', button: 0, x: e.clientX, y: e.clientY });
       },

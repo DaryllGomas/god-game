@@ -63,6 +63,18 @@ for (const distance of [90, 160, 260]) {
   check(await held(), `distance ${distance}: mouse press on the rock under the tag takes the rock`);
   check(Math.abs((await p.evaluate(() => game.godCam.distance)) - s.d0) < 5, `distance ${distance}: and the tag was not clicked (the camera stayed)`);
   await putBack(); await p.waitForTimeout(700);
+  // press on the rock under the tag, slide 15 px off the tag onto the land with the button still down, let go
+  s = await setup(distance);
+  const cam0 = await p.evaluate(() => [game.godCam.target.x, game.godCam.target.z]);
+  await p.mouse.move(s.sx - 40, s.sy + 30); await p.mouse.move(s.sx, s.sy, { steps: 4 }); await p.waitForTimeout(250);
+  await p.mouse.down(); await p.waitForTimeout(60);
+  const off = await p.evaluate(([x, y]) => { for (const [dx, dy] of [[0, 26], [0, -26], [0, 40], [0, -40]]) if (!document.elementFromPoint(x + dx, y + dy)?.closest('.pj-chip')) return [dx, dy]; return [0, 60]; }, [s.sx, s.sy]);
+  await p.mouse.move(s.sx + off[0] / 2, s.sy + off[1] / 2); await p.mouse.move(s.sx + off[0], s.sy + off[1], { steps: 3 }); await p.waitForTimeout(120);
+  await p.mouse.up(); await p.waitForTimeout(500);
+  const cam1 = await p.evaluate(() => [game.godCam.target.x, game.godCam.target.z]);
+  check(await held(), `distance ${distance}: press on the rock under the tag, slide off the tag, let go: the rock is still in the hand`);
+  check(Math.hypot(cam1[0] - cam0[0], cam1[1] - cam0[1]) < 0.5 && (await p.evaluate(() => game.controls.mode)) === 'none', `distance ${distance}: and the land was not dragged`);
+  await putBack(); await p.waitForTimeout(700);
   s = await setup(distance);
   await padMove(s.sx, s.sy);
   await setPad({ btn: { 0: 1 } }); await p.waitForTimeout(120); await setPad({ btn: { 0: 0 } }); await p.waitForTimeout(500);
@@ -86,6 +98,9 @@ for (const how of ['mouse', 'controller']) {
   check(Math.abs(d - 70) < 25, `${how}: a press on the tag with no rock under it still flies to the site (camera 300 -> ${Math.round(d)})`);
   await putBack(); await p.mouse.move(60, 840); await p.waitForTimeout(300);
 }
+// how long a save holds the frame (a press made during it is handled when it ends)
+const saveMs = await p.evaluate(() => { const t = []; for (let i = 0; i < 5; i++) { const t0 = performance.now(); game.saves.save(); t.push(Math.round(performance.now() - t0)); } return t; });
+console.log('game.saves.save() took, ms:', saveMs.join(', ')); log.push('save ms: ' + saveMs.join(', '));
 check(errors.length === 0, `no page errors (${errors.slice(0, 2).join(' | ')})`);
 log.push(fails ? `${fails} FAILED` : 'ALL PASSED'); console.log(log[log.length - 1]);
 await fs.writeFile(`${OUT}/report.txt`, log.join('\n') + '\n');
