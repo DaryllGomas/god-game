@@ -480,6 +480,7 @@ canvas {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  z-index: -1; /* under the HUD panels: names, tags and bubbles over the world slid on top of the panels and garbled them (2026-11-17) */
 }
 
 .v-label {

@@ -18,6 +18,9 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 - **The cliff tops along the shore take snow.** They stayed summer green while the rest of the island was white (`src/coast/cliffMaterial.ts`).
 - **Boulders carry the same snow as the trees.** They kept one small white facet and read as black holes in the snow (`src/seasons/snowRoofs.ts`).
 
+### Fixed (v0.12.4, the HUD, 2026-11-17; found by the play-bot's screenshots)
+- **Village names, dream tags and prayer bubbles no longer draw over the HUD panels.** With a village under the top-left corner, its name and tags sat on top of the Prayer Power and Villages panels and garbled them. They now pass under the panels (`.label-layer`, `.pj-layer`, `.prayer-layer`).
+
 ### Also fixed (v0.12.4, 2026-11-17; found while testing the real boulders)
 - **A rock under the pointer is the rock you take.** Measured on every rock on the island: nine places on the part of each rock you can see, seven camera views, three screen shapes, mouse and controller (`scripts/test-every-rock.mjs`). Rocks lying out in the wild were already fine (99.9% of 3,235 tries; now 100% of 3,536). The misses were in a village, where you carry rocks to build:
   - **A person standing beside the rock took the hand instead** (people are favoured so they are easy to catch). A rock the pointer is on now beats anything it is only near. People and trees keep the reach they had (`src/Game.ts`).
