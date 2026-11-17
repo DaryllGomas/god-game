@@ -498,6 +498,8 @@ export class Field extends Entity {
   private soil: THREE.Mesh;
   private mesh: FieldMesh | null = null;
   private cropScale = 0.2;
+  /** The crop height last written into the mesh (see refresh). */
+  private drawnScale = -1;
   private landVersion = -1;
   private readonly cropMat: THREE.MeshStandardMaterial;
   scorched = 0;
@@ -566,7 +568,13 @@ export class Field extends Entity {
   private refresh() {
     const g = this.scorched > 0 ? 0.15 : this.growth;
     this.cropScale = 0.15 + g * 0.95;
-    if (this.mesh) setCropHeight(this.mesh, this.cropScale);
+    // Only when the crop has visibly grown or shrunk (1 cm): this ran for every growing field on every simulation
+    // step, four times a frame at 4x, and was the largest single cost in a long session (15 to 23% of all CPU time,
+    // 2026-11-17 soak on the render box).
+    if (this.mesh && Math.abs(this.cropScale - this.drawnScale) >= 0.01) {
+      this.drawnScale = this.cropScale;
+      setCropHeight(this.mesh, this.cropScale);
+    }
     this.cropMat.color.copy(CROP_YOUNG).lerp(CROP_RIPE, this.growth);
     if (this.scorched > 0) this.cropMat.color.setRGB(0.12, 0.1, 0.08);
   }

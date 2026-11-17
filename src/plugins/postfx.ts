@@ -6,6 +6,8 @@ import { LOOK, dofStrength } from '../world/lookKit';
 const TIERS: FxQuality[] = ['high', 'medium', 'low'];
 const SLOW_MS = 22; // sustained average frame time (~45 fps) that triggers a quality drop
 const SLOW_FRAMES = 120;
+const SMOOTH_MS = 18.5; // a window this quick (a steady 60 a second or better) counts as smooth
+const SMOOTH_WINDOWS = 10; // ...and this many smooth windows in a row (about 20 s) let a lowered tier climb back
 
 /**
  * Post-processing: soft AO, gentle bloom, warm grade + vignette, tone mapping.
@@ -27,6 +29,10 @@ export function install(game: Game): GamePlugin {
   let last = performance.now();
   let slowTime = 0;
   let slowCount = 0;
+  let lowered = 0; // tiers the game lowered by itself (not the player's Shift+K)
+  let smooth = 0; // smooth windows in a row
+  let raisedAt = -1e9;
+  let holdUntil = 0;
 
   const apply = () => {
     game.renderOverride = on ? () => {
@@ -45,6 +51,7 @@ export function install(game: Game): GamePlugin {
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (e.shiftKey) {
       fx.setQuality(TIERS[(TIERS.indexOf(fx.quality) + 1) % TIERS.length]);
+      lowered = 0; // the player's own choice stands: nothing to climb back to
       on = true;
       game.message(`Visual effects quality: ${fx.quality}`, 'info', 'postfx-quality');
     } else {
@@ -61,7 +68,10 @@ export function install(game: Game): GamePlugin {
       const extra = (game as unknown as { aoIgnore?: THREE.Object3D[] }).aoIgnore;
       if (extra) for (const o of extra) if (!ignore.includes(o)) ignore.push(o);
 
-      // Auto fallback: if frames are consistently slow, drop a tier (never climbs back by itself).
+      // Auto fallback: if frames are consistently slow, drop a tier. It climbs back, one tier at a time, once the game
+      // has run smoothly for a while (it used to stay low for the rest of the session: one heavy minute early on and the
+      // picture stayed flat for good, 2026-11-17 soak). A tier that had to be lowered again soon after a climb is left
+      // alone for ten minutes, so it never flickers between two looks.
       const now = performance.now();
       const dt = now - last;
       last = now;
@@ -75,8 +85,19 @@ export function install(game: Game): GamePlugin {
         const i = TIERS.indexOf(fx.quality);
         if (avg > SLOW_MS && i < TIERS.length - 1) {
           fx.setQuality(TIERS[i + 1]);
+          lowered++;
+          smooth = 0;
+          if (now - raisedAt < 60000) holdUntil = now + 600000;
           console.info(`postfx: average frame ${avg.toFixed(1)} ms, quality lowered to ${fx.quality}`);
-        }
+        } else if (avg < SMOOTH_MS) {
+          if (++smooth >= SMOOTH_WINDOWS && lowered > 0 && i > 0 && now > holdUntil) {
+            fx.setQuality(TIERS[i - 1]);
+            lowered--;
+            smooth = 0;
+            raisedAt = now;
+            console.info(`postfx: running smoothly (${avg.toFixed(1)} ms), quality raised to ${fx.quality}`);
+          }
+        } else smooth = 0;
       }
     },
     resize(w, h) {

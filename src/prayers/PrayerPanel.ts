@@ -131,8 +131,14 @@ export class PrayerPanel {
       setRing(c.ring, ring);
       c.bar.style.width = `${(time * 100).toFixed(1)}%`;
     }
-    this.layout();
+    // (four times a second: measuring the neighbours forced a page layout on every frame, 4% of CPU time in the soak)
+    const now = performance.now();
+    if (now - this.laidOutAt > 250) {
+      this.laidOutAt = now;
+      this.layout();
+    }
   }
+  private laidOutAt = 0;
 
   /** Sit below the lowest right-hand panel above us, above the golem panel; scroll past MAX_ROWS or when short on room. */
   private layout() {

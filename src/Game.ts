@@ -457,10 +457,14 @@ export class Game {
 
   /** All the gold on the ground: your villages' light and the patches of the villages it touches. */
   lightShapes(): LightShape[] {
+    // Kept until the next simulation step or frame: `inInfluence` asks this for every thing under the hand every
+    // frame, and building the list anew each time made about 40 MB of garbage a second (2026-11-17 soak).
+    if (this.lightCache) return this.lightCache;
     const own = this.ownLight().map((l) => l.shape);
     const reached = this.villages.filter((v) => v.owner !== 'player' && this.touchedBy(own, v));
-    return [...own, ...reached.map((v) => this.neighbourGlow(v)), ...this.extraLight];
+    return (this.lightCache = [...own, ...reached.map((v) => this.neighbourGlow(v)), ...this.extraLight]);
   }
+  private lightCache: LightShape[] | null = null;
 
   /** More gold on the ground, beyond the villages' own (the last age: the Nexus's light at the heart of the island, src/nexus). */
   readonly extraLight: LightShape[] = [];
@@ -996,6 +1000,7 @@ export class Game {
     const now = performance.now();
     const realDt = Math.min(0.05, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
+    this.lightCache = null;
     this.realTime += realDt;
 
     this.controls.update(realDt, this.realTime);
@@ -1101,6 +1106,7 @@ export class Game {
   }
 
   private simulate(dt: number) {
+    this.lightCache = null;
     this.time += dt;
     this.dayTime += dt / DAY_LENGTH;
     if (this.dayTime >= 1) {

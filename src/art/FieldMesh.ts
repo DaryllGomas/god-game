@@ -99,6 +99,9 @@ export function buildFieldMesh(w: number, d: number, sample: (lx: number, lz: nu
     top[i] = p.getY(i) > 0.5 ? 1 : 0;
   }
   const out: FieldMesh = { soil: soilGeo, crops, ground, top };
+  // One bounding sphere, big enough for the tallest crop, worked out once (it was recomputed on every change).
+  setCropHeight(out, 1.1);
+  crops.computeBoundingSphere();
   setCropHeight(out, 0.2);
   return out;
 }
@@ -111,5 +114,4 @@ export function setCropHeight(f: FieldMesh, scale: number) {
     p.setY(i, f.top[i] ? g + SOIL_LIFT + scale : g - CROP_BURY);
   }
   p.needsUpdate = true;
-  f.crops.computeBoundingSphere();
 }
