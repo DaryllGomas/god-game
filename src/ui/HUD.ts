@@ -129,14 +129,18 @@ export class HUD {
       speeds.appendChild(b);
       this.speedBtns.push(b);
     }
-    const sound = el('button', 'speed-btn', '🔊');
+    game.audio.recall(); // the sound and music switches as they were left last time
+    const sound = el('button', 'speed-btn', game.audio.muted ? '🔇' : '🔊');
     sound.title = 'Sound on/off (M)';
     sound.onclick = () => this.toggleSound();
+    sound.classList.toggle('active', game.audio.muted);
     this.soundBtn = sound;
     speeds.appendChild(sound);
     const music = el('button', 'speed-btn', '♪');
     music.title = 'Music on/off (N)';
     music.onclick = () => this.toggleMusic();
+    music.classList.toggle('active', !game.audio.musicOn);
+    music.style.textDecoration = game.audio.musicOn ? '' : 'line-through';
     this.musicBtn = music;
     speeds.appendChild(music);
     const helpBtn = el('button', 'speed-btn help-btn', '?');
@@ -192,6 +196,9 @@ export class HUD {
           <div><b>Throw</b><span>Hold right button, flick the mouse, release</span></div>
           <div><b>Rotate / tilt</b><span>Right- or middle-drag (empty hand), Q/E, T/G</span></div>
           <div><b>Zoom</b><span>Mouse wheel, R/F. Double-click to fly somewhere</span></div>
+          <div><b>Move the view</b><span>W A S D or the arrow keys. Space goes home</span></div>
+          <div><b>Time</b><span>P pauses. [ and ] slow down and speed up</span></div>
+          <div><b>Sound and looks</b><span>M sound, N music, K effects (Shift+K for their quality), 💬 quiets the advisors</span></div>
           <div><b>Miracles</b><span>1 Water · 2 Food · 3 Fire, then throw or set down. Esc refunds</span></div>
           <div><b>Draw a mark</b><span>Hold Ctrl, left-drag: wave, spiral, zigzag, or a cradle with a sprout</span></div>
           <div><b>Village</b><span>Click a building to see it and set how many worship</span></div>
@@ -430,6 +437,13 @@ export class HUD {
     if (this.bannerTimer > 0) {
       this.bannerTimer -= dt;
       if (this.bannerTimer <= 0) this.banner.classList.remove('show');
+      // The tags and prayer marks floating over a village step aside too while the banner is over them.
+      const br = this.banner.getBoundingClientRect();
+      for (const t of this.root.querySelectorAll<HTMLElement>('.pj-chip, .pr-mark, .pr-bubble')) {
+        const r = t.getBoundingClientRect();
+        const under = this.bannerTimer > 0 && r.width > 0 && r.right > br.left - 8 && r.left < br.right + 8 && r.bottom > br.top - 8 && r.top < br.bottom + 8;
+        t.style.visibility = under ? 'hidden' : '';
+      }
     }
   }
 
@@ -515,6 +529,9 @@ export class HUD {
     // Pass 3: place them. A label hangs from its bottom centre. Keep its whole box on screen (a wide view puts villages
     // by the edge, and the layer clips what pokes out: "STONEMERE" read "ONEMERE"): nudge it in, or hide one that is
     // mostly out. It keeps following its village all the while.
+    // A banner in the middle of the screen is read first: a village's name under it steps aside until it has gone
+    // ("ASHFORD: WE ASHFORD OMPLETE!", 2026-11-17).
+    const br = this.bannerTimer > 0 ? this.banner.getBoundingClientRect() : null;
     for (const { label, x: sx, y: sy, scale } of shown) {
       const size = this.labelSize.get(label);
       let x = sx;
@@ -526,6 +543,11 @@ export class HUD {
         hide = Math.min(x + bw / 2, W) - Math.max(x - bw / 2, 0) < bw * 0.5 || Math.min(y, H) - Math.max(y - bh, 0) < bh * 0.5;
         x = Math.min(Math.max(x, bw / 2 + LABEL_EDGE), W - bw / 2 - LABEL_EDGE);
         y = Math.min(Math.max(y, bh + LABEL_EDGE), H - LABEL_EDGE);
+      }
+      if (br && size && br.width > 0) {
+        const bw = size.w * scale;
+        const bh = size.h * scale;
+        if (x + bw / 2 > br.left - 8 && x - bw / 2 < br.right + 8 && y > br.top - 8 && y - bh < br.bottom + 8) hide = true;
       }
       label.style.visibility = hide ? 'hidden' : '';
       label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%) scale(${scale})`;

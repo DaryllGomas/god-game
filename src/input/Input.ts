@@ -12,6 +12,13 @@ const BIT: Record<number, number> = { 0: 1, 1: 4, 2: 2, 3: 8, 4: 16 };
 export const WORLD_TAGS = '.pj-chip, .pr-bubble, .pr-mark';
 const onTag = (t: EventTarget | null): boolean => t instanceof Element && !!t.closest(WORLD_TAGS);
 
+/** Is this where the player is typing words (a text box), as opposed to a slider, a checkbox or a button? */
+function typing(t: EventTarget | null): boolean {
+  if (t instanceof HTMLTextAreaElement) return true;
+  if (t instanceof HTMLInputElement) return !['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file'].includes(t.type);
+  return t instanceof HTMLElement && t.isContentEditable;
+}
+
 /** Raw pointer/keyboard state for the canvas, plus an event queue drained once per frame. */
 export class Input {
   x = 0;
@@ -127,9 +134,17 @@ export class Input {
       e.target.blur();
     };
     window.addEventListener('keyup', spaceOnButton, true);
+    // A slider gives the keyboard back as soon as it is let go (it would otherwise also take the arrow keys).
+    const dropSlider = (e: Event) => {
+      if (e.target instanceof HTMLInputElement && e.target.type === 'range') e.target.blur();
+    };
+    window.addEventListener('change', dropSlider, true);
+    window.addEventListener('pointerup', dropSlider, true);
     window.addEventListener('keydown', (e) => {
       spaceOnButton(e);
-      if (e.target instanceof HTMLInputElement) return;
+      // Keys typed into a text box are the box's own. A slider is not a text box: with the worship slider focused,
+      // Esc, P, Space, the speed keys and the miracle keys all went dead until the panel was closed (2026-11-17).
+      if (typing(e.target)) return;
       if (!e.repeat) this.queue.push({ type: 'key', key: e.key, code: e.code });
       this.keys.add(e.code);
     });

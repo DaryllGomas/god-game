@@ -223,8 +223,29 @@ export class Audio {
     return g;
   }
 
+  /** The sound and music switches are remembered on this device (they came back on after every reload). */
+  private static readonly PREFS = 'godgame.sound.v1';
+  private remember() {
+    try {
+      localStorage.setItem(Audio.PREFS, JSON.stringify({ muted: this.muted, music: this.musicOn }));
+    } catch {
+      // no storage here: the switches simply start on next time
+    }
+  }
+  /** Read the remembered switches (call once, before the HUD draws its buttons). */
+  recall() {
+    try {
+      const p = JSON.parse(localStorage.getItem(Audio.PREFS) ?? 'null') as { muted?: unknown; music?: unknown } | null;
+      if (p && typeof p.muted === 'boolean') this.muted = p.muted;
+      if (p && typeof p.music === 'boolean') this.musicOn = p.music;
+    } catch {
+      // unreadable: keep the defaults
+    }
+  }
+
   setMuted(m: boolean) {
     this.muted = m;
+    this.remember();
     if (this.ctx) this.master.gain.setTargetAtTime(m || this.heldForFilm ? 0 : 0.85, this.ctx.currentTime, 0.05);
   }
 
@@ -236,6 +257,7 @@ export class Audio {
 
   setMusic(on: boolean) {
     this.musicOn = on;
+    this.remember();
     if (this.ctx) this.music.gain.setTargetAtTime(on ? 0.3 : 0, this.ctx.currentTime, 0.4);
   }
 

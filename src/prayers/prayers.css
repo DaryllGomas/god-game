@@ -349,7 +349,8 @@
     --talk-face: 58px;
   }
 }
-@media (min-width: 1800px) {
+/* (2200, not 1800: at 1920 the card's right end sat on the clock bar and cut "SPRING Day 2" to "SPRING", 2026-11-17.) */
+@media (min-width: 2200px) {
   :root {
     --talk-top: 14px;
   }

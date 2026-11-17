@@ -2,7 +2,7 @@
 .save-toast {
   position: absolute;
   left: 18px;
-  bottom: 14px;
+  bottom: 14px; /* its own strip under the messages (hud.css .messages starts above it) */
   padding: 4px 12px;
   font-family: var(--serif);
   font-size: 12px;

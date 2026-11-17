@@ -402,7 +402,7 @@ canvas {
   position: absolute;
   top: 2px;
   right: 6px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--muted);
   background: rgba(0, 0, 0, 0.5);
@@ -606,7 +606,7 @@ canvas {
 .messages {
   position: absolute;
   left: 14px;
-  bottom: 18px;
+  bottom: 46px; /* above the quiet "Saved" note, which printed over the newest message (2026-11-17) */
   width: 380px;
   display: flex;
   flex-direction: column-reverse;
@@ -614,7 +614,7 @@ canvas {
 }
 
 .msg {
-  background: rgba(14, 12, 20, 0.78);
+  background: rgba(14, 12, 20, 0.9); /* (0.78 read as grey on snow) */
   border-left: 3px solid var(--gold-dim);
   border-radius: 6px;
   padding: 7px 10px;
@@ -649,7 +649,8 @@ canvas {
 
 .banner {
   position: absolute;
-  top: 22%;
+  /* (never higher than just under a speech card: at 720 px tall it sat behind Vexahl's card, 2026-11-17) */
+  top: max(22%, 196px);
   left: 50%;
   transform: translate(-50%, -10px);
   text-align: center;
@@ -662,6 +663,15 @@ canvas {
 .banner.show {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+/* A soft dark breath behind the words, like Ora's line has: pale gold on a bright dusk sky was nearly invisible. */
+.banner::before {
+  content: '';
+  position: absolute;
+  inset: -22px -70px;
+  z-index: -1;
+  background: radial-gradient(ellipse at center, rgba(8, 6, 14, 0.5), rgba(8, 6, 14, 0) 70%);
+  pointer-events: none;
 }
 .b-main {
   font-family: var(--serif);
@@ -680,6 +690,7 @@ canvas {
 .overlay {
   position: absolute;
   inset: 0;
+  z-index: 5; /* over every plain panel (the golem panel was added later and sat bright on top of the dimmed title) */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -830,6 +841,31 @@ canvas {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  cursor: pointer;
+}
+.cp-fold {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+/* Folded (no room in the right-hand column, or by a click on the header): the thought, the needs and the two buttons stay. */
+.creature-panel.folded .cp-fold {
+  transform: rotate(-90deg);
+}
+.creature-panel.folded .cp-learned-title,
+.creature-panel.folded .cp-learned,
+.creature-panel.folded .cp-bond,
+.creature-panel.folded .cp-looks-title,
+.creature-panel.folded .cp-looks {
+  display: none;
+}
+.creature-panel.tiny .cp-needs,
+.creature-panel.tiny .cp-actions {
+  display: none;
+}
+.creature-panel.tiny .cp-thought {
+  margin-bottom: 0;
 }
 .cp-size {
   color: var(--muted);
@@ -973,7 +1009,7 @@ canvas {
 }
 .cp-looks-title {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 4px;

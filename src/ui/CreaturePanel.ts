@@ -20,7 +20,7 @@ export class CreaturePanel {
     const panel = document.createElement('div');
     panel.className = 'panel creature-panel';
     panel.innerHTML = `
-      <div class="cp-head"><span class="stat-label">Your golem</span><span class="cp-size"></span></div>
+      <div class="cp-head" title="Fold or unfold"><span class="stat-label">Your golem <span class="cp-fold">▾</span></span><span class="cp-size"></span></div>
       <div class="cp-thought"></div>
       <div class="cp-needs">
         <span>Hunger</span><div class="cp-bar"><div class="cp-fill hunger"></div></div>
@@ -35,6 +35,10 @@ export class CreaturePanel {
       <div class="cp-looks-title">Preview looks</div>
       <div class="cp-row cp-looks"></div>`;
     this.el = panel;
+    panel.querySelector<HTMLElement>('.cp-head')!.onclick = () => {
+      this.byHand = !panel.classList.contains('folded');
+      this.fit();
+    };
 
     const learned = panel.querySelector('.cp-learned')!;
     for (const key of LEARN_KEYS) {
@@ -93,6 +97,37 @@ export class CreaturePanel {
     this.lookButtons.forEach((b, i) => b.classList.toggle('active', values[i] === this.golem.previewAlignment));
   }
 
+  /** Folded or open by the player's own click on the header (null: the panel decides by the room it has). */
+  private byHand: boolean | null = null;
+  private fullHeight = 0;
+
+  /**
+   * The panel is tall (about 530 px) and always there. When the right-hand column has no room for it, it folds to its
+   * header, thought, needs and the two buttons, and opens again when there is room. It used to sit on top of the
+   * village panel and its worship slider on any screen under about 950 px tall, and on the dream and prayers panels
+   * at 1080 (2026-11-17). A click on the header folds or opens it by hand.
+   */
+  private fit() {
+    const el = this.el;
+    const root = el.parentElement;
+    if (!root) return;
+    if (!el.classList.contains('folded')) this.fullHeight = el.offsetHeight || this.fullHeight;
+    let top = 64;
+    for (const sel of ['.top-right', '.detail', '.pj-panel']) {
+      const e = root.querySelector<HTMLElement>(sel);
+      if (e && !e.classList.contains('hidden') && e.offsetParent) top = Math.max(top, e.getBoundingClientRect().bottom + 8);
+    }
+    // Room for the prayers panel too, when it has anything to show (its header and one card).
+    const prayers = root.querySelector<HTMLElement>('.pr-panel');
+    const wanted = prayers && !prayers.classList.contains('hidden') && prayers.offsetParent ? 150 : 0;
+    const room = window.innerHeight - 18 - top - wanted;
+    const fold = this.byHand ?? (this.fullHeight > 0 && room < this.fullHeight);
+    el.classList.toggle('folded', fold);
+    // Still no room (a 720 px screen with the village and dream panels both open): down to the header and the thought.
+    el.classList.remove('tiny');
+    if (fold) el.classList.toggle('tiny', window.innerHeight - 18 - el.offsetHeight < top - 1);
+  }
+
   update(dt: number) {
     this.timer -= dt;
     if (this.timer > 0) return;
@@ -105,6 +140,7 @@ export class CreaturePanel {
     q<HTMLDivElement>('.cp-fill.energy').style.width = `${g.energy * 100}%`;
     q<HTMLDivElement>('.cp-marker').style.left = `${(g.alignment * 0.5 + 0.5) * 100}%`;
     q<HTMLDivElement>('.cp-op-fill.bond').style.width = `${g.bond * 100}%`;
+    this.fit();
     const lesson = g.currentLesson(this.game);
     for (const [key, row] of this.rows) {
       const op = g.opinions[key];

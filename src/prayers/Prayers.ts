@@ -327,9 +327,11 @@ export class Prayers {
       villager = lost.villager;
       childName = lost.name;
     }
+    // The very first prayer is the lesson: Ora says "Lift a tree and set it down on their storehouse", so one tree must
+    // answer it (a tree gives 10 to 30 wood; at 25 the first tree left it at 23 of 25 with nothing said, 2026-11-17).
     const first = !this.firstDone && v.isHome && kind === 'timber';
     const now = g.time;
-    const need = kind === 'timber' ? (first ? 25 : rng.int(20, 40)) : kind === 'food' ? rng.int(20, 35) : 0;
+    const need = kind === 'timber' ? (first ? 10 : rng.int(20, 40)) : kind === 'food' ? rng.int(20, 35) : 0;
     const text = rng.pick(TEXT[kind]).replace('{name}', childName ?? '');
     const p: Prayer = {
       id: this.nextId++,

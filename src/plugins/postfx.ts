@@ -46,7 +46,7 @@ export function install(game: Game): GamePlugin {
     if (e.shiftKey) {
       fx.setQuality(TIERS[(TIERS.indexOf(fx.quality) + 1) % TIERS.length]);
       on = true;
-      game.message(`Visual effects quality: ${fx.quality}`, 'info', 'postfx');
+      game.message(`Visual effects quality: ${fx.quality}`, 'info', 'postfx-quality');
     } else {
       on = !on;
       game.message(`Visual effects ${on ? 'on' : 'off'} (K)`, 'info', 'postfx');
