@@ -36,6 +36,13 @@ Five testers played the build with real input: a new player, a controller on the
 - README brought in line with the game: seasons are 5 days; ignored prayers dip the balance a little; Vexahl does not retreat (that rule belonged to the retired Wonder); the golem follows on a leash; the title buttons' names.
 - `scripts/test-hud-fixes.mjs` checks these at 1280x720, 1366x768, 1600x900 and 1920x1080.
 
+### Faster (v0.12.4, from a 20-minute session at 4x on the render box, 2026-11-17)
+- **4x speed no longer swings between two frame rates.** Every growing field rebuilt its crop mesh on every simulation step, four times a frame at 4x; crops now redraw when they have grown a centimetre. Measured on the render box at 4x with fields growing: 23 to 46 frames a second at 2488x1498 and 26 to 56 at 1920x1080; one simulation step fell from about 6.5 ms to 0.3 ms (`src/entities/Buildings.ts`, `src/art/FieldMesh.ts`).
+- **Half the garbage.** The light's outline was rebuilt for every thing under the hand every frame; it is kept until the next step, and cleared at once when a village is won or lost or a prayer place rises. Throwaway memory fell from 39 to 71 MB a second to about 31 (`src/Game.ts`).
+- **Effects quality comes back.** When the game ran slowly it lowered the effects by itself and never raised them again, so a heavy first minute left the picture flat for the whole session. It now climbs back one step after about 20 smooth seconds; a choice made with Shift+K is left alone (`src/plugins/postfx.ts`).
+- The prayers panel measures its neighbours four times a second, not every frame.
+- The session itself was clean: no leak in memory, entities, page elements, geometries or sound over 20 minutes; three save-and-reload cycles came back exact; autosave takes 1.5 to 3 ms.
+
 ### Fixed (v0.12.4, the HUD, 2026-11-17; found by the play-bot's screenshots)
 - **Village names, dream tags and prayer bubbles no longer draw over the HUD panels.** With a village under the top-left corner, its name and tags sat on top of the Prayer Power and Villages panels and garbled them. They now pass under the panels (`.label-layer`, `.pj-layer`, `.prayer-layer`).
 
