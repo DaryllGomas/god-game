@@ -88,6 +88,7 @@ export class Shrines {
   raise(v: Village, stage: ShrineStage, instant = false): boolean {
     if (stageIndex(stage) <= stageIndex(v.shrineStage)) return false;
     v.shrineStage = stage;
+    this.game.lightChanged(); // the reach grows with the prayer place
     for (const s of stagesUpTo(stage)) if (!v.shrineStagesReached.includes(s)) v.shrineStagesReached.push(s);
     v.worship.setStage(stage, !instant);
     if (instant) return true;
@@ -128,6 +129,7 @@ export class Shrines {
       this.raise(v, stage);
     } else {
       v.shrineStage = stage;
+      this.game.lightChanged();
       v.shrineStagesReached.length = 0;
       v.shrineStagesReached.push(...stagesUpTo(stage));
       v.worship.setStage(stage, animate);

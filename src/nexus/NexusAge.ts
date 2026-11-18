@@ -255,6 +255,7 @@ export class NexusAge {
     v.obstacles.push({ pos: site.pos, radius: DAIS_R + 6 });
     g.extraLight.length = 0;
     g.extraLight.push(circle(x, z, LIGHT_R));
+    g.lightChanged();
     const vis = site.nexusVisual!;
     vis.onStoneRise = (i) => this.stoneRose(i + 1);
     this.site = site;

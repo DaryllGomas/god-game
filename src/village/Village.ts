@@ -573,6 +573,7 @@ export class Village {
 
   convert(game: Game) {
     this.owner = 'player';
+    game.lightChanged();
     this.joinedLast = -1;
     for (const h of this.houses) h.setBelieving(false, true);
     this.belief = 70;
@@ -584,6 +585,7 @@ export class Village {
     const toRival = this.rivalPressure > 0 && !this.isHome;
     this.owner = toRival ? 'rival' : null;
     this.belief = 0;
+    game.lightChanged();
     if (toRival) game.onVillageTurned(this);
     else game.onVillageLost(this);
   }

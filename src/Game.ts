@@ -465,6 +465,10 @@ export class Game {
     return (this.lightCache = [...own, ...reached.map((v) => this.neighbourGlow(v)), ...this.extraLight]);
   }
   private lightCache: LightShape[] | null = null;
+  /** The light changed at once (a village won or lost, a prayer place raised, the Nexus lit): forget the kept shapes. */
+  lightChanged() {
+    this.lightCache = null;
+  }
 
   /** More gold on the ground, beyond the villages' own (the last age: the Nexus's light at the heart of the island, src/nexus). */
   readonly extraLight: LightShape[] = [];
@@ -567,6 +571,7 @@ export class Game {
   }
 
   private updateInfluence() {
+    this.lightCache = null;
     this.terrain.setInfluence(this.lightShapes());
     // The rival god's villages get a violet ring of their own.
     this.terrain.setRivalInfluence(
