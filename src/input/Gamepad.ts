@@ -120,10 +120,18 @@ export class GamepadInput {
     this.reticle.classList.remove('on');
     document.body.classList.remove('pad-on');
     this.clearFocus();
-    // Let go of anything the pad was holding down, so the mouse starts clean.
+    this.letGo(); // so the mouse starts clean
+    this.placed = false;
+  }
+
+  /** Let go of anything the pad is holding down (A on the land or the golem, LT). */
+  private letGo() {
     if (this.aMode === 'hold-up') this.input.padButton(0, false);
     this.aMode = 'none';
-    this.placed = false;
+    if (this.ltDown) {
+      this.ltDown = false;
+      this.input.padButton(2, false);
+    }
   }
 
   private activate() {
@@ -196,6 +204,10 @@ export class GamepadInput {
     const { pad, axes } = this.read();
     if (!pad) {
       if (this.active && !this.flagged) this.hide();
+      // Unplugged, or its battery died, with A or LT held: let go, so the camera is not left grabbed or turning and
+      // the press is not finished as a click when the pad comes back (2026-11-18 couch playtest).
+      this.letGo();
+      this.prev = [];
       return;
     }
     this.flag();
@@ -413,8 +425,11 @@ export class GamepadInput {
   // ----------------------------------------------------------- HUD under the hand
 
   private uiUnderHand(): HTMLElement | null {
-    const t = document.elementFromPoint(this.px, this.py);
-    if (!t || !(t instanceof HTMLElement)) return null;
+    let t = document.elementFromPoint(this.px, this.py);
+    // An icon drawn in SVG (the glyph in the middle of a prayer card) is not an HTML element: press the HTML control it
+    // sits in, as a mouse click on it does (2026-11-18 couch playtest: A on the middle of a prayer card did nothing).
+    while (t && !(t instanceof HTMLElement)) t = t.parentElement;
+    if (!t) return null;
     if (t instanceof HTMLCanvasElement || t.id === 'app' || t === document.body || t === document.documentElement) return null;
     if (t.classList.contains('hud') || t.classList.contains('pad-reticle')) return null;
     return t;

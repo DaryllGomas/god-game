@@ -27,6 +27,8 @@ Five testers played the build with real input: a new player, a controller on the
 - **A fire that burns itself out is not an answered prayer.** It used to pay as if you had put it out.
 - **Fire in a village no longer drives off Vexahl's whispers.** Only Water and Food do (`src/rival/Schemes.ts`).
 - **The very first prayer is answered by one tree**, as Ora says ("Lift a tree"). It asked for 25 wood and the first tree left it at 23 with nothing said.
+- **Controller: A on the middle of a prayer card presses it.** The middle is the card's icon, and only its edge answered; a mouse click worked anywhere (`src/input/Gamepad.ts`). Measured on both builds with `scripts/test-pad-couch.mjs`: the middle flew to the village on the new build only.
+- **Controller: unplugging the pad, or its battery dying, while A or LT is held lets go.** The land stayed grabbed or the view kept turning until a mouse moved (old build: still dragging after the pad was gone; new: let go).
 - **Advisor cards stay clear of the clock bar at 1920 wide** (they cut "SPRING Day 2" to "SPRING").
 - **Banners:** a soft dark backing so pale gold reads over a bright sky; a village's name, tags and prayer marks step aside while a banner is over them ("ASHFORD: WE ASHFORD OMPLETE!"); never behind Vexahl's card on a short screen.
 - **"Saved" has its own strip under the messages** (it printed over the newest one).
