@@ -4,6 +4,24 @@ Notable changes to THE FIRST WORLD (formerly "God Game"), newest first. Dates ar
 
 ## [Unreleased]
 
+## v0.12.4 (live 2026-11-18)
+
+### Noted, not changed (design calls left as they are; Daryll, 2026-11-18: "just leave all those, note them")
+Found by the 2026-11-17 objective playtest. None is broken; each changes how the game plays, so each waits for Daryll.
+- The golem can eat a villager about 40 seconds into a new game, with only its panel text as a warning.
+- Prayer power fills up to its cap with no hint to spend it.
+- The HUD does not grow on big screens (about 7% of a 2488×1498 window, 13 px text).
+- Skipping the intro takes two clicks, and the hint is faint.
+- The golem panel is tall, with its "Preview looks" buttons always shown.
+- Reloading drops the prayers that were open.
+- The hand is hard to see against snow.
+- Fire prayers are nearly impossible at 4× (the house is gone in about 16 game seconds).
+- Prayers pay 15 to 30 power; miracles cost 217 to 345.
+- Ignored prayers lower the village's balance without saying so.
+- A hungry village can starve into a cascade.
+- Stone is now plentiful (about 105 rocks and 1,555 stone in reach of the home village, was 7 and 105).
+- Vexahl never retreats (the README says so now; the game was not changed).
+
 ### Fixed (v0.12.4, 2026-11-17; Daryll: "almost any rock is unable to be picked up. I have to move the hand all over randomly and I get lucky if I pick up a rock")
 - **Every rock you can see is a rock you can pick up.** This was the real fault. The island draws about 1,000 scattered rocks (since the v0.6 land update) with the same shape and stone as the 64 real boulders, and they were scenery: the hand passed through them. Looking over the first village, 45 rocks were on screen inside your light and 2 could be taken. Now a scattered rock near the hand becomes a real boulder where it lies, same size, turn and tint, so nothing is seen to change, and it is grabbed, thrown and built with like any other (`src/land/LooseRocks.ts`, `src/entities/Nature.ts`, `src/Game.ts`).
   - Measured (`scripts/test-any-rock.mjs`: story mode, three views over the home village, every rock on screen inside your light clicked once): **7 of 142 (5%) on the live build, 117 of 119 (98%) now.**
